@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <meta name="theme-color" content="#151e2d" />
+    <meta name="description" content="Compare and analyze key startup metrics across revenue ranges with our comprehensive benchmarking platform. Make data-driven decisions with industry-standard metrics." />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Security Headers -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-ancestors 'none'; form-action 'self'" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains" />
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+
+    <!-- Resource Hints -->
+    <link rel="preconnect" href="https://accounts.google.com" />
+    <link rel="dns-prefetch" href="https://accounts.google.com" />
+
+    <!-- Preload Critical Assets -->
+    <link rel="preload" href="./src/assets/fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./src/assets/fonts/Inter-Bold.woff2" as="font" type="font/woff2" crossorigin />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="./src/assets/images/favicon.ico" />
+
+    <!-- Title -->
+    <title>Startup Metrics Benchmarking Platform</title>
+
+    <!-- Base Styles -->
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('./src/assets/fonts/Inter-Regular.woff2') format('woff2');
+      }
+
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('./src/assets/fonts/Inter-Bold.woff2') format('woff2');
+      }
+
+      :root {
+        --color-primary: #151e2d;
+        --color-secondary: #46608C;
+        --color-accent: #168947;
+        --color-background: #DBEAAC;
+        --color-text: #0D3330;
+      }
+
+      html {
+        box-sizing: border-box;
+        scroll-behavior: smooth;
+      }
+
+      *, *::before, *::after {
+        box-sizing: inherit;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        background-color: var(--color-background);
+        color: var(--color-text);
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Skip to main content link */
+      .skip-link {
+        position: absolute;
+        top: -40px;
+        left: 0;
+        background: var(--color-primary);
+        color: white;
+        padding: 8px;
+        z-index: 100;
+        transition: top 0.3s;
+      }
+
+      .skip-link:focus {
+        top: 0;
+      }
+
+      /* Loading state */
+      #root:empty {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: var(--color-background);
+      }
+
+      #root:empty::after {
+        content: "Loading...";
+        color: var(--color-primary);
+        font-size: 1.2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Skip to main content link -->
+    <a href="#root" class="skip-link">Skip to main content</a>
+
+    <!-- Root element for React application -->
+    <div id="root" role="application" aria-label="Startup Metrics Benchmarking Platform"></div>
+
+    <!-- Entry point script -->
+    <script type="module" src="./src/main.tsx"></script>
+
+    <!-- Fallback for JavaScript disabled -->
+    <noscript>
+      <div style="padding: 20px; text-align: center;">
+        <h1>JavaScript Required</h1>
+        <p>Please enable JavaScript to use the Startup Metrics Benchmarking Platform.</p>
+      </div>
+    </noscript>
+  </body>
+</html>
