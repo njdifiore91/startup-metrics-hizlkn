@@ -1,0 +1,191 @@
+# Kibana 7.17.0 Configuration
+# Enterprise-grade configuration for Startup Metrics Benchmarking Platform
+
+#----------------------
+# Server Configuration
+#----------------------
+server:
+  host: "0.0.0.0"
+  port: 5601
+  name: "startup-metrics-kibana"
+  basePath: "/kibana"
+  maxPayloadBytes: 1048576
+  ssl:
+    enabled: true
+    certificate: "/etc/kibana/certs/kibana.crt"
+    key: "/etc/kibana/certs/kibana.key"
+  compression:
+    enabled: true
+    level: 6
+  publicBaseUrl: "https://kibana.startup-metrics.internal"
+
+#----------------------
+# Elasticsearch Connection
+#----------------------
+elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: "${ELASTICSEARCH_USERNAME}"
+  password: "${ELASTICSEARCH_PASSWORD}"
+  requestTimeout: 30000
+  shardTimeout: 30000
+  ssl:
+    verificationMode: "certificate"
+    certificateAuthorities: ["/etc/kibana/certs/ca.crt"]
+  pingTimeout: 3000
+  startupTimeout: 5000
+  sniffOnStart: true
+  sniffInterval: 60000
+
+#----------------------
+# Kibana Settings
+#----------------------
+kibana:
+  index: ".kibana"
+  defaultAppId: "home"
+  maxBucketSize: 10000
+  monitoring:
+    enabled: true
+    ui:
+      container:
+        elasticsearch:
+          enabled: true
+  autocompleteTimeout: 1000
+  autocompleteTerminateAfter: 100000
+
+#----------------------
+# Logging Configuration
+#----------------------
+logging:
+  dest: stdout
+  quiet: false
+  verbose: false
+  json: true
+  rotate:
+    enabled: true
+    size: "100mb"
+    interval: "24h"
+  events:
+    ops: true
+    response: true
+    status: true
+
+#----------------------
+# X-Pack Features
+#----------------------
+xpack:
+  security:
+    enabled: true
+    encryptionKey: "${ENCRYPTION_KEY}"
+    session:
+      idleTimeout: "1h"
+      lifespan: "24h"
+  monitoring:
+    enabled: true
+    kibana:
+      collection:
+        enabled: true
+        interval: 10s
+  reporting:
+    enabled: true
+    capture:
+      maxAttempts: 3
+      timeout: "30s"
+    csv:
+      maxSizeBytes: 10485760
+    encryptionKey: "${REPORTING_ENCRYPTION_KEY}"
+  spaces:
+    enabled: true
+  encryptedSavedObjects:
+    encryptionKey: "${ENCRYPTION_KEY}"
+
+#----------------------
+# Visualization Defaults
+#----------------------
+visualization:
+  metric_visualizations:
+    refresh_interval: "5s"
+    time_field: "@timestamp"
+    default_index_pattern: "startup-metrics-*"
+    max_buckets: 10000
+    default_columns: ["timestamp", "level", "message"]
+    highlight_settings:
+      pre_tags: ["<mark>"]
+      post_tags: ["</mark>"]
+      fields:
+        "*": {}
+
+#----------------------
+# Dashboard Defaults
+#----------------------
+dashboard:
+  defaults:
+    dark_mode: false
+    default_route: "/app/dashboards"
+    show_help_links: true
+    auto_refresh: true
+    time_restore: true
+    vacuum_frequency: "24h"
+    max_visualization_size: 5000
+
+#----------------------
+# Search Settings
+#----------------------
+search:
+  timeout:
+    default: "30s"
+  max_buckets: 10000
+  default_page_size: 100
+  highlight:
+    enabled: true
+    boundary_chars: "-.,!? \t\n"
+    boundary_max_scan: 20
+    fragment_size: 2000
+    number_of_fragments: 5
+
+#----------------------
+# Map Settings
+#----------------------
+map:
+  includeElasticMapsService: true
+  tilemap:
+    options:
+      attribution: "© OpenStreetMap contributors"
+      maxZoom: 18
+
+#----------------------
+# Performance Tuning
+#----------------------
+optimize:
+  enabled: true
+  bundle:
+    maxBytes: 5242880
+    cache:
+      maxAge: 3600000
+  lazy: true
+  watch: false
+
+#----------------------
+# CORS Settings
+#----------------------
+cors:
+  enabled: true
+  origin: ["https://*.startup-metrics.internal"]
+  credentials: true
+  headers: ["Authorization", "Content-Type", "kbn-version"]
+  maxAge: 1728000
+
+#----------------------
+# Telemetry Settings
+#----------------------
+telemetry:
+  enabled: false
+  allowChangingOptInStatus: false
+  optIn: false
+
+#----------------------
+# Saved Objects Settings
+#----------------------
+savedObjects:
+  maxImportPayloadBytes: 26214400
+  maxImportExportSize: 10000
+  perPage: 100
