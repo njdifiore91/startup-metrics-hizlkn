@@ -1,0 +1,47 @@
+File Format: ICO (Windows Icon)
+File Size: <= 5KB
+
+Image Specifications:
+- Multiple sizes included: 16x16, 32x32, 48x48 pixels
+- Format: 32-bit RGBA (supports transparency)
+- Color Profile: sRGB
+- Primary Color: #151e2d (dark blue)
+- Background: Transparent
+- Minimum Contrast Ratio: 4.5:1
+
+Design Implementation:
+- Simple, geometric "SM" monogram representing "Startup Metrics"
+- Clean lines optimized for small size legibility
+- Maintains brand recognition at all sizes
+- Uses primary brand color #151e2d
+
+Size Variants:
+1. 16x16 - Simplified version for browser tabs
+2. 32x32 - Standard favicon size
+3. 48x48 - Enhanced detail for larger displays
+
+Optimization:
+- Lossless ICO compression
+- Optimized color palette
+- Minimized binary size
+- Stripped metadata
+
+Browser Support:
+- Chrome 49+
+- Firefox 52+
+- Safari 10+
+- Edge 14+
+- Opera 36+
+
+Cache Headers:
+Cache-Control: public, max-age=31536000
+ETag: enabled
+Vary: Accept-Encoding
+
+Accessibility:
+- Recognizable at all sizes
+- Sufficient contrast ratio (4.5:1)
+- Visible in light/dark browser themes
+- Distinct silhouette for quick recognition
+
+[End of binary file specifications]
