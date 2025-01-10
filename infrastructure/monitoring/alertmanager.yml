@@ -1,0 +1,144 @@
+# AlertManager Configuration v0.25.0
+# Comprehensive alert routing and notification configuration for Startup Metrics Benchmarking Platform
+
+global:
+  # Global timeout for resolved alerts
+  resolve_timeout: 5m
+  
+  # SMTP Configuration
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@startupmetrics.com'
+  smtp_require_tls: true
+  
+  # PagerDuty Configuration
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+  
+  # Slack Configuration
+  slack_api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+
+# High Availability Cluster Configuration
+cluster:
+  peers:
+    - 'alertmanager-1:9094'
+    - 'alertmanager-2:9094'
+
+# Templates for notifications
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Main routing tree
+route:
+  # Default grouping
+  group_by: ['alertname', 'cluster', 'service', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-receiver'
+
+  # Nested routes for different severity levels and business hours
+  routes:
+    # Critical alerts during business hours
+    - match:
+        severity: 'critical'
+        business_hours: 'true'
+      receiver: 'pager-duty-critical'
+      group_wait: 0s
+      repeat_interval: 30m
+      continue: true
+
+    # Critical alerts after hours
+    - match:
+        severity: 'critical'
+        business_hours: 'false'
+      receiver: 'pager-duty-critical-afterhours'
+      group_wait: 0s
+      repeat_interval: 15m
+
+    # Warning alerts
+    - match:
+        severity: 'warning'
+      receiver: 'email-warnings'
+      group_wait: 5m
+      repeat_interval: 2h
+
+# Receiver definitions
+receivers:
+  - name: 'default-receiver'
+    email_configs:
+      - to: 'team@startupmetrics.com'
+        send_resolved: true
+
+  - name: 'pager-duty-critical'
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+        send_resolved: true
+    email_configs:
+      - to: 'oncall@startupmetrics.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#critical-alerts'
+        send_resolved: true
+
+  - name: 'pager-duty-critical-afterhours'
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_AFTERHOURS_KEY'
+        send_resolved: true
+    email_configs:
+      - to: 'oncall@startupmetrics.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#critical-alerts'
+        send_resolved: true
+
+  - name: 'email-warnings'
+    email_configs:
+      - to: 'alerts@startupmetrics.com'
+        send_resolved: true
+    slack_configs:
+      - channel: '#warning-alerts'
+        send_resolved: true
+
+# Inhibition rules to prevent alert spam
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+
+# Time intervals for business hours
+time_intervals:
+  - name: business_hours
+    time_intervals:
+      - weekdays: ['monday:friday']
+        times:
+          - start_time: '09:00'
+            end_time: '17:00'
+    
+# Mute time intervals for maintenance windows
+mute_time_intervals:
+  - name: maintenance_windows
+    time_intervals:
+      - weekdays: ['sunday']
+        times:
+          - start_time: '00:00'
+            end_time: '04:00'
+
+# Default notification template
+templates:
+  - name: 'default'
+    template: |
+      {{ define "default" }}
+      [{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} - {{ if eq .Status "firing" }}{{ .CommonAnnotations.summary }}{{ else }}Resolved{{ end }}
+      Alert: {{ .GroupLabels.alertname }}
+      Severity: {{ .CommonLabels.severity }}
+      Status: {{ .Status }}
+      Cluster: {{ .CommonLabels.cluster }}
+      Service: {{ .CommonLabels.service }}
+
+      {{ range .Alerts }}
+      Description: {{ .Annotations.description }}
+      Start: {{ .StartsAt }}
+      Metrics: {{ .GeneratorURL }}
+      {{ end }}
+      {{ end }}
