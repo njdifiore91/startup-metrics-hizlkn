@@ -1,0 +1,166 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  NODE_ENV: test
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          cd src/backend && npm ci
+          cd ../web && npm ci
+
+      - name: Run backend npm audit
+        run: |
+          cd src/backend
+          npm audit --audit-level=high --json > backend-audit.json || true
+
+      - name: Run frontend npm audit
+        run: |
+          cd src/web
+          npm audit --audit-level=high --json > frontend-audit.json || true
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'startup-metrics'
+          path: 'src'
+          format: 'HTML'
+          args: >
+            --suppression suppression.xml
+            --failOnCVSS 7
+            --enableRetired
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-scan-results
+          path: |
+            src/backend/backend-audit.json
+            src/web/frontend-audit.json
+            reports
+          retention-days: 90
+
+  code-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript, typescript
+          queries: security-extended,security-and-quality
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:javascript"
+          upload: true
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build backend image
+        run: |
+          cd src/backend
+          docker build -t startup-metrics-backend:${{ github.sha }} .
+
+      - name: Build frontend image
+        run: |
+          cd src/web
+          docker build -t startup-metrics-frontend:${{ github.sha }} .
+
+      - name: Run Trivy vulnerability scanner - Backend
+        uses: aquasecurity/trivy-action@0.11.2
+        with:
+          image-ref: 'startup-metrics-backend:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+
+      - name: Run Trivy vulnerability scanner - Frontend
+        uses: aquasecurity/trivy-action@0.11.2
+        with:
+          image-ref: 'startup-metrics-frontend:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: container-scan-results
+          path: |
+            trivy-backend-results.sarif
+            trivy-frontend-results.sarif
+          retention-days: 90
+
+      - name: Post scan results to Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+  notify:
+    name: Notify Security Issues
+    needs: [dependency-scan, code-analysis, container-scan]
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "Security scan failed in ${{ github.repository }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Security Scan Failed*\nRepository: ${{ github.repository }}\nBranch: ${{ github.ref }}\nCommit: ${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }}
