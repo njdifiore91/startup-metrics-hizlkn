@@ -1,0 +1,160 @@
+# Prometheus configuration file v2.45.0
+# Implements comprehensive monitoring for Startup Metrics Benchmarking Platform
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    environment: production
+    region: us-west-2
+
+# Alert Manager integration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+          labels:
+            severity: critical
+      timeout: 5s
+      scheme: http
+
+# Rule files containing alert and recording rules
+rule_files:
+  - "rules/availability.yml"
+  - "rules/performance.yml"
+  - "rules/resources.yml"
+  - "rules/business_metrics.yml"
+
+# Scrape configurations for all monitored services
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    honor_labels: true
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # API service monitoring
+  - job_name: api
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ['api:3000']
+        labels:
+          service: api
+          environment: production
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '^(http_request_duration_seconds|http_requests_total|api_latency_seconds).*'
+        action: keep
+
+  # Node exporter for system metrics
+  - job_name: node-exporter
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: '^node_(cpu|memory|filesystem|network).*'
+        action: keep
+
+  # PostgreSQL metrics
+  - job_name: postgres-exporter
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'pg_.*'
+        action: keep
+
+  # Redis metrics
+  - job_name: redis-exporter
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'redis_(memory|connected_clients|commands|keyspace).*'
+        action: keep
+
+# Recording rules for key metrics
+recording_rules:
+  groups:
+    - name: availability_rules
+      rules:
+        - record: service_availability_ratio
+          expr: avg_over_time(up[5m])
+        - record: service_uptime_ratio
+          expr: sum(up) / count(up)
+
+    - name: performance_rules
+      rules:
+        - record: api_request_latency:95percentile
+          expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+        - record: database_performance:avg_query_time
+          expr: rate(database_query_duration_seconds_sum[5m]) / rate(database_query_duration_seconds_count[5m])
+
+# Alert rules for critical conditions
+alerts:
+  groups:
+    - name: availability_alerts
+      rules:
+        - alert: ServiceDown
+          expr: up == 0
+          for: 1m
+          labels:
+            severity: critical
+            category: availability
+          annotations:
+            summary: "Service is down"
+            description: "Service {{ $labels.job }} has been down for more than 1 minute"
+            runbook_url: "https://wiki.example.com/runbooks/service-down"
+
+    - name: performance_alerts
+      rules:
+        - alert: HighResponseTime
+          expr: http_request_duration_seconds{quantile="0.95"} > 2
+          for: 5m
+          labels:
+            severity: warning
+            category: performance
+          annotations:
+            summary: "High response time detected"
+            description: "95th percentile response time is above 2 seconds for {{ $labels.service }}"
+            runbook_url: "https://wiki.example.com/runbooks/high-latency"
+
+    - name: resource_alerts
+      rules:
+        - alert: HighMemoryUsage
+          expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+          for: 5m
+          labels:
+            severity: warning
+            category: resources
+          annotations:
+            summary: "High memory usage detected"
+            description: "Server memory is running low (< 10% available)"
+            runbook_url: "https://wiki.example.com/runbooks/memory-usage"
+        
+        - alert: HighCPUUsage
+          expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+          for: 5m
+          labels:
+            severity: warning
+            category: resources
+          annotations:
+            summary: "High CPU usage detected"
+            description: "CPU usage is above 90% for {{ $labels.instance }}"
+            runbook_url: "https://wiki.example.com/runbooks/cpu-usage"
+
+        - alert: DiskSpaceLow
+          expr: node_filesystem_avail_bytes / node_filesystem_size_bytes * 100 < 15
+          for: 5m
+          labels:
+            severity: warning
+            category: resources
+          annotations:
+            summary: "Low disk space"
+            description: "Disk space usage is above 85% for {{ $labels.instance }}"
+            runbook_url: "https://wiki.example.com/runbooks/disk-space"
