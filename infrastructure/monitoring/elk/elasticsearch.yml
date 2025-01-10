@@ -1,0 +1,117 @@
+# Elasticsearch 7.17.0 Configuration
+# Enhanced configuration for Startup Metrics Benchmarking Platform monitoring
+
+#----------------------
+# Cluster Configuration
+#----------------------
+cluster:
+  name: startup-metrics-es
+  initial_master_nodes: 
+    - "node-1"
+  routing:
+    allocation:
+      disk:
+        threshold_enabled: true
+        watermark:
+          low: "85%"
+          high: "90%"
+          flood_stage: "95%"
+      cluster_concurrent_rebalance: 2
+      node_concurrent_recoveries: 2
+      node_initial_primaries_recoveries: 4
+
+#----------------------
+# Node Configuration
+#----------------------
+node:
+  name: "node-1"
+  data: true
+  master: true
+  ingest: true
+  max_local_storage_nodes: 1
+  attr:
+    box_type: "hot"
+  store:
+    allow_mmap: false
+
+#----------------------
+# Network Configuration
+#----------------------
+network:
+  host: "0.0.0.0"
+  port: 9200
+
+http:
+  port: 9200
+  cors:
+    enabled: true
+    allow-origin: "*"
+    allow-methods: "OPTIONS, HEAD, GET, POST, PUT, DELETE"
+    allow-headers: "X-Requested-With, X-Auth-Token, Content-Type, Content-Length"
+  max_content_length: "100mb"
+  compression: true
+
+#----------------------
+# Paths Configuration
+#----------------------
+path:
+  data: "/var/lib/elasticsearch"
+  logs: "/var/log/elasticsearch"
+  repo: "/var/backups/elasticsearch"
+  temp: "/tmp/elasticsearch"
+
+#----------------------
+# Bootstrap Settings
+#----------------------
+bootstrap:
+  memory_lock: true
+  system_call_filter: true
+
+processors: 4
+
+#----------------------
+# Discovery Configuration
+#----------------------
+discovery:
+  seed_hosts: ["127.0.0.1"]
+  type: "single-node"
+  zen:
+    minimum_master_nodes: 1
+    ping_timeout: "5s"
+    fd.ping_timeout: "5s"
+
+#----------------------
+# X-Pack Settings
+#----------------------
+xpack:
+  security:
+    enabled: false
+  monitoring:
+    enabled: true
+    collection:
+      enabled: true
+
+#----------------------
+# Index Settings
+#----------------------
+action.auto_create_index: true
+
+#----------------------
+# Memory Management
+#----------------------
+indices:
+  memory:
+    index_buffer_size: "30%"
+  queries:
+    cache:
+      size: "5%"
+  fielddata:
+    cache:
+      size: "20%"
+
+#----------------------
+# Thread Pool
+#----------------------
+thread_pool:
+  write:
+    queue_size: 1000
