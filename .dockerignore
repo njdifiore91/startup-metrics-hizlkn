@@ -1,0 +1,71 @@
+node_modules
+npm-debug.log
+*.log
+
+# Version control
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Environment and config files
+.env*
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Test files
+tests/
+**/__tests__/**
+**/__mocks__/**
+*.test.*
+*.spec.*
+jest.config.*
+
+# IDE settings
+.vscode/
+.idea/
+*.sublime-*
+
+# Development configs
+.eslintrc*
+.prettierrc*
+.babelrc*
+tsconfig.json
+webpack.config.js
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Misc development files
+.DS_Store
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Build and dependency locks
+yarn.lock
+package-lock.json
+
+# Development tooling
+.editorconfig
+.nvmrc
+.tool-versions
+
+# Production exclusions
+README.md
+CHANGELOG.md
+LICENSE
+docs/**
+*.config.js
