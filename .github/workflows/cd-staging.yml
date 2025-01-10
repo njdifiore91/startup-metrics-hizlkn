@@ -1,0 +1,165 @@
+name: Staging Deployment
+
+on:
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    branches: [develop]
+    types: [completed]
+
+env:
+  AWS_REGION: us-east-1
+  TF_WORKSPACE: staging
+  DOCKER_BUILDKIT: '1'
+  LOG_LEVEL: debug
+
+concurrency:
+  group: staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.0.0"
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Initialize Terraform
+        working-directory: infrastructure/terraform/environments/staging
+        run: |
+          terraform init -backend=true
+          terraform workspace select staging || terraform workspace new staging
+
+      - name: Validate Terraform configuration
+        working-directory: infrastructure/terraform/environments/staging
+        run: terraform validate
+
+      - name: Apply Terraform changes
+        working-directory: infrastructure/terraform/environments/staging
+        run: |
+          terraform plan -out=tfplan
+          terraform apply -auto-approve tfplan
+
+      - name: Configure CloudWatch monitoring
+        uses: aws-actions/amazon-cloudwatch-actions@v1
+        with:
+          namespace: "StartupMetrics/Staging"
+          metric-name: "DeploymentStatus"
+          value: 1
+          unit: Count
+
+  deploy-application:
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.app_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and tag images
+        run: |
+          docker build -t startup-metrics-web:${{ github.sha }} ./src/web
+          docker build -t startup-metrics-api:${{ github.sha }} ./src/backend
+          docker tag startup-metrics-web:${{ github.sha }} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-web:${{ github.sha }}
+          docker tag startup-metrics-api:${{ github.sha }} ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-api:${{ github.sha }}
+
+      - name: Push images to ECR
+        run: |
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-web:${{ github.sha }}
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-api:${{ github.sha }}
+
+      - name: Create new ECS task definitions
+        id: task-def
+        run: |
+          aws ecs register-task-definition \
+            --family startup-metrics-staging \
+            --container-definitions file://ecs/staging-task-definition.json \
+            --task-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/startup-metrics-staging-task \
+            --execution-role-arn arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/startup-metrics-staging-execution
+
+      - name: Deploy to ECS
+        id: deploy
+        run: |
+          aws ecs update-service \
+            --cluster startup-metrics-staging \
+            --service startup-metrics-staging-blue \
+            --task-definition ${{ steps.task-def.outputs.taskDefinitionArn }} \
+            --force-new-deployment
+
+      - name: Wait for deployment stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster startup-metrics-staging \
+            --services startup-metrics-staging-blue
+
+      - name: Update target group
+        run: |
+          aws elbv2 modify-target-group \
+            --target-group-arn ${{ steps.deploy.outputs.target_group_arn }} \
+            --health-check-path /health \
+            --health-check-interval-seconds 30
+
+      - name: Monitor deployment health
+        run: |
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://staging.startup-metrics.com/health)
+            if [ "$response" == "200" ]; then
+              echo "Deployment healthy"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Deployment health check failed"
+          exit 1
+
+  post-deployment-validation:
+    needs: deploy-application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run integration tests
+        run: |
+          npm install
+          npm run test:integration
+
+      - name: Verify metrics
+        run: |
+          aws cloudwatch get-metric-statistics \
+            --namespace "StartupMetrics/Staging" \
+            --metric-name "ResponseTime" \
+            --period 300 \
+            --statistics Average \
+            --start-time $(date -u -v-1H +"%Y-%m-%dT%H:%M:%SZ") \
+            --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+      - name: Send deployment notification
+        if: always()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{"text":"Staging deployment ${{ job.status }}: ${{ github.sha }}"}' \
+            ${{ secrets.SLACK_WEBHOOK_URL }}
