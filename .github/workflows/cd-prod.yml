@@ -1,0 +1,225 @@
+name: Production Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+        type: string
+      deployment_window:
+        description: 'Preferred deployment window'
+        required: true
+        type: string
+        default: 'off-peak'
+
+# Ensure only one production deployment runs at a time
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  TF_WORKSPACE: prod
+  NODE_ENV: production
+  DEPLOYMENT_TIMEOUT: '3600'
+
+jobs:
+  validate:
+    name: Pre-deployment Validation
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.app_url }}
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Verify CI Workflow Status
+        run: |
+          if [[ $(gh run list --workflow=ci.yml --branch main --json conclusion -q '.[0].conclusion') != "success" ]]; then
+            echo "Latest CI workflow must pass before deployment"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: Run Security Scan
+        uses: snyk/actions/node@v2
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.x'
+
+      - name: Initialize Terraform
+        run: |
+          cd infrastructure/terraform/environments/prod
+          terraform init
+          terraform validate
+
+      - name: Check Infrastructure Drift
+        run: |
+          cd infrastructure/terraform/environments/prod
+          terraform plan -detailed-exitcode
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Run OWASP Dependency Check
+        run: |
+          npm install -g @owasp/dependency-check
+          dependency-check --project "Startup Metrics" --scan . --format HTML --format JSON
+          
+      - name: Verify Backup Integrity
+        run: |
+          aws s3 ls s3://startup-metrics-backups/prod/
+          aws rds describe-db-snapshots --db-instance-identifier startup-metrics-prod
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  build:
+    needs: [validate]
+    name: Build Production Images
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Backend Image
+        run: |
+          docker build -t startup-metrics-backend:${{ github.sha }} \
+            --build-arg NODE_ENV=production \
+            --build-arg VERSION=${{ github.event.inputs.version || github.sha }} \
+            -f src/backend/Dockerfile ./src/backend
+          
+          docker tag startup-metrics-backend:${{ github.sha }} \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-backend:${{ github.sha }}
+
+      - name: Build Frontend Image
+        run: |
+          docker build -t startup-metrics-frontend:${{ github.sha }} \
+            --build-arg NODE_ENV=production \
+            --build-arg VERSION=${{ github.event.inputs.version || github.sha }} \
+            -f src/web/Dockerfile ./src/web
+          
+          docker tag startup-metrics-frontend:${{ github.sha }} \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-frontend:${{ github.sha }}
+
+      - name: Scan Container Images
+        run: |
+          docker scan startup-metrics-backend:${{ github.sha }} --severity high
+          docker scan startup-metrics-frontend:${{ github.sha }} --severity high
+
+      - name: Push Images to ECR
+        run: |
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-backend:${{ github.sha }}
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/startup-metrics-frontend:${{ github.sha }}
+
+  deploy:
+    needs: [build]
+    name: Production Deployment
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.app_url }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Initialize Blue/Green Deployment
+        id: init-deployment
+        run: |
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name startup-metrics \
+            --deployment-group-name prod \
+            --revision revisionType=AppSpecContent,content="version: 0.0,Resources:[{TargetService:{Type: AWS::ECS::Service,Properties: {TaskDefinition: <TASK_DEFINITION>,LoadBalancerInfo: {ContainerName: startup-metrics,ContainerPort: 80}}}}]" \
+            --output text --query 'deploymentId')
+          echo "::set-output name=deployment_id::${DEPLOYMENT_ID}"
+
+      - name: Wait for Deployment Health Check
+        run: |
+          aws deploy wait deployment-successful --deployment-id ${{ steps.init-deployment.outputs.deployment_id }}
+          HEALTH_CHECK_COUNT=0
+          while [ $HEALTH_CHECK_COUNT -lt 30 ]; do
+            STATUS=$(aws ecs describe-services \
+              --cluster startup-metrics-prod \
+              --services startup-metrics-prod \
+              --query 'services[0].deployments[0].rolloutState' \
+              --output text)
+            if [ "$STATUS" = "COMPLETED" ]; then
+              break
+            fi
+            HEALTH_CHECK_COUNT=$((HEALTH_CHECK_COUNT+1))
+            sleep 30
+          done
+
+      - name: Monitor Deployment Metrics
+        run: |
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/ApplicationELB \
+            --metric-name HTTPCode_Target_5XX_Count \
+            --dimensions Name=LoadBalancer,Value=${{ secrets.ALB_NAME }} \
+            --start-time $(date -u -v-15M +"%Y-%m-%dT%H:%M:00Z") \
+            --end-time $(date -u +"%Y-%m-%dT%H:%M:00Z") \
+            --period 300 \
+            --statistics Sum
+
+      - name: Finalize or Rollback Deployment
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            aws deploy update-deployment-group \
+              --application-name startup-metrics \
+              --deployment-group-name prod \
+              --deployment-style routingConfig={type=BLUE_GREEN},deploymentOption=WITH_TRAFFIC_CONTROL
+          else
+            aws deploy stop-deployment \
+              --deployment-id ${{ steps.init-deployment.outputs.deployment_id }} \
+              --auto-rollback-enabled
+          fi
+
+      - name: Notify Deployment Status
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          channel-id: 'prod-deployments'
+          slack-message: |
+            Deployment Status: ${{ job.status }}
+            Environment: Production
+            Version: ${{ github.event.inputs.version || github.sha }}
+            Deployment ID: ${{ steps.init-deployment.outputs.deployment_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
