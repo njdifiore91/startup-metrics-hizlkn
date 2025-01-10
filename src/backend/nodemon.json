@@ -1,0 +1,26 @@
+{
+  "watch": [
+    "src/**/*"
+  ],
+  "ext": ".ts,.js,.json",
+  "ignore": [
+    "src/**/*.spec.ts",
+    "src/**/*.test.ts",
+    "src/tests/**/*",
+    "src/**/*.d.ts",
+    "src/coverage/**/*",
+    "src/**/*.map"
+  ],
+  "exec": "ts-node --project ./tsconfig.json ./src/server.ts",
+  "env": {
+    "NODE_ENV": "development",
+    "TS_NODE_PROJECT": "./tsconfig.json",
+    "TS_NODE_TRANSPILE_ONLY": "true"
+  },
+  "verbose": true,
+  "restartable": "rs",
+  "colours": true,
+  "delay": 1000,
+  "legacyWatch": false,
+  "polling": false
+}
