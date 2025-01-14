@@ -1,10 +1,8 @@
-import { AxiosResponse } from 'axios'; // v1.4.0
-import { IMetric, MetricCategory, ValidationRule } from '../interfaces/IMetric';
+import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
 import { api } from './api';
-import { calculatePercentile } from '../utils/metricCalculators';
-import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { useToast, ToastType, ToastPosition } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
 /**
@@ -24,6 +22,7 @@ export class MetricsService {
   private readonly cacheTimeout: number = 15 * 60 * 1000; // 15 minutes
   private metricsCache: Map<string, { data: any; timestamp: number }> = new Map();
   private pendingRequests: Map<string, Promise<any>> = new Map();
+  private toast = useToast();
 
   /**
    * Retrieves all available metrics with caching and error handling
@@ -63,7 +62,7 @@ export class MetricsService {
       return { data: metrics };
     } catch (error) {
       const errorMessage = 'Failed to fetch metrics';
-      showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      this.toast.showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
       return { data: [], error: errorMessage };
     } finally {
       this.pendingRequests.delete(cacheKey);
@@ -84,7 +83,7 @@ export class MetricsService {
       return { data: filteredMetrics };
     } catch (error) {
       const errorMessage = `Failed to fetch metrics for category: ${category}`;
-      showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      this.toast.showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
       return { data: [], error: errorMessage };
     }
   }
@@ -116,8 +115,8 @@ export class MetricsService {
       return { data: metric };
     } catch (error) {
       const errorMessage = `Failed to fetch metric with ID: ${id}`;
-      showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: null, error: errorMessage };
+      this.toast.showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      return { data: {} as IMetric, error: errorMessage };
     }
   }
 
@@ -134,15 +133,15 @@ export class MetricsService {
     try {
       // Fetch metric definition for validation
       const metricResponse = await this.getMetricById(metricId);
-      if (metricResponse.error) return { data: null, error: metricResponse.error };
+      if (metricResponse.error) return { data: {} as ICompanyMetric, error: metricResponse.error };
 
       const metric = metricResponse.data;
 
       // Validate metric value
       if (!validateCompanyMetricValue(value, metric)) {
         const errorMessage = 'Invalid metric value';
-        showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-        return { data: null, error: errorMessage };
+        this.toast.showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+        return { data: {} as ICompanyMetric, error: errorMessage };
       }
 
       const response = await api.post<ICompanyMetric>(
@@ -154,12 +153,12 @@ export class MetricsService {
         }
       );
 
-      showToast('Metric saved successfully', ToastType.SUCCESS, ToastPosition.TOP_RIGHT);
+      this.toast.showToast('Metric saved successfully', ToastType.SUCCESS, ToastPosition.TOP_RIGHT);
       return { data: response.data };
     } catch (error) {
       const errorMessage = 'Failed to save company metric';
-      showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: null, error: errorMessage };
+      this.toast.showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      return { data: {} as ICompanyMetric, error: errorMessage };
     }
   }
 
@@ -200,8 +199,8 @@ export class MetricsService {
       return { data: benchmark };
     } catch (error) {
       const errorMessage = 'Failed to fetch benchmark data';
-      showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: null, error: errorMessage };
+      this.toast.showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      return { data: {} as IBenchmark, error: errorMessage };
     }
   }
 
