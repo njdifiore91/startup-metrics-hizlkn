@@ -32,7 +32,7 @@ const TooltipContainer = styled.div<{ position: string; isVisible: boolean }>`
   max-width: 300px;
   z-index: var(--z-index-tooltip);
   pointer-events: none;
-  opacity: ${({ isVisible }) => (isVisible ? 1 : 0)};
+  opacity: ${(props: { isVisible: boolean }) => (props.isVisible ? 1 : 0)};
   transition: opacity var(--transition-fast) ease-in-out;
   box-shadow: var(--shadow-md);
 
