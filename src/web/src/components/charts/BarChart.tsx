@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Chart, ChartData, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
+import { Chart, ChartData } from 'chart.js/auto'; // chart.js@4.0.0
 import { useDebounce } from 'use-debounce'; // use-debounce@9.0.0
-import { chartColors } from '../../config/chart';
+import { CHART_COLORS } from '../../config/chart';
 import { generateChartOptions } from '../../utils/chartHelpers';
 
 // Enhanced interface for bar chart data points
@@ -60,40 +60,33 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
       datasets: [{
         data: data.map(d => d.value),
         backgroundColor: highContrastMode ? 
-          chartColors.highContrast.background : 
-          `${chartColors.primary}CC`,
+          CHART_COLORS.background : 
+          `${CHART_COLORS.primary}CC`,
         borderColor: highContrastMode ? 
-          chartColors.highContrast.border : 
-          chartColors.primary,
+          CHART_COLORS.text : 
+          CHART_COLORS.primary,
         borderWidth: 1,
         borderRadius: 4,
         barThickness: 'flex',
         maxBarThickness: 64,
-        minBarLength: 4,
-        'aria-label': `${ariaLabel} data series`,
-        role: 'graphics-symbol'
+        minBarLength: 4
       }]
     };
 
     // Enhanced chart options with accessibility support
     const options = generateChartOptions('bar', {
-      onClick: (event, elements) => {
+      onClick: (_, elements) => {
         if (onBarClick && elements.length > 0) {
           const index = elements[0].index;
           onBarClick(index, data[index].value);
         }
       },
       plugins: {
-        accessibility: {
-          enabled: true,
-          announceOnRender: true,
-          description: ariaLabel
-        },
         tooltip: {
           enabled: true,
           backgroundColor: highContrastMode ? 
-            chartColors.highContrast.tooltip : 
-            `${chartColors.primary}E6`,
+            CHART_COLORS.text : 
+            `${CHART_COLORS.primary}E6`,
           titleFont: {
             family: 'Inter',
             size: 14,
