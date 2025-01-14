@@ -1,10 +1,9 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton';
-import { Card } from '../../components/common/Card';
-import { useFocusWithin } from '@react-aria/interactions';
-import analytics from '@segment/analytics-next';
+import { useAuth } from '../../hooks/useAuth.js';
+import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton.js';
+import { Card } from '../../components/common/Card.js';
+import { useInteractions } from '@react-aria/interactions';
 
 /**
  * Login page component that implements secure Google OAuth authentication
@@ -13,28 +12,17 @@ import analytics from '@segment/analytics-next';
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, error, clearError } = useAuth();
-  const { focusWithinProps } = useFocusWithin();
-
-  // Initialize analytics
-  const analyticsInstance = analytics.getInstance();
+  const { focusWithin } = useInteractions();
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
-    analyticsInstance.track('Login Success', {
-      method: 'Google OAuth',
-      timestamp: new Date().toISOString()
-    });
     navigate('/dashboard');
-  }, [navigate, analyticsInstance]);
+  }, [navigate]);
 
   // Handle authentication errors
   const handleLoginError = useCallback((error: { code: string; message: string }) => {
-    analyticsInstance.track('Login Error', {
-      error_code: error.code,
-      error_message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }, [analyticsInstance]);
+    console.error('Login error:', error);
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -55,7 +43,7 @@ const Login: React.FC = () => {
   return (
     <div 
       className="loginContainer"
-      {...focusWithinProps}
+      {...focusWithin}
       role="main"
       aria-labelledby="login-title"
     >
@@ -99,7 +87,7 @@ const Login: React.FC = () => {
         )}
       </Card>
 
-      <style jsx>{`
+      <style>{`
         .loginContainer {
           display: flex;
           flex-direction: column;
