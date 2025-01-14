@@ -1,4 +1,4 @@
-import { Chart, ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
+import { Chart, ChartType, ChartOptions } from 'chart.js/auto.js'; // chart.js@4.0.0
 
 // Type-safe interface for chart color palette
 export interface IChartColors {
