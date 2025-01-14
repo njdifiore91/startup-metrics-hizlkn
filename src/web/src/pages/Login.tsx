@@ -1,9 +1,10 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth.js';
-import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton.js';
-import { Card } from '../../components/common/Card.js';
-import { useInteractions } from '@react-aria/interactions';
+import { useAuth } from '../../hooks/useAuth';
+import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton';
+import { Card } from '../../components/common/Card';
+import { useInteraction } from '@react-aria/interactions';
+import analytics from '@segment/analytics-next';
 
 /**
  * Login page component that implements secure Google OAuth authentication
@@ -11,18 +12,29 @@ import { useInteractions } from '@react-aria/interactions';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, clearError } = useAuth();
-  const { focusWithin } = useInteractions();
+  const { isAuthenticated, error, login, clearError } = useAuth();
+  const { focusWithin } = useInteraction();
+
+  // Initialize analytics
+  const analyticsInstance = analytics.getInstance();
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
+    analyticsInstance.track('Login Success', {
+      method: 'Google OAuth',
+      timestamp: new Date().toISOString()
+    });
     navigate('/dashboard');
-  }, [navigate]);
+  }, [navigate, analyticsInstance]);
 
   // Handle authentication errors
   const handleLoginError = useCallback((error: { code: string; message: string }) => {
-    console.error('Login error:', error);
-  }, []);
+    analyticsInstance.track('Login Error', {
+      error_code: error.code,
+      error_message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }, [analyticsInstance]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -87,7 +99,7 @@ const Login: React.FC = () => {
         )}
       </Card>
 
-      <style>{`
+      <style jsx>{`
         .loginContainer {
           display: flex;
           flex-direction: column;
