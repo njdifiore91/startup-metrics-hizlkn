@@ -205,7 +205,6 @@ export const useToast = (): UseToastReturn => {
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
       const deltaX = touchEndX - touchStartX;
-      const deltaY = touchEndY - touchStartY;
 
       // Swipe threshold
       if (Math.abs(deltaX) > 50) {
