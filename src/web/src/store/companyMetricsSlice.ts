@@ -1,9 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
-import { companyMetricsService } from '../services/companyMetrics';
-import { handleApiError } from '../utils/errorHandlers';
-import { AxiosError } from 'axios';
-import type { ApiError } from '../utils/errorHandlers';
+import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric.js';
+import { companyMetricsService } from '../services/companyMetrics.js';
+import { handleApiError } from '../utils/errorHandlers.js';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -43,7 +41,7 @@ export const fetchCompanyMetrics = createAsyncThunk(
       const metrics = await companyMetricsService.getCompanyMetrics();
       return metrics;
     } catch (error) {
-      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
+      return rejectWithValue(handleApiError(error));
     }
   }
 );
@@ -60,7 +58,7 @@ export const createCompanyMetric = createAsyncThunk(
       const createdMetric = await companyMetricsService.createCompanyMetric(metricData);
       return createdMetric;
     } catch (error) {
-      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
+      return rejectWithValue(handleApiError(error));
     }
   }
 );
@@ -79,7 +77,7 @@ export const updateCompanyMetric = createAsyncThunk(
       const updatedMetric = await companyMetricsService.updateCompanyMetric(id, data);
       return updatedMetric;
     } catch (error) {
-      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
+      return rejectWithValue(handleApiError(error));
     }
   }
 );
@@ -91,7 +89,7 @@ export const deleteCompanyMetric = createAsyncThunk(
       await companyMetricsService.deleteCompanyMetric(id);
       return id;
     } catch (error) {
-      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
+      return rejectWithValue(handleApiError(error));
     }
   }
 );
