@@ -1,11 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import Button from '../common/Button';
 import Select from '../common/Select';
-import { exportService } from '../../services/export';
+import { exportService, ExportFormat } from '../../services/export';
 import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
 import { IMetric } from '../../interfaces/IMetric';
 import { IBenchmark } from '../../interfaces/IBenchmark';
-import type { ExportFormat } from '../../services/export';
 
 // Constants for export options and error messages
 const EXPORT_FORMAT_OPTIONS = [
@@ -43,7 +42,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
 }) => {
   // State management
   const [isLoading, setIsLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState<ExportFormat | ''>('');
+  const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const { showToast } = useToast();
 
   // Validate required data before export
@@ -139,7 +138,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       <div className="export-controls">
         <Select
           options={EXPORT_FORMAT_OPTIONS}
-          value={exportFormat}
+          value={exportFormat || ''}
           onChange={(value) => setExportFormat(value as ExportFormat)}
           name="exportFormat"
           label="Export Format"
