@@ -5,11 +5,6 @@ import { useState, useCallback } from 'react'; // ^18.2.0
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { 
-  getBenchmarksByMetric, 
-  getBenchmarksByRevenueRange, 
-  compareBenchmarks 
-} from '../services/benchmark';
-import { 
   selectBenchmarks,
   selectBenchmarkLoading,
   selectBenchmarkErrors,
@@ -107,19 +102,21 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
+          const result = await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
+          benchmarkCache.set(cacheKey, {
+            data: result,
+            timestamp: Date.now()
+          });
         } else if (revenueRange) {
-          await dispatch(fetchBenchmarksByRevenue({ 
+          const result = await dispatch(fetchBenchmarksByRevenue({ 
             revenueRange, 
             metricIds: [] 
           })).unwrap();
+          benchmarkCache.set(cacheKey, {
+            data: result,
+            timestamp: Date.now()
+          });
         }
-
-        // Update cache
-        benchmarkCache.set(cacheKey, {
-          data: benchmarks,
-          timestamp: Date.now()
-        });
 
         activeRequests.delete(cacheKey);
         return;
@@ -127,7 +124,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
-          const formattedError = handleApiError(error);
+          const formattedError = handleApiError(error as any);
           setLocalError(formattedError.message);
           activeRequests.delete(cacheKey);
           return;
@@ -135,7 +132,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
         await new Promise(resolve => setTimeout(resolve, getRetryDelay(attempt)));
       }
     }
-  }, [dispatch, benchmarks, generateCacheKey, getRetryDelay]);
+  }, [dispatch, generateCacheKey, getRetryDelay]);
 
   /**
    * Compares company metrics against benchmarks
@@ -163,7 +160,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       };
 
     } catch (error) {
-      const formattedError = handleApiError(error);
+      const formattedError = handleApiError(error as any);
       setLocalError(formattedError.message);
       return null;
     }
