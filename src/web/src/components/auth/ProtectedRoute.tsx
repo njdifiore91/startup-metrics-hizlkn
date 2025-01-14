@@ -13,7 +13,6 @@ import { theme } from '../../config/theme';
 
 // Route constants
 const LOGIN_ROUTE = '/login';
-const DASHBOARD_ROUTE = '/dashboard';
 const DEFAULT_REDIRECT = '/unauthorized';
 
 /**
