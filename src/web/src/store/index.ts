@@ -1,8 +1,9 @@
 import { configureStore, combineReducers, createListenerMiddleware } from '@reduxjs/toolkit'; // v1.9.5
-import authReducer from './authSlice.js';
-import metricsReducer from './metricsSlice.js';
-import benchmarkReducer from './benchmarkSlice.js';
-import companyMetricsReducer from './companyMetricsSlice.js';
+import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import authReducer from './authSlice';
+import metricsReducer from './metricsSlice';
+import benchmarkReducer from './benchmarkSlice';
+import companyMetricsReducer from './companyMetricsSlice';
 
 /**
  * Listener middleware for handling side effects and async operations
@@ -90,15 +91,21 @@ export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
 /**
+ * Typed hooks for Redux usage
+ */
+export const useAppDispatch = () => useDispatch<AppDispatch>();
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+
+/**
  * Add runtime type checking in development
  */
 if (process.env.NODE_ENV === 'development') {
   store.subscribe(() => {
     const state = store.getState();
     // Validate state structure
-    const requiredSlices = ['auth', 'metrics', 'benchmarks', 'companyMetrics'] as const;
+    const requiredSlices = ['auth', 'metrics', 'benchmarks', 'companyMetrics'];
     requiredSlices.forEach(slice => {
-      if (!state[slice]) {
+      if (!(slice in state)) {
         console.error(`Missing required state slice: ${slice}`);
       }
     });
