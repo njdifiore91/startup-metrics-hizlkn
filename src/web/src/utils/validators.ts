@@ -144,6 +144,9 @@ export const validateMetricValue = memoize((
   };
 });
 
+// Alias for backward compatibility
+export const validateMetricData = validateMetricValue;
+
 /**
  * Validates complete company metric entries
  * @param companyMetric - Company metric to validate
