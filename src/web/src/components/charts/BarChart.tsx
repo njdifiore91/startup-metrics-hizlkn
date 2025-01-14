@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { Chart, ChartData } from 'chart.js/auto'; // chart.js@4.0.0
 import { useDebounce } from 'use-debounce'; // use-debounce@9.0.0
-import { CHART_COLORS } from '../../config/chart';
-import { generateChartOptions } from '../../utils/chartHelpers';
+import { chartColors } from '../../config/chart.js';
+import { generateChartOptions } from '../../utils/chartHelpers.js';
 
 // Enhanced interface for bar chart data points
 interface IBarChartProps {
@@ -60,11 +60,11 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
       datasets: [{
         data: data.map(d => d.value),
         backgroundColor: highContrastMode ? 
-          CHART_COLORS.background : 
-          `${CHART_COLORS.primary}CC`,
+          chartColors.highContrast.background : 
+          `${chartColors.primary}CC`,
         borderColor: highContrastMode ? 
-          CHART_COLORS.text : 
-          CHART_COLORS.primary,
+          chartColors.highContrast.border : 
+          chartColors.primary,
         borderWidth: 1,
         borderRadius: 4,
         barThickness: 'flex',
@@ -75,18 +75,23 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
 
     // Enhanced chart options with accessibility support
     const options = generateChartOptions('bar', {
-      onClick: (_, elements) => {
+      onClick: (_: unknown, elements: Array<{ index: number }>) => {
         if (onBarClick && elements.length > 0) {
           const index = elements[0].index;
           onBarClick(index, data[index].value);
         }
       },
       plugins: {
+        accessibility: {
+          enabled: true,
+          announceOnRender: true,
+          description: ariaLabel
+        },
         tooltip: {
           enabled: true,
           backgroundColor: highContrastMode ? 
-            CHART_COLORS.text : 
-            `${CHART_COLORS.primary}E6`,
+            chartColors.highContrast.tooltip : 
+            `${chartColors.primary}E6`,
           titleFont: {
             family: 'Inter',
             size: 14,
@@ -99,7 +104,7 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
           padding: 12,
           cornerRadius: 4,
           callbacks: {
-            label: (context) => {
+            label: (context: { raw: unknown }) => {
               const value = context.raw as number;
               return `Value: ${value.toLocaleString()}`;
             }
