@@ -1,4 +1,4 @@
-import { IMetric, MetricValueType } from './IMetric.js';
+import { IMetric } from './IMetric';
 
 /**
  * Interface defining the structure of company-specific metric data
