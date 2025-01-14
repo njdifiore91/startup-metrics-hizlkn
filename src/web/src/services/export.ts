@@ -8,7 +8,7 @@
 import { saveAs } from 'file-saver'; // v2.0.5
 
 // Internal imports
-import { api, get, post } from './api';
+import { api } from './api';
 import { IMetric } from '../interfaces/IMetric';
 import { IBenchmark } from '../interfaces/IBenchmark';
 
@@ -102,9 +102,9 @@ export const exportService = {
       formData.append('includeCharts', String(options.includeCharts ?? true));
 
       // Configure request with progress tracking
-      const response = await post(API_ENDPOINTS.REPORTS, formData, {
+      const response = await api.post(API_ENDPOINTS.REPORTS, formData, {
         responseType: 'blob',
-        onDownloadProgress: (progressEvent) => {
+        onDownloadProgress: (progressEvent: { loaded: number; total: number }) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           // Dispatch progress event for UI updates
           window.dispatchEvent(new CustomEvent('exportProgress', {
@@ -164,9 +164,9 @@ export const exportService = {
       formData.append('includeCharts', String(options.includeCharts ?? true));
 
       // Configure request with progress tracking
-      const response = await post(API_ENDPOINTS.COMPARISON, formData, {
+      const response = await api.post(API_ENDPOINTS.COMPARISON, formData, {
         responseType: 'blob',
-        onDownloadProgress: (progressEvent) => {
+        onDownloadProgress: (progressEvent: { loaded: number; total: number }) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           // Dispatch progress event for UI updates
           window.dispatchEvent(new CustomEvent('exportProgress', {
