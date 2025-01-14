@@ -2,13 +2,13 @@ import React, { useCallback, useState, useEffect, memo } from 'react';
 import { debounce } from 'lodash'; // ^4.17.21
 
 // Internal imports
-import { IMetric, MetricValueType } from '../../interfaces/IMetric';
-import { IBenchmark } from '../../interfaces/IBenchmark';
-import BenchmarkChart from '../charts/BenchmarkChart';
-import { useBenchmarks } from '../../hooks/useBenchmarks';
-import { formatMetricValue } from '../../utils/chartHelpers';
-import { ToastType, useToast } from '../../hooks/useToast';
-import { CHART_CONSTANTS } from '../../config/constants';
+import { IMetric, MetricValueType } from '../../interfaces/IMetric.js';
+import { IBenchmark } from '../../interfaces/IBenchmark.js';
+import BenchmarkChart from '../charts/BenchmarkChart.js';
+import { useBenchmarks } from '../../hooks/useBenchmarks.js';
+import { formatMetricValue } from '../../utils/chartHelpers.js';
+import { ToastType, useToast } from '../../hooks/useToast.js';
+import { CHART_CONSTANTS } from '../../config/constants.js';
 
 // Types and Interfaces
 interface ComparisonResult {
