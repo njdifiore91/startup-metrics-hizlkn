@@ -1,11 +1,13 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { IBenchmark } from '../interfaces/IBenchmark.js';
+import { IBenchmark } from '../interfaces/IBenchmark';
 import { 
   getBenchmarksByMetric, 
   getBenchmarksByRevenueRange, 
   compareBenchmarks 
-} from '../services/benchmark.js';
-import { handleApiError } from '../utils/errorHandlers.js';
+} from '../services/benchmark';
+import { handleApiError } from '../utils/errorHandlers';
+import { AxiosError } from 'axios';
+import { ApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -16,7 +18,7 @@ interface BenchmarkState {
   selectedMetricId: string | null;
   selectedRevenueRange: string | null;
   loading: Record<string, boolean>;
-  error: Record<string, { message: string; code: string } | null>;
+  error: Record<string, { message: string; code: string }>;
   comparisonResult: object | null;
   cache: Record<string, { data: IBenchmark[]; timestamp: number }>;
 }
@@ -49,7 +51,7 @@ export const fetchBenchmarksByMetric = createAsyncThunk(
       const benchmarks = await getBenchmarksByMetric(metricId);
       return benchmarks;
     } catch (error) {
-      const formattedError = handleApiError(error);
+      const formattedError = handleApiError(error as AxiosError<ApiError>);
       return rejectWithValue(formattedError);
     }
   }
@@ -71,7 +73,7 @@ export const fetchBenchmarksByRevenue = createAsyncThunk(
       const benchmarks = await getBenchmarksByRevenueRange(revenueRange, metricIds, { page: 1, limit: 100 });
       return benchmarks.data;
     } catch (error) {
-      const formattedError = handleApiError(error);
+      const formattedError = handleApiError(error as AxiosError<ApiError>);
       return rejectWithValue(formattedError);
     }
   }
@@ -91,7 +93,7 @@ export const compareBenchmarkData = createAsyncThunk(
       });
       return result;
     } catch (error) {
-      const formattedError = handleApiError(error);
+      const formattedError = handleApiError(error as AxiosError<ApiError>);
       return rejectWithValue(formattedError);
     }
   }
@@ -123,7 +125,7 @@ const benchmarkSlice = createSlice({
   },
   extraReducers: (builder) => {
     // fetchBenchmarksByMetric
-    builder.addCase(fetchBenchmarksByMetric.pending, (state) => {
+    builder.addCase(fetchBenchmarksByMetric.pending, (state, action) => {
       state.loading['fetchByMetric'] = true;
       state.error['fetchByMetric'] = null;
     });
