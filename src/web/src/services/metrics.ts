@@ -1,17 +1,15 @@
-import { AxiosResponse } from 'axios'; // v1.4.0
-import { IMetric, MetricCategory, ValidationRule } from '../interfaces/IMetric.js';
-import { IBenchmark } from '../interfaces/IBenchmark.js';
-import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric.js';
-import { api } from './api.js';
-import { calculatePercentile } from '../utils/metricCalculators.js';
-import { showToast, ToastType, ToastPosition } from '../hooks/useToast.js';
-import { API_CONFIG } from '../config/constants.js';
+import { IMetric, MetricCategory } from '../interfaces/IMetric';
+import { IBenchmark } from '../interfaces/IBenchmark';
+import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
+import { api } from './api';
+import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { API_CONFIG } from '../config/constants';
 
 /**
  * Interface for metric service response with enhanced error handling
  */
 interface MetricServiceResponse<T> {
-  data: T;
+  data: T | null;
   error?: string;
   metadata?: Record<string, unknown>;
 }
@@ -80,7 +78,7 @@ export class MetricsService {
       const metrics = await this.getMetrics();
       if (metrics.error) return metrics;
 
-      const filteredMetrics = metrics.data.filter(metric => metric.category === category);
+      const filteredMetrics = metrics.data?.filter(metric => metric.category === category) || [];
       return { data: filteredMetrics };
     } catch (error) {
       const errorMessage = `Failed to fetch metrics for category: ${category}`;
@@ -134,7 +132,9 @@ export class MetricsService {
     try {
       // Fetch metric definition for validation
       const metricResponse = await this.getMetricById(metricId);
-      if (metricResponse.error) return { data: null, error: metricResponse.error };
+      if (metricResponse.error || !metricResponse.data) {
+        return { data: null, error: metricResponse.error || 'Metric not found' };
+      }
 
       const metric = metricResponse.data;
 
