@@ -3,17 +3,18 @@ import * as yup from 'yup'; // v1.0.0
 import sanitizeHtml from 'sanitize-html'; // v2.11.0
 
 // Internal imports
-import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { useAppDispatch, useAppSelector } from '../store';
+import { ICompanyMetric } from '../interfaces/ICompanyMetric.js';
+import { useAppDispatch, useAppSelector } from '../store/index.js';
 import {
   selectAllMetrics,
   selectLoading,
   selectError,
   fetchCompanyMetrics,
+  fetchCompanyMetricById,
   createCompanyMetric,
   updateCompanyMetric,
-  deleteCompanyMetric
-} from '../store/companyMetricsSlice';
+  deleteMetric
+} from '../store/companyMetricsSlice.js';
 
 // Validation schema for metric data
 const metricDataSchema = yup.object().shape({
@@ -58,6 +59,27 @@ export const useCompanyMetrics = () => {
       await dispatch(fetchCompanyMetrics()).unwrap();
     } catch (error) {
       console.error('Error fetching metrics:', error);
+    }
+  }, [dispatch]);
+
+  /**
+   * Fetches a specific company metric by ID with validation
+   */
+  const fetchMetricById = useCallback(async (id: string) => {
+    try {
+      if (!id) {
+        throw new Error('Metric ID is required');
+      }
+
+      // Cancel any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      await dispatch(fetchCompanyMetricById(id)).unwrap();
+    } catch (error) {
+      console.error('Error fetching metric:', error);
     }
   }, [dispatch]);
 
@@ -129,7 +151,7 @@ export const useCompanyMetrics = () => {
         throw new Error('Metric ID is required');
       }
 
-      await dispatch(deleteCompanyMetric(id)).unwrap();
+      await dispatch(deleteMetric(id)).unwrap();
     } catch (error) {
       console.error('Error deleting metric:', error);
       throw error;
@@ -144,6 +166,7 @@ export const useCompanyMetrics = () => {
 
     // Operations
     fetchMetrics,
+    fetchMetricById,
     createMetric,
     updateMetric,
     deleteMetric: deleteMetricById
