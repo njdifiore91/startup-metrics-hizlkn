@@ -57,9 +57,6 @@ interface UseToastReturn {
   clearAllToasts: () => void;
 }
 
-// Create a singleton instance to manage toasts globally
-let toastInstance: UseToastReturn | null = null;
-
 export const useToast = (): UseToastReturn => {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [timers, setTimers] = useState<{ [key: string]: NodeJS.Timeout }>({});
@@ -206,7 +203,6 @@ export const useToast = (): UseToastReturn => {
       if (!touchStartX || !touchStartY) return;
 
       const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
       const deltaX = touchEndX - touchStartX;
 
       // Swipe threshold
@@ -229,7 +225,7 @@ export const useToast = (): UseToastReturn => {
     };
   }, [hideToast]);
 
-  const instance = {
+  return {
     toasts,
     showToast,
     hideToast,
@@ -237,24 +233,4 @@ export const useToast = (): UseToastReturn => {
     resumeToast,
     clearAllToasts
   };
-
-  // Store the instance for global access
-  toastInstance = instance;
-
-  return instance;
-};
-
-// Export individual functions that use the singleton instance
-export const showToast = (
-  message: string,
-  type?: ToastType,
-  position?: ToastPosition,
-  duration?: number,
-  theme?: ToastTheme,
-  onClick?: () => void
-): string => {
-  if (!toastInstance) {
-    throw new Error('Toast instance not initialized. Please use useToast hook first.');
-  }
-  return toastInstance.showToast(message, type, position, duration, theme, onClick);
 };
