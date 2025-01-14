@@ -1,7 +1,7 @@
 import { ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
-import { CHART_COLORS } from '../config/chart';
-import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
-import memoize from 'lodash/memoize';
+import { chartColors } from '../config/chart.js';
+import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark.js';
+import memoize from 'lodash.memoize';
 
 // Enhanced interface for chart datasets with accessibility properties
 export interface IChartDataset {
@@ -43,7 +43,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
       enabled: true,
       mode: 'index',
       intersect: false,
-      backgroundColor: CHART_COLORS.primary,
+      backgroundColor: chartColors.primary,
       titleFont: {
         family: 'Inter',
         size: 14
@@ -100,8 +100,8 @@ export const prepareBenchmarkData = memoize((
   const datasets: IChartDataset[] = [{
     label: 'Benchmark Percentiles',
     data: percentiles.map(p => benchmarkData[p]),
-    backgroundColor: CHART_COLORS.secondary + '40',
-    borderColor: CHART_COLORS.secondary,
+    backgroundColor: chartColors.secondary + '40',
+    borderColor: chartColors.secondary,
     fill: true,
     'aria-label': `Benchmark percentiles for ${benchmarkData.metric.name}`,
     role: 'graphics-symbol'
@@ -143,8 +143,8 @@ export const generateChartOptions = (
       y: {
         beginAtZero: true,
         grid: {
-          color: CHART_COLORS.secondary + '20',
-          borderWidth: 0
+          color: chartColors.secondary + '20',
+          display: false
         },
         ticks: {
           font: {
@@ -200,8 +200,8 @@ export const formatMetricValue = (
     metricType === 'percentage' ? value / 100 : value
   );
 
-  if (metricType === 'percentage' && !options.style && 'suffix' in formatter) {
-    formattedValue = `${formattedValue}${formatter.suffix}`;
+  if (metricType === 'percentage' && !options.style) {
+    formattedValue = `${formattedValue}%`;
   }
 
   return formattedValue;
