@@ -2,8 +2,8 @@ import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { analytics } from '@segment/analytics-next';
-import Layout from '../components/layout/Layout.js';
-import Button from '../components/common/Button.js';
+import Layout from '../components/layout/Layout';
+import Button from '../components/common/Button';
 
 // Styled components with theme integration
 const NotFoundContainer = styled.div`
