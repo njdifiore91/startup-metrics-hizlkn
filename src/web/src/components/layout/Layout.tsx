@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
-import Header from './Header.tsx';
-import Footer from './Footer.tsx';
-import Sidebar from './Sidebar.tsx';
-import ErrorBoundary from '../common/ErrorBoundary.tsx';
-import { useAuth } from '../../hooks/useAuth.ts';
-import { showToast, ToastType, ToastPosition } from '../../hooks/useToast.ts';
+import Header from './Header.js';
+import Footer from './Footer.js';
+import Sidebar from './Sidebar.js';
+import ErrorBoundary from '../common/ErrorBoundary.js';
+import { useAuth } from '../../hooks/useAuth.js';
+import { showToast, ToastType, ToastPosition } from '../../hooks/useToast.js';
 
 // Layout Props Interface
 interface LayoutProps {
