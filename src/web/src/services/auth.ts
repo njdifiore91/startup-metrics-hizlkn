@@ -5,13 +5,13 @@
  */
 
 // External imports - versions specified as per requirements
-import { auth2 as googleAuth } from 'gapi';
+import { auth2 } from 'gapi-script';
 import CryptoJS from 'crypto-js';
 
 // Internal imports
-import { authConfig } from '../config/auth';
-import { api } from '../services/api';
-import type { IUser } from '../interfaces/IUser';
+import { authConfig } from '../config/auth.js';
+import { api } from './api.js';
+import type { IUser } from '../interfaces/IUser.js';
 
 /**
  * Enhanced response structure from authentication endpoints
@@ -35,6 +35,16 @@ interface ITokens {
 }
 
 /**
+ * Structured error interface for authentication failures
+ */
+interface IAuthError {
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+  timestamp: number;
+}
+
+/**
  * Rate limiting configuration
  */
 const RATE_LIMIT = {
@@ -47,8 +57,9 @@ const RATE_LIMIT = {
  * Enhanced authentication service with security features
  */
 export class AuthService {
-  private googleAuth: googleAuth.GoogleAuth | null = null;
+  private googleAuth: auth2.GoogleAuth | null = null;
   private currentUser: IUser | null = null;
+  private sessionId: string = '';
   private refreshTimer: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -62,13 +73,13 @@ export class AuthService {
   public async initializeGoogleAuth(): Promise<void> {
     try {
       await new Promise<void>((resolve, reject) => {
-        googleAuth.load('auth2', {
+        gapi.load('auth2', {
           callback: resolve,
           onerror: reject
         });
       });
 
-      this.googleAuth = await googleAuth.init({
+      this.googleAuth = await gapi.auth2.init({
         client_id: authConfig.googleClientId,
         scope: authConfig.googleScopes.join(' ')
       });
@@ -140,6 +151,7 @@ export class AuthService {
 
       this.clearTokens();
       this.currentUser = null;
+      this.sessionId = '';
 
       if (this.googleAuth) {
         await this.googleAuth.signOut();
@@ -273,7 +285,7 @@ export class AuthService {
     }, 60000); // Check every minute
   }
 
-  private handleUserChange(googleUser: googleAuth.GoogleUser): void {
+  private handleUserChange(googleUser: auth2.GoogleUser): void {
     const isSignedIn = googleUser.isSignedIn();
     if (!isSignedIn && this.currentUser) {
       this.logout();
