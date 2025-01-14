@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useCallback, memo } from 'react';
 import { Chart, ChartData } from 'chart.js/auto'; // chart.js@4.0.0
 import debounce from 'lodash/debounce';
 
-import { IBenchmark } from '../../interfaces/IBenchmark';
-import { benchmarkChartOptions } from '../../config/chart';
-import { prepareBenchmarkData } from '../../utils/chartHelpers';
+import { IBenchmark } from '../../interfaces/IBenchmark.js';
+import { benchmarkChartOptions } from '../../config/chart.js';
+import { prepareBenchmarkData } from '../../utils/chartHelpers.js';
 
 /**
  * Props interface for the BenchmarkChart component with comprehensive validation
@@ -76,9 +76,10 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = memo(({
         ...benchmarkChartOptions,
         plugins: {
           ...benchmarkChartOptions.plugins,
-          title: {
-            display: true,
-            text: chartData.metadata.description
+          accessibility: {
+            enabled: true,
+            announceOnRender: true,
+            description: chartData.metadata.description
           }
         }
       }
