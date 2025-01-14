@@ -1,16 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import Button from '../common/Button';
 import Select from '../common/Select';
-import { exportService } from '../../services/export';
+import { exportService, ExportFormat } from '../../services/export';
 import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
 import { IMetric } from '../../interfaces/IMetric';
 import { IBenchmark } from '../../interfaces/IBenchmark';
+import styled from '@emotion/styled';
 
 // Constants for export options and error messages
 const EXPORT_FORMAT_OPTIONS = [
   { value: 'PDF', label: 'PDF Document', ariaLabel: 'Export as PDF document' },
   { value: 'CSV', label: 'CSV Spreadsheet', ariaLabel: 'Export as CSV spreadsheet' }
-] as const;
+];
 
 const ERROR_MESSAGES = {
   NO_METRICS: 'Please select at least one metric for the report',
@@ -31,6 +32,23 @@ interface ReportGeneratorProps {
   onError?: (error: Error) => void;
 }
 
+const ReportGeneratorContainer = styled.div`
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  background-color: var(--color-background);
+`;
+
+const ExportControls = styled.div`
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-end;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
 const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   metrics,
   benchmarks,
@@ -42,7 +60,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
 }) => {
   // State management
   const [isLoading, setIsLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'PDF' | 'CSV' | ''>('');
+  const [exportFormat, setExportFormat] = useState<ExportFormat | ''>('');
   const { showToast } = useToast();
 
   // Validate required data before export
@@ -80,7 +98,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
 
       // Create export options
       const exportOptions = {
-        format: exportFormat,
+        format: exportFormat as ExportFormat,
         metrics,
         benchmarks,
         revenueRange,
@@ -134,12 +152,12 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   ]);
 
   return (
-    <div className="report-generator" role="region" aria-label="Report export options">
-      <div className="export-controls">
+    <ReportGeneratorContainer role="region" aria-label="Report export options">
+      <ExportControls>
         <Select
-          options={EXPORT_FORMAT_OPTIONS}
+          options={[...EXPORT_FORMAT_OPTIONS]}
           value={exportFormat}
-          onChange={(value) => setExportFormat(value as 'PDF' | 'CSV')}
+          onChange={(value) => setExportFormat(value as ExportFormat)}
           name="exportFormat"
           label="Export Format"
           placeholder="Select format"
@@ -158,29 +176,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         >
           {isLoading ? 'Generating Report...' : 'Export Report'}
         </Button>
-      </div>
-
-      <style jsx>{`
-        .report-generator {
-          padding: var(--spacing-md);
-          border-radius: var(--border-radius-md);
-          background-color: var(--color-background);
-        }
-
-        .export-controls {
-          display: flex;
-          gap: var(--spacing-md);
-          align-items: flex-end;
-        }
-
-        @media (max-width: 768px) {
-          .export-controls {
-            flex-direction: column;
-            align-items: stretch;
-          }
-        }
-      `}</style>
-    </div>
+      </ExportControls>
+    </ReportGeneratorContainer>
   );
 };
 
