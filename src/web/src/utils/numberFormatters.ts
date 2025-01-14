@@ -1,4 +1,4 @@
-import { MetricValueType } from '../interfaces/IMetric';
+import { MetricValueType } from '../interfaces/IMetric.js';
 
 /**
  * Default number of decimal places to use when not specified
