@@ -46,6 +46,26 @@ export const fetchCompanyMetrics = createAsyncThunk(
   }
 );
 
+export const fetchCompanyMetricById = createAsyncThunk(
+  'companyMetrics/fetchById',
+  async (id: string, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { companyMetrics: CompanyMetricsState };
+      const cacheKey = `metric_${id}`;
+      const cached = state.companyMetrics.requestCache[cacheKey];
+      
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data;
+      }
+
+      const metric = await companyMetricsService.getCompanyMetricById(id);
+      return metric;
+    } catch (error) {
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
 export const createCompanyMetric = createAsyncThunk(
   'companyMetrics/create',
   async (metricData: Omit<ICompanyMetric, 'id'>, { rejectWithValue }) => {
@@ -82,7 +102,7 @@ export const updateCompanyMetric = createAsyncThunk(
   }
 );
 
-export const deleteCompanyMetric = createAsyncThunk(
+export const deleteMetric = createAsyncThunk(
   'companyMetrics/delete',
   async (id: string, { rejectWithValue }) => {
     try {
@@ -126,6 +146,26 @@ const companyMetricsSlice = createSlice({
         state.loadingStates['fetchAll'] = { isLoading: false, operation: 'fetch' };
         state.error = action.payload as { message: string; code: string; details?: any };
       })
+      // Fetch metric by id
+      .addCase(fetchCompanyMetricById.pending, (state) => {
+        state.loadingStates['fetchById'] = { isLoading: true, operation: 'fetch' };
+        state.error = null;
+      })
+      .addCase(fetchCompanyMetricById.fulfilled, (state, action) => {
+        const index = state.metrics.findIndex(m => m.id === action.payload.id);
+        if (index !== -1) {
+          state.metrics[index] = action.payload;
+        } else {
+          state.metrics.push(action.payload);
+        }
+        state.loadingStates['fetchById'] = { isLoading: false, operation: 'fetch' };
+        state.requestCache[`metric_${action.payload.id}`] = { data: action.payload, timestamp: Date.now() };
+        state.lastUpdated = Date.now();
+      })
+      .addCase(fetchCompanyMetricById.rejected, (state, action) => {
+        state.loadingStates['fetchById'] = { isLoading: false, operation: 'fetch' };
+        state.error = action.payload as { message: string; code: string; details?: any };
+      })
       // Create metric
       .addCase(createCompanyMetric.pending, (state) => {
         state.loadingStates['create'] = { isLoading: true, operation: 'create' };
@@ -160,17 +200,17 @@ const companyMetricsSlice = createSlice({
         state.error = action.payload as { message: string; code: string; details?: any };
       })
       // Delete metric
-      .addCase(deleteCompanyMetric.pending, (state) => {
+      .addCase(deleteMetric.pending, (state) => {
         state.loadingStates['delete'] = { isLoading: true, operation: 'delete' };
         state.error = null;
       })
-      .addCase(deleteCompanyMetric.fulfilled, (state, action) => {
+      .addCase(deleteMetric.fulfilled, (state, action) => {
         state.metrics = state.metrics.filter(m => m.id !== action.payload);
         state.loadingStates['delete'] = { isLoading: false, operation: 'delete' };
         state.lastUpdated = Date.now();
         state.requestCache = {}; // Invalidate cache
       })
-      .addCase(deleteCompanyMetric.rejected, (state, action) => {
+      .addCase(deleteMetric.rejected, (state, action) => {
         state.loadingStates['delete'] = { isLoading: false, operation: 'delete' };
         state.error = action.payload as { message: string; code: string; details?: any };
       });
@@ -186,6 +226,9 @@ export const selectMetricById = (state: { companyMetrics: CompanyMetricsState },
 
 export const selectLoadingState = (state: { companyMetrics: CompanyMetricsState }, operation: string) => 
   state.companyMetrics.loadingStates[operation];
+
+export const selectLoading = (state: { companyMetrics: CompanyMetricsState }) => 
+  Object.values(state.companyMetrics.loadingStates).some(state => state.isLoading);
 
 export const selectError = (state: { companyMetrics: CompanyMetricsState }) => 
   state.companyMetrics.error;
