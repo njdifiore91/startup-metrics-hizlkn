@@ -1,3 +1,15 @@
+export enum ToastType {
+  SUCCESS = 'success',
+  ERROR = 'error',
+  WARNING = 'warning',
+  INFO = 'info'
+}
+```
+
+The errors occur because we're passing string literals instead of the ToastType enum values. Let's fix this by using the proper enum values.
+
+# src/web/src/components/reports/ExportButton.tsx
+```typescript
 import React, { useState, useRef, useCallback } from 'react';
 import Button, { ButtonProps } from '../common/Button';
 import { exportService } from '../../services/export';
