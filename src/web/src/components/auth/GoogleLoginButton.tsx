@@ -4,17 +4,19 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, forwardRef } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
-import Button, { ButtonProps } from '../common/Button';
+import Button from '../common/Button';
+import type { IUser } from '../../interfaces/IUser';
+import '../../styles/theme.css';
 
 /**
  * Props for the GoogleLoginButton component
  */
 export interface GoogleLoginButtonProps {
   className?: string;
-  onSuccess?: (response: { token: string; user: User }) => void;
+  onSuccess?: (response: { token: string; user: IUser }) => void;
   onError?: (error: { code: string; message: string }) => void;
   disabled?: boolean;
   testId?: string;
@@ -24,13 +26,13 @@ export interface GoogleLoginButtonProps {
  * Google Login Button Component
  * Implements Google's branding guidelines and accessibility standards
  */
-export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
+export const GoogleLoginButton = forwardRef<HTMLButtonElement, GoogleLoginButtonProps>(({
   className,
   onSuccess,
   onError,
   disabled = false,
   testId = 'google-login-button'
-}) => {
+}, ref) => {
   const { login, isLoading, error } = useAuth();
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -41,7 +43,9 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
 
       try {
         const response = await login();
-        onSuccess?.(response);
+        if (response && onSuccess) {
+          onSuccess(response);
+        }
       } catch (error: any) {
         onError?.({
           code: error.code || 'AUTH_ERROR',
@@ -69,92 +73,30 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
     }
   }, [error, onError]);
 
-  // Button props configuration
-  const buttonProps: ButtonProps = {
-    type: 'button',
-    disabled: disabled || isLoading,
-    onClick: handleGoogleLogin,
-    className: `google-login-button ${className || ''}`,
-    'aria-label': 'Sign in with Google',
-    'data-testid': testId,
-    role: 'button',
-    tabIndex: disabled ? -1 : 0
-  };
-
   return (
-    <Button {...buttonProps} ref={buttonRef}>
+    <Button
+      type="button"
+      disabled={disabled || isLoading}
+      onClick={handleGoogleLogin}
+      className={`google-login-button ${className || ''}`}
+      ariaLabel="Sign in with Google"
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      ref={ref || buttonRef}
+      data-testid={testId}
+    >
       <div className="google-button-content">
         <GoogleIcon className="google-icon" />
         <span className="google-button-text">
           {isLoading ? 'Signing in...' : 'Sign in with Google'}
         </span>
       </div>
-
-      <style jsx>{`
-        .google-login-button {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          width: 100%;
-          max-width: 320px;
-          height: 40px;
-          border-radius: 4px;
-          background-color: #ffffff;
-          border: 1px solid #dadce0;
-          color: #3c4043;
-          font-family: var(--font-family-primary);
-          font-size: 14px;
-          font-weight: 500;
-          box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3),
-                      0 1px 3px 1px rgba(60,64,67,0.15);
-          transition: all 0.2s ease-in-out;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .google-login-button:hover:not(:disabled) {
-          background-color: #f8f9fa;
-          box-shadow: 0 1px 3px 0 rgba(60,64,67,0.3),
-                      0 4px 8px 3px rgba(60,64,67,0.15);
-        }
-
-        .google-login-button:active:not(:disabled) {
-          background-color: #f1f3f4;
-          box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);
-        }
-
-        .google-login-button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .google-button-content {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        }
-
-        .google-icon {
-          width: 18px;
-          height: 18px;
-        }
-
-        .google-button-text {
-          font-family: var(--font-family-primary);
-          font-weight: 500;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .google-login-button {
-            transition: none;
-          }
-        }
-      `}</style>
     </Button>
   );
-};
+});
+
+// Set display name for debugging
+GoogleLoginButton.displayName = 'GoogleLoginButton';
 
 // Google Icon SVG component
 const GoogleIcon: React.FC<{ className?: string }> = ({ className }) => (
