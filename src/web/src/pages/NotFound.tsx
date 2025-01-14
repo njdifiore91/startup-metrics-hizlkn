@@ -5,8 +5,26 @@ import { analytics } from '@segment/analytics-next';
 import Layout from '../components/layout/Layout';
 import Button from '../components/common/Button';
 
+// Define Theme interface for styled components
+interface Theme {
+  spacing: {
+    xl: string;
+    lg: string;
+    md: string;
+  };
+  typography: {
+    h1: string;
+    h2: string;
+    h3: string;
+    body1: string;
+  };
+  breakpoints: {
+    mobile: string;
+  };
+}
+
 // Styled components with theme integration
-const NotFoundContainer = styled.div`
+const NotFoundContainer = styled.div<{ theme: Theme }>`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -22,7 +40,7 @@ const NotFoundContainer = styled.div`
   }
 `;
 
-const ErrorCode = styled.h1`
+const ErrorCode = styled.h1<{ theme: Theme }>`
   font-size: ${({ theme }) => theme.typography.h1};
   font-weight: var(--font-weight-bold);
   color: var(--color-primary);
@@ -35,7 +53,7 @@ const ErrorCode = styled.h1`
   }
 `;
 
-const ErrorMessage = styled.p`
+const ErrorMessage = styled.p<{ theme: Theme }>`
   font-size: ${({ theme }) => theme.typography.h3};
   color: var(--color-text);
   margin-bottom: ${({ theme }) => theme.spacing.xl};
