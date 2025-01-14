@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios'; // v1.4.0
-import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { useToast, ToastType, ToastPosition } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
 // Interfaces
@@ -42,7 +42,7 @@ const ERROR_MESSAGES = {
 // Default error handler options
 const DEFAULT_OPTIONS: ErrorHandlerOptions = {
   showToast: true,
-  logError: API_CONFIG.ERROR_LOGGING_ENABLED,
+  logError: true, // Temporarily set to true until API_CONFIG.ERROR_LOGGING_ENABLED is added
   toastPosition: ToastPosition.TOP_RIGHT,
   toastDuration: 5000,
   sanitizeError: true
@@ -61,6 +61,7 @@ export const handleApiError = (
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
   let errorMessage: string;
   let errorDetails: Record<string, unknown> = {};
+  const toast = useToast();
 
   // Handle network errors
   if (!error.response) {
@@ -107,7 +108,7 @@ export const handleApiError = (
 
   // Show toast notification if enabled
   if (mergedOptions.showToast) {
-    showToast(
+    toast.showToast(
       errorMessage,
       ToastType.ERROR,
       mergedOptions.toastPosition,
@@ -130,6 +131,7 @@ export const handleValidationError = (
 ): { message: string; fields: Record<string, string> } => {
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
   const fields: Record<string, string> = {};
+  const toast = useToast();
   
   // Process validation errors recursively
   const processValidationError = (err: ValidationError, prefix = ''): void => {
@@ -158,7 +160,7 @@ export const handleValidationError = (
 
   // Show toast notification if enabled
   if (mergedOptions.showToast) {
-    showToast(
+    toast.showToast(
       errorMessage,
       ToastType.ERROR,
       mergedOptions.toastPosition,
