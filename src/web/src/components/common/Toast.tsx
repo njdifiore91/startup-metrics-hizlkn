@@ -1,20 +1,9 @@
-```
-
-2. Error with useSwipeable configuration:
-```
-error TS2345: Argument of type '{ preventDefaultTouchmoveEvent: boolean; }' is not assignable to parameter of type 'Partial<SwipeableDirectionCallbacks & ConfigurationOptions>'
-```
-
-Let me fix these issues and regenerate the file:
-
-# src/web/src/components/common/Toast.tsx
-```typescript
 import React, { useEffect, useCallback, useRef } from 'react';
 import classNames from 'classnames'; // ^2.3.2
 import { useSwipeable } from 'react-swipeable'; // ^7.0.0
-import { ToastType, ToastPosition } from '../../hooks/useToast';
-import '../../styles/animations.css';
-import ErrorBoundary from './ErrorBoundary';
+import { ToastType, ToastPosition } from '../../hooks/useToast.js';
+import { animations } from '../../styles/animations.css';
+import ErrorBoundary from './ErrorBoundary.js';
 
 // Props interfaces
 interface ToastProps {
@@ -89,8 +78,7 @@ const Toast: React.FC<ToastProps> = React.memo(({
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => !rtl && onClose(id),
     onSwipedRight: () => rtl && onClose(id),
-    trackMouse: true,
-    trackTouch: true
+    trackMouse: true
   });
 
   // Compute toast classes
@@ -103,8 +91,8 @@ const Toast: React.FC<ToastProps> = React.memo(({
       'toast--light': theme === 'light',
       'toast--dark': theme === 'dark'
     },
-    'fade-in',
-    'slide-in',
+    animations.fadeIn,
+    animations.slideIn,
     className
   );
 
@@ -217,6 +205,8 @@ const getToastIcon = (type: ToastType): JSX.Element => {
       return <span aria-hidden="true">⚠</span>;
     case ToastType.INFO:
       return <span aria-hidden="true">ℹ</span>;
+    default:
+      return <span aria-hidden="true">ℹ</span>;
   }
 };
 
@@ -236,6 +226,8 @@ const getPositionStyles = (position: ToastPosition): React.CSSProperties => {
       return { ...baseStyles, bottom: 20, right: 20 };
     case ToastPosition.BOTTOM_LEFT:
       return { ...baseStyles, bottom: 20, left: 20 };
+    default:
+      return { ...baseStyles, top: 20, right: 20 };
   }
 };
 
