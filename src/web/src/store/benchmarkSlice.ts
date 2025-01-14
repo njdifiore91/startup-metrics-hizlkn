@@ -1,11 +1,11 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { IBenchmark } from '../interfaces/IBenchmark';
+import { IBenchmark } from '../interfaces/IBenchmark.js';
 import { 
   getBenchmarksByMetric, 
   getBenchmarksByRevenueRange, 
   compareBenchmarks 
-} from '../services/benchmark';
-import { handleApiError } from '../utils/errorHandlers';
+} from '../services/benchmark.js';
+import { handleApiError } from '../utils/errorHandlers.js';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -48,7 +48,7 @@ export const fetchBenchmarksByMetric = createAsyncThunk(
 
       const benchmarks = await getBenchmarksByMetric(metricId);
       return benchmarks;
-    } catch (error: any) {
+    } catch (error) {
       const formattedError = handleApiError(error);
       return rejectWithValue(formattedError);
     }
@@ -70,7 +70,7 @@ export const fetchBenchmarksByRevenue = createAsyncThunk(
 
       const benchmarks = await getBenchmarksByRevenueRange(revenueRange, metricIds, { page: 1, limit: 100 });
       return benchmarks.data;
-    } catch (error: any) {
+    } catch (error) {
       const formattedError = handleApiError(error);
       return rejectWithValue(formattedError);
     }
@@ -90,7 +90,7 @@ export const compareBenchmarkData = createAsyncThunk(
         includePeers: true
       });
       return result;
-    } catch (error: any) {
+    } catch (error) {
       const formattedError = handleApiError(error);
       return rejectWithValue(formattedError);
     }
