@@ -26,27 +26,13 @@ import {
   ChevronLeft,
   ChevronRight
 } from '@mui/icons-material';
-import { useAuth } from '../../hooks/useAuth.js';
-import { analytics } from '@analytics/react';
-import { UI_CONSTANTS } from '../../config/constants.js';
+import { useAuth } from '../../hooks/useAuth';
+import { UI_CONSTANTS } from '../../config/constants';
 
 // Interfaces
 interface NavigationProps {
   isCollapsed: boolean;
-  theme: Theme & {
-    spacing: (value: number) => string;
-    palette: {
-      primary: {
-        main: string;
-        dark: string;
-        light: string;
-        contrastText: string;
-      };
-      secondary: {
-        main: string;
-      };
-    };
-  };
+  theme: Theme;
   ariaLabel?: string;
   onNavigationError?: (error: Error) => void;
 }
@@ -63,7 +49,7 @@ interface NavItem {
 }
 
 // Styled Components
-const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: NavigationProps['theme'] }>`
+const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   width: ${props => props.isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH};
   height: 100vh;
   background-color: ${props => props.theme.palette.primary.main};
@@ -95,7 +81,7 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: NavigationPro
   }
 `;
 
-const StyledListItem = styled(ListItem)<{ active?: boolean; theme: NavigationProps['theme'] }>`
+const StyledListItem = styled(ListItem)<{ active?: boolean }>`
   padding: ${props => props.theme.spacing(2)};
   color: ${props => props.active ? props.theme.palette.secondary.main : 'inherit'};
   
@@ -178,11 +164,14 @@ export const Navigation: React.FC<NavigationProps> = ({
       }
 
       // Track navigation event
-      analytics.track('navigation_click', {
-        path,
-        itemId: item.id,
-        timestamp: new Date().toISOString()
-      });
+      if (window.dataLayer) {
+        window.dataLayer.push({
+          event: 'navigation_click',
+          path,
+          itemId: item.id,
+          timestamp: new Date().toISOString()
+        });
+      }
 
       // Handle mobile menu
       if (isMobile) {
@@ -224,7 +213,6 @@ export const Navigation: React.FC<NavigationProps> = ({
           aria-label={item.ariaLabel}
           aria-expanded={item.children ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}
-          theme={theme}
         >
           <ListItemIcon>{item.icon}</ListItemIcon>
           {!isCollapsed && (
@@ -256,7 +244,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1 as any)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
