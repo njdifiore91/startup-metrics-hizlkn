@@ -6,11 +6,11 @@ import { ThemeProvider } from '@mui/material';
 import * as Sentry from '@sentry/react';
 import { Analytics } from '@segment/analytics-next';
 
-import App from './App.tsx';
-import { store } from './store/index.tsx';
-import { theme } from './config/theme.ts';
-import { handleApiError } from './utils/errorHandlers.ts';
-import { showToast, ToastType, ToastPosition } from './hooks/useToast.ts';
+import App from './App';
+import { store } from './store';
+import { theme } from './config/theme';
+import { handleApiError } from './utils/errorHandlers';
+import { showToast, ToastType, ToastPosition } from './hooks/useToast';
 
 // Initialize performance monitoring
 const initializeMonitoring = () => {
