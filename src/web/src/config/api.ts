@@ -8,7 +8,7 @@
 import type { AxiosRequestConfig } from 'axios'; // ^1.4.0
 
 // Internal imports
-import { API_CONFIG } from './constants';
+import { API_CONFIG } from './constants.js';
 
 /**
  * Interface for enhanced API configuration
