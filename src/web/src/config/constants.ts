@@ -9,6 +9,7 @@ interface IApiConfig {
   API_TIMEOUT: number;
   API_VERSION: string;
   API_ENDPOINTS: Record<string, string>;
+  ERROR_LOGGING_ENABLED: boolean;
 }
 
 interface IMetricType {
@@ -21,6 +22,17 @@ interface IChartConfig {
   DIMENSIONS: Record<string, string>;
   MARGINS: Record<string, number>;
   COLORS: readonly string[];
+}
+
+/**
+ * User role enumeration
+ * Defines the possible roles a user can have in the system
+ */
+export enum UserRole {
+  USER = 'USER',
+  ANALYST = 'ANALYST',
+  ADMIN = 'ADMIN',
+  SYSTEM = 'SYSTEM'
 }
 
 /**
@@ -38,7 +50,8 @@ export const API_CONFIG: IApiConfig = {
     COMPANY_METRICS: '/company-metrics',
     EXPORTS: '/exports',
     USERS: '/users'
-  }
+  },
+  ERROR_LOGGING_ENABLED: true
 } as const;
 
 /**
