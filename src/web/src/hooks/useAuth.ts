@@ -6,9 +6,9 @@
 
 import { useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { AuthService } from '../services/auth';
-import { authActions, SessionStatus, AuthError } from '../store/authSlice';
-import type { IUser } from '../interfaces/IUser';
+import { AuthService } from '../services/auth.js';
+import { authActions, SessionStatus, AuthError } from '../store/authSlice.js';
+import type { IUser } from '../interfaces/IUser.js';
 
 // Constants for security and session management
 const TOKEN_REFRESH_INTERVAL = 300000; // 5 minutes
@@ -36,7 +36,7 @@ interface UseAuthReturn {
   sessionStatus: SessionStatus;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<string>;
+  refreshToken: () => Promise<void>;
   validateSession: () => Promise<boolean>;
 }
 
@@ -138,7 +138,7 @@ export const useAuth = (): UseAuthReturn => {
   /**
    * Refreshes authentication token with retry mechanism
    */
-  const refreshToken = useCallback(async (): Promise<string> => {
+  const refreshToken = useCallback(async (): Promise<void> => {
     try {
       dispatch(authActions.setLoading(true));
       const newToken = await authService.refreshAuthToken();
@@ -152,7 +152,6 @@ export const useAuth = (): UseAuthReturn => {
       }));
       // Force logout on token refresh failure
       await logout();
-      throw error;
     } finally {
       dispatch(authActions.setLoading(false));
     }
