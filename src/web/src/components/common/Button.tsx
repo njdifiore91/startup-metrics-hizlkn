@@ -16,15 +16,9 @@ interface ButtonProps {
   tabIndex?: number;
 }
 
-// Separate interface for style props
-interface ButtonStyleProps {
-  variant?: ButtonProps['variant'];
-  size?: ButtonProps['size'];
-  disabled?: boolean;
-  className?: string;
-}
-
 // Utility function to generate button classes
+type ButtonStyleProps = Omit<ButtonProps, 'children' | 'onClick' | 'type' | 'ariaLabel' | 'ariaPressed' | 'role' | 'tabIndex'>;
+
 const getButtonClasses = (props: ButtonStyleProps): string => {
   const {
     variant = 'primary',
