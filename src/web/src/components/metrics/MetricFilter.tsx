@@ -3,14 +3,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useDebounce } from 'use-debounce';
 
 // Internal imports
-import Select from '../common/Select';
-import { MetricCategory } from '../../interfaces/IMetric';
+import Select from '../common/Select.js';
+import { MetricCategory } from '../../interfaces/IMetric.js';
 import { 
   fetchMetricsByCategory, 
   selectMetricError, 
   selectMetricLoading 
-} from '../../store/metricsSlice';
-import ErrorBoundary from '../common/ErrorBoundary';
+} from '../../store/metricsSlice.js';
+import ErrorBoundary from '../common/ErrorBoundary.js';
 
 // Styles
 import styles from './MetricFilter.module.css';
@@ -95,7 +95,7 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
           value={initialCategory || ''}
           onChange={handleCategoryChange}
           disabled={disabled || isLoading}
-          error={error?.fetchMetricsByCategory}
+          error={error?.message}
           loading={isLoading}
           placeholder="Select a category"
           required
@@ -109,14 +109,13 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
             className={styles['filter-error']}
             role="alert"
           >
-            {error.fetchMetricsByCategory}
+            {error.message}
           </div>
         )}
 
-        {/* Screen reader announcements for state changes */}
         <div aria-live="polite" className="sr-only">
-          {isLoading && 'Loading metric categories...'}
-          {error && `Error: ${error.fetchMetricsByCategory}`}
+          {isLoading ? 'Loading metric categories...' : null}
+          {error ? `Error: ${error.message}` : null}
         </div>
       </div>
     </ErrorBoundary>
@@ -125,58 +124,5 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
 
 // Display name for debugging
 MetricFilter.displayName = 'MetricFilter';
-
-// CSS Module
-const cssModule = `
-.filter-container {
-  margin: var(--spacing-md) 0;
-  width: 100%;
-  max-width: 300px;
-  position: relative;
-}
-
-.filter-label {
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  margin-bottom: var(--spacing-xs);
-  font-weight: var(--font-weight-medium);
-}
-
-.filter-loading {
-  opacity: 0.7;
-  pointer-events: none;
-}
-
-.filter-error {
-  color: var(--color-error);
-  font-size: var(--font-size-sm);
-  margin-top: var(--spacing-xs);
-}
-
-/* Screen reader only class */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .filter-container {
-    transition: none;
-  }
-}
-
-@media (max-width: var(--breakpoint-mobile)) {
-  .filter-container {
-    max-width: 100%;
-  }
-}
-`;
 
 export default MetricFilter;
