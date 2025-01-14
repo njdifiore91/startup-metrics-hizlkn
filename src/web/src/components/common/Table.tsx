@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'; // v18.2.0
 import classnames from 'classnames'; // v2.3.1
-import LoadingSpinner from './LoadingSpinner';
-import { theme } from '../../config/theme';
+import LoadingSpinner from './LoadingSpinner.tsx';
+import { theme } from '../../config/theme.ts';
 
 // Column configuration interface
 export interface TableColumn {
