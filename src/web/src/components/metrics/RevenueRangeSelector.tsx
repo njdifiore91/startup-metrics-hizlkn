@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import Select from '../common/Select.tsx';
-import { REVENUE_RANGES } from '../../config/constants.ts';
+import Select from '../common/Select.js';
+import { REVENUE_RANGES } from '../../config/constants.js';
 
 /**
  * Props interface for the RevenueRangeSelector component
@@ -38,7 +38,7 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(({
 }) => {
   // Transform revenue ranges into select options format
   const revenueOptions = useMemo(() => {
-    return REVENUE_RANGES.ranges.map((range: string) => ({
+    return REVENUE_RANGES.ranges.map(range => ({
       value: range,
       label: range.replace('M', ' Million').replace('+', ' or more')
     }));
@@ -69,7 +69,7 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(({
         data-testid="revenue-range-selector"
       />
 
-      <style>{`
+      <style jsx>{`
         .revenue-range-selector {
           width: 100%;
           max-width: 200px;
