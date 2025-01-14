@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
-import Select from '../common/Select';
-import { IMetric, MetricCategory } from '../../interfaces/IMetric';
-import { useMetrics } from '../../hooks/useMetrics';
+import Select from '../common/Select.js';
+import { IMetric, MetricCategory } from '../../interfaces/IMetric.js';
+import { useMetrics } from '../../hooks/useMetrics.js';
 
 /**
  * Interface for MetricSelector component props with comprehensive validation
@@ -84,7 +84,7 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
   // Debounced search handler
   const handleSearch = useMemo(() => 
     debounce((term: string) => {
-      const filtered = (metrics as IMetric[]).filter(metric => 
+      const filtered = metrics.filter((metric: IMetric) => 
         metric.category === category &&
         (metric.name.toLowerCase().includes(term.toLowerCase()) ||
          metric.description.toLowerCase().includes(term.toLowerCase()) ||
@@ -96,10 +96,10 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
   );
 
   // Handle metric selection
-  const handleMetricSelect = useCallback((value: string | number) => {
-    const selectedMetric = (metrics as IMetric[]).find(m => m.id === value);
+  const handleMetricSelect = useCallback((value: string) => {
+    const selectedMetric = metrics.find((m: IMetric) => m.id === value);
     if (selectedMetric) {
-      onMetricSelect(value.toString(), selectedMetric);
+      onMetricSelect(value, selectedMetric);
     }
   }, [metrics, onMetricSelect]);
 
@@ -146,14 +146,14 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
         label="Select Metric"
         placeholder="Choose a metric..."
         disabled={disabled || loading[`category_${category}`]}
-        error={error[`category_${category}`] || undefined}
+        error={error[`category_${category}`]}
         loading={loading[`category_${category}`]}
         required
         className={className}
         aria-label={ariaLabel}
       />
 
-      <style jsx>{`
+      <style>{`
         .metric-selector {
           width: 100%;
           max-width: 400px;
