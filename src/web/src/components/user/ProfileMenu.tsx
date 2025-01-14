@@ -7,10 +7,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { analytics } from '@segment/analytics-next';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth.js';
 import styles from './ProfileMenu.module.css';
 
-// Constants for session monitoring
+// Constants for menu interactions
 const SESSION_CHECK_INTERVAL = 60000; // 1 minute
 const INACTIVITY_WARNING_THRESHOLD = 300000; // 5 minutes
 
