@@ -38,7 +38,7 @@ const Benchmarks: React.FC = () => {
 
   // Hooks
   const { showToast } = useToast();
-  const { metrics = [], loading: metricsLoading, error: metricsError } = useMetrics();
+  const { metrics, loading: metricsLoading, error: metricsError } = useMetrics();
   const { benchmarks, loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
 
   // Local state
