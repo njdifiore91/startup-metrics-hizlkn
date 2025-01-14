@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input } from '../common/Input.js';
-import { ICompanyMetric } from '../../interfaces/ICompanyMetric.js';
-import { useCompanyMetrics } from '../../hooks/useCompanyMetrics.js';
+import { Input, InputProps } from '../common/Input';
+import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
+import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
 
 // Styled components with enterprise-ready styling
 const StyledForm = styled.form`
@@ -83,7 +83,7 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
@@ -140,18 +140,15 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         });
       }
       onSubmitSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       // Handle validation errors
-      if (error && typeof error === 'object' && 'response' in error) {
-        const apiError = error as { response?: { data?: { errors?: Array<{ field: string; message: string }> } } };
-        if (apiError.response?.data?.errors) {
-          apiError.response.data.errors.forEach((err) => {
-            setError(err.field as keyof FormValues, {
-              type: 'manual',
-              message: err.message
-            });
+      if (error.response?.data?.errors) {
+        error.response.data.errors.forEach((err: any) => {
+          setError(err.field as keyof FormValues, {
+            type: 'manual',
+            message: err.message
           });
-        }
+        });
       }
     }
   }, [initialData, createMetric, updateMetric, onSubmitSuccess, setError]);
@@ -188,7 +185,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         disabled={isSubmitting}
         aria-describedby={errors.value ? 'value-error' : undefined}
         inputMode="decimal"
-        step="0.01"
+        step={0.01}
       />
 
       {!initialData && (
