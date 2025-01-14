@@ -3,18 +3,18 @@ import * as yup from 'yup'; // v1.0.0
 import sanitizeHtml from 'sanitize-html'; // v2.11.0
 
 // Internal imports
-import { ICompanyMetric } from '../interfaces/ICompanyMetric.js';
-import { useAppDispatch, useAppSelector } from '../store/index.js';
+import { ICompanyMetric } from '../interfaces/ICompanyMetric';
+import { useAppDispatch, useAppSelector } from '../store';
 import {
   selectAllMetrics,
-  selectLoading,
+  selectMetricById,
+  selectLoadingState,
   selectError,
   fetchCompanyMetrics,
-  fetchCompanyMetricById,
   createCompanyMetric,
   updateCompanyMetric,
-  deleteMetric
-} from '../store/companyMetricsSlice.js';
+  deleteCompanyMetric
+} from '../store/companyMetricsSlice';
 
 // Validation schema for metric data
 const metricDataSchema = yup.object().shape({
@@ -33,7 +33,7 @@ export const useCompanyMetrics = () => {
 
   // Selectors
   const metrics = useAppSelector(selectAllMetrics);
-  const loading = useAppSelector(selectLoading);
+  const loading = useAppSelector((state) => selectLoadingState(state, 'fetchAll')?.isLoading || false);
   const error = useAppSelector(selectError);
 
   // Cleanup function for request cancellation
@@ -77,11 +77,12 @@ export const useCompanyMetrics = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      await dispatch(fetchCompanyMetricById(id)).unwrap();
+      const metric = selectMetricById({ companyMetrics: { metrics } }, id);
+      return metric;
     } catch (error) {
       console.error('Error fetching metric:', error);
     }
-  }, [dispatch]);
+  }, [metrics]);
 
   /**
    * Creates a new company metric with validation and sanitization
@@ -151,7 +152,7 @@ export const useCompanyMetrics = () => {
         throw new Error('Metric ID is required');
       }
 
-      await dispatch(deleteMetric(id)).unwrap();
+      await dispatch(deleteCompanyMetric(id)).unwrap();
     } catch (error) {
       console.error('Error deleting metric:', error);
       throw error;
