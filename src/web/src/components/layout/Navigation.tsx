@@ -26,14 +26,27 @@ import {
   ChevronLeft,
   ChevronRight
 } from '@mui/icons-material';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth.js';
 import { analytics } from '@analytics/react';
-import { UI_CONSTANTS } from '../../config/constants';
+import { UI_CONSTANTS } from '../../config/constants.js';
 
 // Interfaces
 interface NavigationProps {
   isCollapsed: boolean;
-  theme: Theme;
+  theme: Theme & {
+    spacing: (value: number) => string;
+    palette: {
+      primary: {
+        main: string;
+        dark: string;
+        light: string;
+        contrastText: string;
+      };
+      secondary: {
+        main: string;
+      };
+    };
+  };
   ariaLabel?: string;
   onNavigationError?: (error: Error) => void;
 }
@@ -50,11 +63,11 @@ interface NavItem {
 }
 
 // Styled Components
-const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
+const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: NavigationProps['theme'] }>`
   width: ${props => props.isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH};
   height: 100vh;
-  background-color: ${props => props.theme.palette?.primary?.main || '#fff'};
-  color: ${props => props.theme.palette?.primary?.contrastText || '#000'};
+  background-color: ${props => props.theme.palette.primary.main};
+  color: ${props => props.theme.palette.primary.contrastText};
   transition: width 0.3s ease;
   overflow-x: hidden;
   overflow-y: auto;
@@ -73,21 +86,21 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   }
 
   &::-webkit-scrollbar-track {
-    background: ${props => props.theme.palette?.primary?.dark || '#e0e0e0'};
+    background: ${props => props.theme.palette.primary.dark};
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.palette?.primary?.light || '#bdbdbd'};
+    background: ${props => props.theme.palette.primary.light};
     border-radius: 3px;
   }
 `;
 
-const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: ${props => props.theme.spacing?.(2) || '16px'};
-  color: ${props => props.active ? props.theme.palette?.secondary?.main || '#000' : 'inherit'};
+const StyledListItem = styled(ListItem)<{ active?: boolean; theme: NavigationProps['theme'] }>`
+  padding: ${props => props.theme.spacing(2)};
+  color: ${props => props.active ? props.theme.palette.secondary.main : 'inherit'};
   
   &:hover {
-    background-color: ${props => props.theme.palette?.primary?.dark || '#e0e0e0'};
+    background-color: ${props => props.theme.palette.primary.dark};
   }
 
   .MuiListItemIcon-root {
@@ -211,6 +224,7 @@ export const Navigation: React.FC<NavigationProps> = ({
           aria-label={item.ariaLabel}
           aria-expanded={item.children ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}
+          theme={theme}
         >
           <ListItemIcon>{item.icon}</ListItemIcon>
           {!isCollapsed && (
