@@ -52,10 +52,10 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
       datasets: [{
         data: data.map(d => d.value),
         backgroundColor: highContrastMode ? 
-          '#000000' : 
+          CHART_COLORS.background : 
           `${CHART_COLORS.primary}CC`,
         borderColor: highContrastMode ? 
-          '#FFFFFF' : 
+          CHART_COLORS.text : 
           CHART_COLORS.primary,
         borderWidth: 1,
         borderRadius: 4,
@@ -76,7 +76,7 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
         tooltip: {
           enabled: true,
           backgroundColor: highContrastMode ? 
-            '#000000' : 
+            CHART_COLORS.text : 
             `${CHART_COLORS.primary}E6`,
           titleFont: {
             family: 'Inter',
