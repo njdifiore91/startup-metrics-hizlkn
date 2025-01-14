@@ -1,7 +1,7 @@
-import React from 'react'; // ^18.2.0
-import * as Sentry from '@sentry/react'; // ^7.0.0
-import { handleApiError } from '../../utils/errorHandlers';
-import { Card } from './Card';
+import React from 'react';
+import * as Sentry from '@sentry/react';
+import { handleApiError } from '../../utils/errorHandlers.js';
+import { Card } from './Card.js';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
