@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton';
 import { Card } from '../../components/common/Card';
-import { useAccessibility } from '@react-aria/interactions';
+import { useFocusWithin } from '@react-aria/interactions';
 import analytics from '@segment/analytics-next';
 
 /**
@@ -12,8 +12,8 @@ import analytics from '@segment/analytics-next';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, login, clearError } = useAuth();
-  const { focusWithin } = useAccessibility();
+  const { isAuthenticated, error, clearError } = useAuth();
+  const { focusWithinProps } = useFocusWithin();
 
   // Initialize analytics
   const analyticsInstance = analytics.getInstance();
@@ -55,7 +55,7 @@ const Login: React.FC = () => {
   return (
     <div 
       className="loginContainer"
-      {...focusWithin}
+      {...focusWithinProps}
       role="main"
       aria-labelledby="login-title"
     >
