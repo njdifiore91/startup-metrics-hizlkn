@@ -61,8 +61,8 @@ class CompanyMetricsService {
 
       this.setCachedData(cacheKey, metrics);
       return metrics;
-    } catch (error: unknown) {
-      throw handleApiError(error as Error);
+    } catch (error: any) {
+      throw handleApiError(error);
     }
   }
 
@@ -94,8 +94,8 @@ class CompanyMetricsService {
 
       this.setCachedData(cacheKey, metric);
       return metric;
-    } catch (error: unknown) {
-      throw handleApiError(error as Error);
+    } catch (error: any) {
+      throw handleApiError(error);
     }
   }
 
@@ -116,8 +116,8 @@ class CompanyMetricsService {
 
       this.invalidateCache();
       return createdMetric;
-    } catch (error: unknown) {
-      throw handleApiError(error as Error);
+    } catch (error: any) {
+      throw handleApiError(error);
     }
   }
 
@@ -151,8 +151,8 @@ class CompanyMetricsService {
 
       this.invalidateCache();
       return updatedMetric;
-    } catch (error: unknown) {
-      throw handleApiError(error as Error);
+    } catch (error: any) {
+      throw handleApiError(error);
     }
   }
 
@@ -169,8 +169,8 @@ class CompanyMetricsService {
 
       await api.delete(API_ENDPOINTS.BY_ID(id));
       this.invalidateCache();
-    } catch (error: unknown) {
-      throw handleApiError(error as Error);
+    } catch (error: any) {
+      throw handleApiError(error);
     }
   }
 
