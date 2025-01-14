@@ -1,6 +1,6 @@
-import { IMetric } from '../interfaces/IMetric';
-import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
+import { IMetric, MetricValueType } from '../interfaces/IMetric.js';
+import { ICompanyMetric } from '../interfaces/ICompanyMetric.js';
+import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark.js';
 
 /**
  * Type for percentile calculation results with confidence indicator
