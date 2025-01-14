@@ -136,7 +136,10 @@ export const getBenchmarksByMetric = async (
     benchmarkCache.set(cacheKey, benchmarks);
     return benchmarks;
   } catch (error) {
-    throw handleApiError(error as AxiosError);
+    if (axios.isAxiosError(error)) {
+      throw handleApiError(error);
+    }
+    throw error;
   }
 };
 
@@ -167,7 +170,10 @@ export const getBenchmarksByRevenueRange = async (
 
     return response.data;
   } catch (error) {
-    throw handleApiError(error as AxiosError);
+    if (axios.isAxiosError(error)) {
+      throw handleApiError(error);
+    }
+    throw error;
   }
 };
 
@@ -194,7 +200,10 @@ export const compareBenchmarks = async (
 
     return response.data;
   } catch (error) {
-    throw handleApiError(error as AxiosError);
+    if (axios.isAxiosError(error)) {
+      throw handleApiError(error);
+    }
+    throw error;
   }
 };
 
