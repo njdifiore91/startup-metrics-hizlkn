@@ -5,16 +5,16 @@ import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
 import { analytics } from '@segment/analytics-next'; // v1.51.0
 
 // Internal imports
-import MetricSelector from '../components/metrics/MetricSelector';
-import RevenueRangeSelector from '../components/metrics/RevenueRangeSelector';
-import MetricComparison from '../components/metrics/MetricComparison';
-import { IMetric } from '../interfaces/IMetric';
-import { useMetrics } from '../hooks/useMetrics';
-import { useBenchmarks } from '../hooks/useBenchmarks';
-import { useToast, ToastType } from '../hooks/useToast';
-import { REVENUE_RANGES } from '../config/constants';
-import { handleApiError } from '../utils/errorHandlers';
-import { setSelectedMetric, setSelectedRevenueRange } from '../store/benchmarkSlice';
+import MetricSelector from '../components/metrics/MetricSelector.js';
+import RevenueRangeSelector from '../components/metrics/RevenueRangeSelector.js';
+import MetricComparison from '../components/metrics/MetricComparison.js';
+import { IMetric } from '../interfaces/IMetric.js';
+import { useMetrics } from '../hooks/useMetrics.js';
+import { useBenchmarks } from '../hooks/useBenchmarks.js';
+import { useToast, ToastType } from '../hooks/useToast.js';
+import { REVENUE_RANGES } from '../config/constants.js';
+import { handleApiError } from '../utils/errorHandlers.js';
+import { setSelectedMetric, setSelectedRevenueRange } from '../store/benchmarkSlice.js';
 
 // Error Fallback Component
 const ErrorFallback: React.FC<{ error: Error; resetErrorBoundary: () => void }> = ({ 
@@ -44,12 +44,12 @@ const Benchmarks: React.FC = () => {
   // Local state
   const [selectedMetricId, setSelectedMetricId] = useState<string>('');
   const [selectedRange, setSelectedRange] = useState<string>(REVENUE_RANGES.ranges[0]);
-  const [companyValue, setCompanyValue] = useState<number | undefined>(undefined);
+  const [companyValue, setCompanyValue] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Memoized selected metric
   const selectedMetric = useMemo(() => 
-    (metrics as IMetric[]).find(m => m.id === selectedMetricId),
+    metrics.find((m: IMetric) => m.id === selectedMetricId),
     [metrics, selectedMetricId]
   );
 
@@ -113,7 +113,7 @@ const Benchmarks: React.FC = () => {
       onReset={() => {
         setSelectedMetricId('');
         setSelectedRange(REVENUE_RANGES.ranges[0]);
-        setCompanyValue(undefined);
+        setCompanyValue(null);
       }}
     >
       <div className="benchmarks-container">
@@ -123,7 +123,7 @@ const Benchmarks: React.FC = () => {
           <MetricSelector
             selectedMetricId={selectedMetricId}
             onMetricSelect={handleMetricSelect}
-            disabled={!!metricsLoading}
+            disabled={metricsLoading}
             category="financial"
             className="metric-selector"
             ariaLabel="Select metric for benchmark analysis"
@@ -132,7 +132,7 @@ const Benchmarks: React.FC = () => {
           <RevenueRangeSelector
             selectedRange={selectedRange}
             onRangeChange={handleRangeChange}
-            disabled={!!benchmarksLoading}
+            disabled={benchmarksLoading}
             className="revenue-selector"
             ariaLabel="Select revenue range for comparison"
           />
@@ -152,7 +152,7 @@ const Benchmarks: React.FC = () => {
 
         {(metricsError || benchmarksError) && (
           <div className="error-container" role="alert">
-            <span>{metricsError || benchmarksError}</span>
+            {metricsError || benchmarksError}
           </div>
         )}
 
@@ -162,7 +162,8 @@ const Benchmarks: React.FC = () => {
           </div>
         )}
 
-        <style jsx>{`
+        <style>
+          {`
           .benchmarks-container {
             padding: 2rem;
             max-width: 1200px;
@@ -226,7 +227,8 @@ const Benchmarks: React.FC = () => {
               transition: none;
             }
           }
-        `}</style>
+        `}
+        </style>
       </div>
     </ErrorBoundary>
   );
