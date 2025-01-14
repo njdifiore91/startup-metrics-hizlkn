@@ -6,9 +6,9 @@
 
 import { useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { AuthService } from '../services/auth.js';
-import { authActions, SessionStatus, AuthError } from '../store/authSlice.js';
-import type { IUser } from '../interfaces/IUser.js';
+import { AuthService } from '../services/auth';
+import { authActions, SessionStatus, AuthError } from '../store/authSlice';
+import type { IUser } from '../interfaces/IUser';
 
 // Constants for security and session management
 const TOKEN_REFRESH_INTERVAL = 300000; // 5 minutes
@@ -36,8 +36,9 @@ interface UseAuthReturn {
   sessionStatus: SessionStatus;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
+  refreshToken: () => Promise<string>;
   validateSession: () => Promise<boolean>;
+  updateUserSettings: () => Promise<void>;
 }
 
 /**
@@ -138,7 +139,7 @@ export const useAuth = (): UseAuthReturn => {
   /**
    * Refreshes authentication token with retry mechanism
    */
-  const refreshToken = useCallback(async (): Promise<void> => {
+  const refreshToken = useCallback(async (): Promise<string> => {
     try {
       dispatch(authActions.setLoading(true));
       const newToken = await authService.refreshAuthToken();
@@ -152,6 +153,7 @@ export const useAuth = (): UseAuthReturn => {
       }));
       // Force logout on token refresh failure
       await logout();
+      throw error;
     } finally {
       dispatch(authActions.setLoading(false));
     }
@@ -172,6 +174,26 @@ export const useAuth = (): UseAuthReturn => {
       return false;
     }
   }, [dispatch, authService]);
+
+  /**
+   * Updates user settings and syncs with authentication state
+   */
+  const updateUserSettings = useCallback(async (): Promise<void> => {
+    try {
+      dispatch(authActions.setLoading(true));
+      // This is a placeholder for the actual implementation
+      // The actual implementation should be added based on the requirements
+      await Promise.resolve();
+    } catch (error: any) {
+      dispatch(authActions.setError({
+        code: 'UPDATE_SETTINGS_ERROR',
+        message: error.message || 'Failed to update user settings',
+        details: error.details || {}
+      }));
+    } finally {
+      dispatch(authActions.setLoading(false));
+    }
+  }, [dispatch]);
 
   // Set up automatic token refresh
   useEffect(() => {
@@ -219,6 +241,7 @@ export const useAuth = (): UseAuthReturn => {
     login,
     logout,
     refreshToken,
-    validateSession
+    validateSession,
+    updateUserSettings
   };
 };
