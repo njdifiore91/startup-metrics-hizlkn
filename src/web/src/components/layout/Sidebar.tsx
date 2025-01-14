@@ -8,14 +8,17 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import styled from '@emotion/styled';
 import { Drawer, IconButton, useTheme, useMediaQuery, Theme } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
-import { Navigation } from './Navigation.js';
-import { useAuth } from '../../hooks/useAuth.js';
-import { UI_CONSTANTS } from '../../config/constants.js';
+import { Navigation } from './Navigation';
+import { useAuth } from '../../hooks/useAuth';
+import { UI_CONSTANTS } from '../../config/constants';
 
 // Constants
 const DRAWER_WIDTH = parseInt(UI_CONSTANTS.SIDEBAR_WIDTH);
 const COLLAPSED_WIDTH = 64;
 const TRANSITION_DURATION = 225;
+const KEYBOARD_SHORTCUTS = {
+  TOGGLE: 'mod+b'
+} as const;
 
 // Interfaces
 interface SidebarProps {
@@ -49,7 +52,7 @@ const StyledDrawer = styled(Drawer)<{ open: boolean; theme: Theme }>`
   }
 `;
 
-const DrawerHeader = styled.div`
+const DrawerHeader = styled.div<{ theme: Theme }>`
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -62,7 +65,7 @@ const DrawerHeader = styled.div`
   border-bottom: 1px solid ${props => props.theme.palette.divider};
 `;
 
-const ToggleButton = styled(IconButton)`
+const ToggleButton = styled(IconButton)<{ theme: Theme }>`
   margin: ${props => props.theme.spacing(0, 0.5)};
   color: ${props => props.theme.palette.primary.contrastText};
   
@@ -143,13 +146,14 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
         keepMounted: true // Better mobile performance
       }}
     >
-      <DrawerHeader role="banner">
+      <DrawerHeader role="banner" theme={theme}>
         <ToggleButton
           onClick={handleToggle}
           aria-label={isOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}
           aria-expanded={isOpen}
           aria-controls="sidebar-content"
           size="large"
+          theme={theme}
         >
           {theme.direction === 'rtl' ? (
             isOpen ? <ChevronRight /> : <ChevronLeft />
