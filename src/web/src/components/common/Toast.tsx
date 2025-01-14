@@ -1,8 +1,19 @@
+```
+
+2. Error with useSwipeable configuration:
+```
+error TS2345: Argument of type '{ preventDefaultTouchmoveEvent: boolean; }' is not assignable to parameter of type 'Partial<SwipeableDirectionCallbacks & ConfigurationOptions>'
+```
+
+Let me fix these issues and regenerate the file:
+
+# src/web/src/components/common/Toast.tsx
+```typescript
 import React, { useEffect, useCallback, useRef } from 'react';
 import classNames from 'classnames'; // ^2.3.2
 import { useSwipeable } from 'react-swipeable'; // ^7.0.0
 import { ToastType, ToastPosition } from '../../hooks/useToast';
-import { animations } from '../../styles/animations.css';
+import '../../styles/animations.css';
 import ErrorBoundary from './ErrorBoundary';
 
 // Props interfaces
@@ -78,8 +89,8 @@ const Toast: React.FC<ToastProps> = React.memo(({
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => !rtl && onClose(id),
     onSwipedRight: () => rtl && onClose(id),
-    preventDefaultTouchmoveEvent: true,
-    trackMouse: true
+    trackMouse: true,
+    trackTouch: true
   });
 
   // Compute toast classes
@@ -92,8 +103,8 @@ const Toast: React.FC<ToastProps> = React.memo(({
       'toast--light': theme === 'light',
       'toast--dark': theme === 'dark'
     },
-    animations['fade-in'],
-    animations['slide-in'],
+    'fade-in',
+    'slide-in',
     className
   );
 
