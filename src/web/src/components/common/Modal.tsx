@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import ReactDOM from 'react-dom';
 import FocusTrap from 'focus-trap-react';
-import { Button } from './Button';
+import { Button } from './Button.js';
 import '../../styles/theme.css';
 
 // Animation duration in milliseconds
