@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
-import Select from '../common/Select.js';
-import { IMetric, MetricCategory } from '../../interfaces/IMetric.js';
-import { useMetrics } from '../../hooks/useMetrics.js';
+import Select from '../common/Select';
+import { IMetric, MetricCategory } from '../../interfaces/IMetric';
+import { useMetrics } from '../../hooks/useMetrics';
 
 /**
  * Interface for MetricSelector component props with comprehensive validation
@@ -55,11 +55,13 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
     metrics,
     loading,
     error,
-    getMetricsByCategory
+    getMetricsByCategory,
+    validateMetricValue
   } = useMetrics();
 
   // Local state for filtered metrics
   const [filteredMetrics, setFilteredMetrics] = useState<IMetric[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
   // Transform metrics to select options with memoization
@@ -84,11 +86,13 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
   // Debounced search handler
   const handleSearch = useMemo(() => 
     debounce((term: string) => {
-      const filtered = metrics.filter((metric: IMetric) => 
+      if (!Array.isArray(metrics)) return;
+      
+      const filtered = metrics.filter(metric => 
         metric.category === category &&
         (metric.name.toLowerCase().includes(term.toLowerCase()) ||
          metric.description.toLowerCase().includes(term.toLowerCase()) ||
-         metric.tags.some((tag: string) => tag.toLowerCase().includes(term.toLowerCase())))
+         metric.tags.some(tag => tag.toLowerCase().includes(term.toLowerCase())))
       );
       setFilteredMetrics(filtered);
     }, 300),
@@ -96,10 +100,12 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
   );
 
   // Handle metric selection
-  const handleMetricSelect = useCallback((value: string) => {
-    const selectedMetric = metrics.find((m: IMetric) => m.id === value);
+  const handleMetricSelect = useCallback((value: string | number) => {
+    if (!Array.isArray(metrics)) return;
+    
+    const selectedMetric = metrics.find(m => m.id === value.toString());
     if (selectedMetric) {
-      onMetricSelect(value, selectedMetric);
+      onMetricSelect(selectedMetric.id, selectedMetric);
     }
   }, [metrics, onMetricSelect]);
 
@@ -146,14 +152,14 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
         label="Select Metric"
         placeholder="Choose a metric..."
         disabled={disabled || loading[`category_${category}`]}
-        error={error[`category_${category}`]}
+        error={error[`category_${category}`] || undefined}
         loading={loading[`category_${category}`]}
         required
         className={className}
         aria-label={ariaLabel}
       />
 
-      <style>{`
+      <style jsx>{`
         .metric-selector {
           width: 100%;
           max-width: 400px;
