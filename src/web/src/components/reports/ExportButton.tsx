@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
-import Button, { ButtonProps } from '../common/Button';
-import { exportService } from '../../services/export';
-import { useToast, ToastPosition, ToastType } from '../../hooks/useToast';
-import { IMetric } from '../../interfaces/IMetric';
-import { IBenchmark } from '../../interfaces/IBenchmark';
+import Button, { ButtonProps } from '../common/Button.js';
+import { exportService } from '../../services/export.js';
+import { useToast, ToastPosition } from '../../hooks/useToast.js';
+import { IMetric } from '../../interfaces/IMetric.js';
+import { IBenchmark } from '../../interfaces/IBenchmark.js';
 
 // Export format type
 export type ExportFormat = 'PDF' | 'CSV';
@@ -47,7 +47,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
     event.preventDefault();
 
     if (!metrics.length || !benchmarks.length) {
-      showToast('No data available for export', ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      showToast('No data available for export', 'error', ToastPosition.TOP_RIGHT);
       return;
     }
 
@@ -89,7 +89,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       // Success notification
       showToast(
         `Export completed successfully. Your ${format} file is ready.`,
-        ToastType.SUCCESS,
+        'success',
         ToastPosition.TOP_RIGHT
       );
 
@@ -104,7 +104,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       // Enhanced error feedback
       showToast(
         `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
-        ToastType.ERROR,
+        'error',
         ToastPosition.TOP_RIGHT
       );
 
