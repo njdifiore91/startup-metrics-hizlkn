@@ -9,20 +9,19 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Provider } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Analytics } from '@analytics/google-analytics';
-import { store } from './store';
 
 // Components
-import Layout from './components/layout/Layout';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-import LoadingSpinner from './components/common/LoadingSpinner';
+import Layout from './components/layout/Layout.js';
+import ProtectedRoute from './components/auth/ProtectedRoute.js';
+import LoadingSpinner from './components/common/LoadingSpinner.js';
 
 // Lazy-loaded route components
-const Login = React.lazy(() => import('./pages/Login'));
-const Dashboard = React.lazy(() => import('./pages/Dashboard'));
-const Benchmarks = React.lazy(() => import('./pages/Benchmarks'));
-const CompanyMetrics = React.lazy(() => import('./pages/CompanyMetrics'));
-const Reports = React.lazy(() => import('./pages/Reports'));
-const Settings = React.lazy(() => import('./pages/Settings'));
+const Login = React.lazy(() => import('./pages/Login.js'));
+const Dashboard = React.lazy(() => import('./pages/Dashboard.js'));
+const Benchmarks = React.lazy(() => import('./pages/Benchmarks.js'));
+const CompanyMetrics = React.lazy(() => import('./pages/CompanyMetrics.js'));
+const Reports = React.lazy(() => import('./pages/Reports.js'));
+const Settings = React.lazy(() => import('./pages/Settings.js'));
 
 // Constants
 const ROUTES = {
@@ -110,71 +109,69 @@ const App: React.FC = () => {
       onError={handleError}
       onReset={() => window.location.reload()}
     >
-      <Provider store={store}>
-        <BrowserRouter>
-          <RouteTracker />
-          <Layout>
-            <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                {/* Public Routes */}
-                <Route path={ROUTES.LOGIN} element={<Login />} />
+      <BrowserRouter>
+        <RouteTracker />
+        <Layout>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path={ROUTES.LOGIN} element={<Login />} />
 
-                {/* Protected Routes */}
-                <Route
-                  path={ROUTES.DASHBOARD}
-                  element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.BENCHMARKS}
-                  element={
-                    <ProtectedRoute>
-                      <Benchmarks />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.COMPANY_METRICS}
-                  element={
-                    <ProtectedRoute>
-                      <CompanyMetrics />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.REPORTS}
-                  element={
-                    <ProtectedRoute>
-                      <Reports />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.SETTINGS}
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <Settings />
-                    </ProtectedRoute>
-                  }
-                />
+              {/* Protected Routes */}
+              <Route
+                path={ROUTES.DASHBOARD}
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.BENCHMARKS}
+                element={
+                  <ProtectedRoute>
+                    <Benchmarks />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.COMPANY_METRICS}
+                element={
+                  <ProtectedRoute>
+                    <CompanyMetrics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.REPORTS}
+                element={
+                  <ProtectedRoute>
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.SETTINGS}
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
 
-                {/* Redirects */}
-                <Route
-                  path="/"
-                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
-                />
-                <Route
-                  path="*"
-                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
-                />
-              </Routes>
-            </Suspense>
-          </Layout>
-        </BrowserRouter>
-      </Provider>
+              {/* Redirects */}
+              <Route
+                path="/"
+                element={<Navigate to={ROUTES.DASHBOARD} replace />}
+              />
+              <Route
+                path="*"
+                element={<Navigate to={ROUTES.DASHBOARD} replace />}
+              />
+            </Routes>
+          </Suspense>
+        </Layout>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 };
