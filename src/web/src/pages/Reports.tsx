@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useAria } from '@react-aria/i18n'; // v3.0.0
+import { useA11y } from '@react-aria/i18n'; // v3.0.0
 import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
+import { useProgress } from '@progress/hooks'; // v1.0.0
 
 // Internal imports
 import ReportGenerator from '../components/reports/ReportGenerator';
 import ExportButton from '../components/reports/ExportButton';
 import { useMetrics } from '../hooks/useMetrics';
 import { useBenchmarks } from '../hooks/useBenchmarks';
-import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { useToast, ToastType, ToastPosition } from '../hooks/useToast';
 
 // Types and interfaces
 import { IMetric } from '../interfaces/IMetric';
@@ -52,7 +53,8 @@ const Reports: React.FC = () => {
   // Custom hooks
   const { getMetricsByCategory, validateMetricValue } = useMetrics();
   const { benchmarks, fetchBenchmarkData, compareBenchmark } = useBenchmarks();
-  const { announce } = useAria();
+  const { announce } = useA11y();
+  const { startProgress, updateProgress, completeProgress } = useProgress();
 
   // Refs for cleanup and abort control
   const abortController = useRef<AbortController>();
@@ -87,7 +89,7 @@ const Reports: React.FC = () => {
   const handleError = useCallback((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     setState(prev => ({ ...prev, error: new Error(errorMessage) }));
-    showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+    useToast().showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
     announce(`Error: ${errorMessage}`, 'assertive');
   }, [announce]);
 
@@ -164,6 +166,7 @@ const Reports: React.FC = () => {
               onProgress={(progress) => 
                 setState(prev => ({ ...prev, exportProgress: progress }))
               }
+              onCancel={handleExportCancel}
             />
             <ExportButton
               format="CSV"
@@ -174,6 +177,7 @@ const Reports: React.FC = () => {
               onProgress={(progress) => 
                 setState(prev => ({ ...prev, exportProgress: progress }))
               }
+              onCancel={handleExportCancel}
             />
           </div>
 
