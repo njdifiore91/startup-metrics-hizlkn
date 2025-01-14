@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import { UserRole } from '../config/constants';
+import { UserRole } from '../config/constants.js';
 
 /**
  * Interface representing a user entity in the frontend application
