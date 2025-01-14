@@ -36,7 +36,7 @@ interface UseAuthReturn {
   sessionStatus: SessionStatus;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
+  refreshToken: () => Promise<string>;
   validateSession: () => Promise<boolean>;
 }
 
@@ -138,7 +138,7 @@ export const useAuth = (): UseAuthReturn => {
   /**
    * Refreshes authentication token with retry mechanism
    */
-  const refreshToken = useCallback(async (): Promise<void> => {
+  const refreshToken = useCallback(async (): Promise<string> => {
     try {
       dispatch(authActions.setLoading(true));
       const newToken = await authService.refreshAuthToken();
@@ -152,6 +152,7 @@ export const useAuth = (): UseAuthReturn => {
       }));
       // Force logout on token refresh failure
       await logout();
+      throw error;
     } finally {
       dispatch(authActions.setLoading(false));
     }
