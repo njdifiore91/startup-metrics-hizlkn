@@ -4,15 +4,15 @@ import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
 import { useProgress } from '@progress/hooks'; // v1.0.0
 
 // Internal imports
-import ReportGenerator from '../components/reports/ReportGenerator';
-import ExportButton from '../components/reports/ExportButton';
-import { useMetrics } from '../hooks/useMetrics';
-import { useBenchmarks } from '../hooks/useBenchmarks';
-import { useToast } from '../hooks/useToast';
+import ReportGenerator from '../components/reports/ReportGenerator.js';
+import ExportButton from '../components/reports/ExportButton.js';
+import useMetrics from '../hooks/useMetrics.js';
+import useBenchmarks from '../hooks/useBenchmarks.js';
+import { showToast } from '../hooks/useToast.js';
 
 // Types and interfaces
-import { IMetric } from '../interfaces/IMetric';
-import { ExportFormat } from '../services/export';
+import { IMetric } from '../interfaces/IMetric.js';
+import { ExportFormat } from '../services/export.js';
 
 // Constants
 const MAX_METRICS_PER_REPORT = 10;
@@ -45,7 +45,6 @@ const Reports: React.FC = () => {
   const { benchmarks, fetchBenchmarkData } = useBenchmarks();
   const { announce } = useAnnounce();
   const { startProgress, updateProgress, completeProgress } = useProgress();
-  const { showToast } = useToast();
 
   // Refs for cleanup and abort control
   const abortController = useRef<AbortController>();
@@ -82,7 +81,7 @@ const Reports: React.FC = () => {
     setState(prev => ({ ...prev, error: new Error(errorMessage) }));
     showToast(errorMessage, 'error', 'top-right');
     announce(`Error: ${errorMessage}`, 'assertive');
-  }, [announce, showToast]);
+  }, [announce]);
 
   // Metric selection handler
   const handleMetricSelection = useCallback(async (metrics: IMetric[]) => {
@@ -117,6 +116,88 @@ const Reports: React.FC = () => {
       handleError(error);
     }
   }, [state.selectedRevenueRange, fetchBenchmarkData, announce]);
+
+  // Export handler
+  const handleExportStart = useCallback(async (format: ExportFormat) => {
+    if (!state.selectedMetrics.length || !benchmarks.length) {
+      handleError(new Error('Please select metrics and ensure benchmark data is available'));
+      return;
+    }
+
+    try {
+      // Initialize progress tracking
+      setState(prev => ({
+        ...prev,
+        exportFormat: format,
+        exportProgress: 0,
+        loadingStates: { ...prev.loadingStates, export: true }
+      }));
+
+      abortController.current = new AbortController();
+      startProgress();
+
+      // Track progress
+      progressTimer.current = setInterval(() => {
+        setState(prev => ({
+          ...prev,
+          exportProgress: Math.min(prev.exportProgress + 10, 90)
+        }));
+      }, 500);
+
+      announce('Starting report export', 'polite');
+
+      // Generate report
+      const reportData = {
+        metrics: state.selectedMetrics,
+        benchmarks,
+        revenueRange: state.selectedRevenueRange,
+        format
+      };
+
+      await ReportGenerator.generateReport(reportData, {
+        onProgress: (progress: number) => {
+          updateProgress(progress);
+          setState(prev => ({ ...prev, exportProgress: progress }));
+          announce(`Export progress: ${progress}%`, 'polite');
+        },
+        signal: abortController.current.signal
+      });
+
+      // Cleanup and complete
+      if (progressTimer.current) {
+        clearInterval(progressTimer.current);
+      }
+      completeProgress();
+      setState(prev => ({
+        ...prev,
+        exportProgress: 100,
+        loadingStates: { ...prev.loadingStates, export: false }
+      }));
+
+      announce('Report export completed successfully', 'polite');
+      showToast('Report exported successfully', 'success', 'top-right');
+
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        announce('Export cancelled', 'polite');
+        return;
+      }
+      handleError(error);
+    }
+  }, [state.selectedMetrics, benchmarks, state.selectedRevenueRange, announce]);
+
+  // Cancel export handler
+  const handleExportCancel = useCallback(() => {
+    abortController.current?.abort();
+    if (progressTimer.current) {
+      clearInterval(progressTimer.current);
+    }
+    setState(prev => ({
+      ...prev,
+      exportProgress: 0,
+      loadingStates: { ...prev.loadingStates, export: false }
+    }));
+  }, []);
 
   return (
     <ErrorBoundary
@@ -154,7 +235,7 @@ const Reports: React.FC = () => {
               benchmarks={benchmarks}
               revenueRange={state.selectedRevenueRange}
               disabled={!state.selectedMetrics.length || state.loadingStates.export}
-              onProgress={(progress) => 
+              onProgress={(progress: number) => 
                 setState(prev => ({ ...prev, exportProgress: progress }))
               }
               onCancel={handleExportCancel}
@@ -165,7 +246,7 @@ const Reports: React.FC = () => {
               benchmarks={benchmarks}
               revenueRange={state.selectedRevenueRange}
               disabled={!state.selectedMetrics.length || state.loadingStates.export}
-              onProgress={(progress) => 
+              onProgress={(progress: number) => 
                 setState(prev => ({ ...prev, exportProgress: progress }))
               }
               onCancel={handleExportCancel}
