@@ -83,7 +83,7 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
@@ -128,14 +128,14 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         // Update existing metric
         await updateMetric(initialData.id, {
           value: formData.value,
-          metadata: formData.metadata
+          metadata: formData.metadata || {}
         });
       } else {
         // Create new metric
         await createMetric({
           value: formData.value,
           metricId: formData.metricId,
-          metadata: formData.metadata,
+          metadata: formData.metadata || {},
           timestamp: new Date().toISOString()
         });
       }
