@@ -1,6 +1,6 @@
 import React from 'react'; // ^18.2.0
 import classnames from 'classnames'; // ^2.3.2
-import { Card, CardProps } from '../common/Card';
+import { Card } from '../common/Card';
 import { IMetric, MetricCategory } from '../../interfaces/IMetric';
 import { formatMetricValue } from '../../utils/numberFormatters';
 
@@ -71,6 +71,7 @@ const MetricCard: React.FC<MetricCardProps> = React.memo(({
       testId={testId}
       role="button"
       ariaLabel={`${metric.name} metric card${selected ? ', selected' : ''}`}
+      onKeyDown={handleKeyDown}
     >
       <div className="metric-card__content">
         <h3 className="metric-card__title">{metric.name}</h3>
@@ -88,7 +89,7 @@ const MetricCard: React.FC<MetricCardProps> = React.memo(({
           </div>
         )}
       </div>
-      <style jsx>{`
+      <style>{`
         .metric-card {
           min-width: 200px;
           min-height: 120px;
