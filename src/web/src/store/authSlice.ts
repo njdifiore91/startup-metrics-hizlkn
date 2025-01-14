@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import CryptoJS from 'crypto-js';
-import { IUser } from '../interfaces/IUser';
-import { authConfig } from '../config/auth';
+import { IUser } from '../interfaces/IUser.js';
+import { authConfig } from '../config/auth.js';
 
 /**
  * Enum for tracking session status
