@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
 import Button, { ButtonProps } from '../common/Button';
@@ -32,6 +32,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
   testId = 'google-login-button'
 }) => {
   const { login, isLoading, error } = useAuth();
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Debounced login handler to prevent multiple rapid clicks
   const handleGoogleLogin = useCallback(
@@ -40,6 +41,10 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
 
       try {
         await login();
+        // Since login() doesn't return a response, we'll need to handle success via error state
+        if (!error) {
+          onSuccess?.({ token: '', user: {} as IUser }); // This will be handled by the auth state update
+        }
       } catch (error: any) {
         onError?.({
           code: error.code || 'AUTH_ERROR',
@@ -47,7 +52,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
         });
       }
     }, 300, { leading: true, trailing: false }),
-    [login, disabled, isLoading, onError]
+    [login, disabled, isLoading, onSuccess, onError, error]
   );
 
   // Clean up debounce on unmount
