@@ -1,16 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import Button from '../common/Button.js';
-import Select from '../common/Select.js';
-import { exportService } from '../../services/export.js';
-import { useToast, ToastType, ToastPosition } from '../../hooks/useToast.js';
-import { IMetric } from '../../interfaces/IMetric.js';
-import { IBenchmark } from '../../interfaces/IBenchmark.js';
+import Button from '../common/Button';
+import Select from '../common/Select';
+import { exportService } from '../../services/export';
+import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
+import { IMetric } from '../../interfaces/IMetric';
+import { IBenchmark } from '../../interfaces/IBenchmark';
+import type { ExportFormat } from '../../services/export';
 
 // Constants for export options and error messages
 const EXPORT_FORMAT_OPTIONS = [
   { value: 'PDF', label: 'PDF Document', ariaLabel: 'Export as PDF document' },
   { value: 'CSV', label: 'CSV Spreadsheet', ariaLabel: 'Export as CSV spreadsheet' }
-] as const;
+];
 
 const ERROR_MESSAGES = {
   NO_METRICS: 'Please select at least one metric for the report',
@@ -42,7 +43,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
 }) => {
   // State management
   const [isLoading, setIsLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'PDF' | 'CSV' | ''>('');
+  const [exportFormat, setExportFormat] = useState<ExportFormat | ''>('');
   const { showToast } = useToast();
 
   // Validate required data before export
@@ -80,7 +81,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
 
       // Create export options
       const exportOptions = {
-        format: exportFormat,
+        format: exportFormat as ExportFormat,
         metrics,
         benchmarks,
         revenueRange,
@@ -139,7 +140,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         <Select
           options={EXPORT_FORMAT_OPTIONS}
           value={exportFormat}
-          onChange={(value: string) => setExportFormat(value as 'PDF' | 'CSV')}
+          onChange={(value) => setExportFormat(value as ExportFormat)}
           name="exportFormat"
           label="Export Format"
           placeholder="Select format"
@@ -160,8 +161,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         </Button>
       </div>
 
-      <style>
-        {`
+      <style jsx>{`
         .report-generator {
           padding: var(--spacing-md);
           border-radius: var(--border-radius-md);
@@ -180,8 +180,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
             align-items: stretch;
           }
         }
-      `}
-      </style>
+      `}</style>
     </div>
   );
 };
