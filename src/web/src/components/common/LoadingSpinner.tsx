@@ -1,6 +1,6 @@
 import React from 'react'; // v18.2.0
 import styled from '@emotion/styled'; // v11.11.0
-import { colors, transitions } from '../../config/theme.ts';
+import { colors, transitions } from '../../config/theme.js';
 
 // Props interface with comprehensive documentation
 interface LoadingSpinnerProps {
