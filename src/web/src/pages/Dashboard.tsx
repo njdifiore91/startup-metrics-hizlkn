@@ -1,13 +1,13 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import styled from '@emotion/styled';
-import Layout from '../components/layout/Layout';
-import { MetricCard } from '../components/metrics/MetricCard';
-import { useMetrics } from '../hooks/useMetrics';
-import { useBenchmarks } from '../hooks/useBenchmarks';
-import ErrorBoundary from '../components/common/ErrorBoundary';
-import { IMetric, MetricCategory } from '../interfaces/IMetric';
+import Layout from '../components/layout/Layout.tsx';
+import { MetricCard } from '../components/metrics/MetricCard.tsx';
+import { useMetrics } from '../hooks/useMetrics.ts';
+import { useBenchmarks } from '../hooks/useBenchmarks.ts';
+import ErrorBoundary from '../components/common/ErrorBoundary.tsx';
+import { IMetric, MetricCategory } from '../interfaces/IMetric.ts';
 import { analytics } from '@segment/analytics-next';
-import { METRIC_TYPES, REVENUE_RANGES } from '../config/constants';
+import { METRIC_TYPES, REVENUE_RANGES } from '../config/constants.ts';
 
 // Styled Components
 const DashboardContainer = styled.div`
@@ -72,24 +72,20 @@ const Dashboard: React.FC = () => {
   // Custom Hooks
   const { 
     metrics, 
-    loading: metricsLoading, 
     error: metricsError,
     getMetricsByCategory 
   } = useMetrics();
 
   const {
-    benchmarks,
-    loading: benchmarksLoading,
     error: benchmarksError,
-    fetchBenchmarkData,
-    compareBenchmark
+    fetchBenchmarkData
   } = useBenchmarks({
     revenueRange: state.revenueRange
   });
 
   // Memoized filtered metrics
   const filteredMetrics = useMemo(() => {
-    return metrics.filter(metric => metric.category === state.selectedCategory);
+    return metrics.filter((metric: IMetric) => metric.category === state.selectedCategory);
   }, [metrics, state.selectedCategory]);
 
   // Handlers
@@ -198,7 +194,7 @@ const Dashboard: React.FC = () => {
               onChange={(e) => handleCategoryChange(e.target.value as MetricCategory)}
               aria-label="Select metric category"
             >
-              {Object.values(METRIC_TYPES).map(category => (
+              {Object.values(METRIC_TYPES).map((category: string) => (
                 <option key={category} value={category}>
                   {category.charAt(0).toUpperCase() + category.slice(1)}
                 </option>
@@ -210,14 +206,14 @@ const Dashboard: React.FC = () => {
               onChange={(e) => setState(prev => ({ ...prev, revenueRange: e.target.value }))}
               aria-label="Select revenue range"
             >
-              {REVENUE_RANGES.ranges.map(range => (
+              {REVENUE_RANGES.ranges.map((range: string) => (
                 <option key={range} value={range}>{range}</option>
               ))}
             </select>
           </FilterSection>
 
           <MetricsGrid role="grid" aria-label="Metrics grid">
-            {filteredMetrics.map(metric => (
+            {filteredMetrics.map((metric: IMetric) => (
               <MetricCard
                 key={metric.id}
                 metric={metric}
