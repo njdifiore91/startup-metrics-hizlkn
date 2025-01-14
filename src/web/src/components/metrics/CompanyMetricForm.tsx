@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input } from '../common/Input';
-import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
-import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
+import { Input } from '../common/Input.js';
+import { ICompanyMetric } from '../../interfaces/ICompanyMetric.js';
+import { useCompanyMetrics } from '../../hooks/useCompanyMetrics.js';
 
 // Styled components with enterprise-ready styling
 const StyledForm = styled.form`
@@ -83,7 +83,7 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
@@ -128,27 +128,30 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         // Update existing metric
         await updateMetric(initialData.id, {
           value: formData.value,
-          metadata: formData.metadata || {}
+          metadata: formData.metadata
         });
       } else {
         // Create new metric
         await createMetric({
           value: formData.value,
           metricId: formData.metricId,
-          metadata: formData.metadata || {},
+          metadata: formData.metadata,
           timestamp: new Date().toISOString()
         });
       }
       onSubmitSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle validation errors
-      if (error.response?.data?.errors) {
-        error.response.data.errors.forEach((err: any) => {
-          setError(err.field as keyof FormValues, {
-            type: 'manual',
-            message: err.message
+      if (error && typeof error === 'object' && 'response' in error) {
+        const apiError = error as { response?: { data?: { errors?: Array<{ field: string; message: string }> } } };
+        if (apiError.response?.data?.errors) {
+          apiError.response.data.errors.forEach((err) => {
+            setError(err.field as keyof FormValues, {
+              type: 'manual',
+              message: err.message
+            });
           });
-        });
+        }
       }
     }
   }, [initialData, createMetric, updateMetric, onSubmitSuccess, setError]);
@@ -185,7 +188,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         disabled={isSubmitting}
         aria-describedby={errors.value ? 'value-error' : undefined}
         inputMode="decimal"
-        step={0.01}
+        step="0.01"
       />
 
       {!initialData && (
