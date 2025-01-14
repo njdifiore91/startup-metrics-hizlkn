@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import ReactDOM from 'react-dom';
 import FocusTrap from 'focus-trap-react';
-import { Button } from './Button.js';
+import { Button } from './Button';
 import '../../styles/theme.css';
 
 // Animation duration in milliseconds
@@ -25,6 +25,7 @@ interface ModalProps {
   ariaLabel?: string;
   ariaDescribedBy?: string;
   initialFocusRef?: React.RefObject<HTMLElement>;
+  finalFocusRef?: React.RefObject<HTMLElement>;
   onAnimationComplete?: () => void;
 }
 
@@ -104,6 +105,7 @@ export const Modal: React.FC<ModalProps> = memo(({
   ariaLabel,
   ariaDescribedBy,
   initialFocusRef,
+  finalFocusRef,
   onAnimationComplete
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
