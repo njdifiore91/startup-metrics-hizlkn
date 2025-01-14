@@ -16,7 +16,7 @@ interface BenchmarkState {
   selectedMetricId: string | null;
   selectedRevenueRange: string | null;
   loading: Record<string, boolean>;
-  error: Record<string, { message: string; code: string }>;
+  error: Record<string, { message: string; code: string } | null>;
   comparisonResult: object | null;
   cache: Record<string, { data: IBenchmark[]; timestamp: number }>;
 }
@@ -48,7 +48,7 @@ export const fetchBenchmarksByMetric = createAsyncThunk(
 
       const benchmarks = await getBenchmarksByMetric(metricId);
       return benchmarks;
-    } catch (error) {
+    } catch (error: any) {
       const formattedError = handleApiError(error);
       return rejectWithValue(formattedError);
     }
@@ -70,7 +70,7 @@ export const fetchBenchmarksByRevenue = createAsyncThunk(
 
       const benchmarks = await getBenchmarksByRevenueRange(revenueRange, metricIds, { page: 1, limit: 100 });
       return benchmarks.data;
-    } catch (error) {
+    } catch (error: any) {
       const formattedError = handleApiError(error);
       return rejectWithValue(formattedError);
     }
@@ -90,7 +90,7 @@ export const compareBenchmarkData = createAsyncThunk(
         includePeers: true
       });
       return result;
-    } catch (error) {
+    } catch (error: any) {
       const formattedError = handleApiError(error);
       return rejectWithValue(formattedError);
     }
@@ -123,7 +123,7 @@ const benchmarkSlice = createSlice({
   },
   extraReducers: (builder) => {
     // fetchBenchmarksByMetric
-    builder.addCase(fetchBenchmarksByMetric.pending, (state, action) => {
+    builder.addCase(fetchBenchmarksByMetric.pending, (state) => {
       state.loading['fetchByMetric'] = true;
       state.error['fetchByMetric'] = null;
     });
