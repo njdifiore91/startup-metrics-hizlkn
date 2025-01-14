@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import LoadingSpinner from './LoadingSpinner.tsx';
+import LoadingSpinner from './LoadingSpinner.js';
 
 // Interface for select options with enhanced type safety
 interface SelectOption {
@@ -125,7 +125,7 @@ const Select: React.FC<SelectProps> = React.memo(({
         </div>
       )}
 
-      <style>{`
+      <style jsx>{`
         .select-container {
           position: relative;
           width: 100%;
