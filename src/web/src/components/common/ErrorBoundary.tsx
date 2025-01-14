@@ -1,7 +1,7 @@
-import React from 'react';
-import * as Sentry from '@sentry/react';
-import { handleApiError } from '../../utils/errorHandlers.js';
-import { Card } from './Card.js';
+import React from 'react'; // ^18.2.0
+import * as Sentry from '@sentry/react'; // ^7.0.0
+import { handleApiError } from '../../utils/errorHandlers';
+import { Card } from './Card';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -48,7 +48,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Track error with Sentry
-    Sentry.withScope((scope: Sentry.Scope) => {
+    Sentry.withScope((scope) => {
       scope.setExtras({
         errorInfo,
         retryCount: this.state.retryCount,
@@ -57,8 +57,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       Sentry.captureException(error);
     });
 
-    // Handle API error
-    handleApiError(error as any, {
+    // Format error for consistent handling
+    const formattedError = handleApiError(error as any, {
       showToast: false,
       logError: true
     });
