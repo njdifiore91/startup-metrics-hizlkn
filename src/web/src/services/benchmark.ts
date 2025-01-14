@@ -4,15 +4,15 @@ import { debounce, memoize } from 'lodash'; // ^4.17.21
 import NodeCache from 'node-cache'; // ^5.1.2
 
 // Internal imports
-import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
-import { apiConfig } from '../config/api';
-import { handleApiError } from '../utils/errorHandlers';
-import { REVENUE_RANGES } from '../config/constants';
+import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark.js';
+import { apiConfig } from '../config/api.js';
+import { handleApiError } from '../utils/errorHandlers.js';
+import { REVENUE_RANGES } from '../config/constants.js';
 
 // Types and Interfaces
 interface BenchmarkFilter {
   metricIds?: string[];
-  revenueRange?: typeof REVENUE_RANGES.ranges[number];
+  revenueRange?: string;
   startDate?: Date;
   endDate?: Date;
   categories?: string[];
@@ -136,10 +136,7 @@ export const getBenchmarksByMetric = async (
     benchmarkCache.set(cacheKey, benchmarks);
     return benchmarks;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      throw handleApiError(error);
-    }
-    throw error;
+    throw handleApiError(error);
   }
 };
 
@@ -147,7 +144,7 @@ export const getBenchmarksByMetric = async (
  * Fetches benchmarks by revenue range with pagination support
  */
 export const getBenchmarksByRevenueRange = async (
-  revenueRange: typeof REVENUE_RANGES.ranges[number],
+  revenueRange: string,
   metricIds: string[],
   pagination: PaginationOptions
 ): Promise<PaginatedBenchmarks> => {
@@ -170,10 +167,7 @@ export const getBenchmarksByRevenueRange = async (
 
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      throw handleApiError(error);
-    }
-    throw error;
+    throw handleApiError(error);
   }
 };
 
@@ -183,7 +177,7 @@ export const getBenchmarksByRevenueRange = async (
 export const compareBenchmarks = async (
   metricId: string,
   companyValue: number,
-  revenueRange: typeof REVENUE_RANGES.ranges[number],
+  revenueRange: string,
   options: ComparisonOptions = {}
 ): Promise<ComparisonResult> => {
   try {
@@ -200,10 +194,7 @@ export const compareBenchmarks = async (
 
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      throw handleApiError(error);
-    }
-    throw error;
+    throw handleApiError(error);
   }
 };
 
