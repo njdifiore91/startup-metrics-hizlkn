@@ -6,8 +6,8 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../hooks/useAuth';
-import { Card } from '../common/Card';
+import { useAuth } from '../../hooks/useAuth.js';
+import { Card } from '../common/Card.js';
 
 // Interfaces
 interface UserSettingsProps {
@@ -31,7 +31,7 @@ const SESSION_TIMEOUT_WARNING = 5 * 60 * 1000; // 5 minutes
 
 const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => {
   const { t } = useTranslation();
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading, updateUserSettings, logout } = useAuth();
   
   // State management
   const [preferences, setPreferences] = useState<UserPreferences>({
@@ -74,11 +74,10 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
     setErrors({});
 
     try {
-      // Temporarily commented out until updateUserSettings is added to useAuth
-      // await updateUserSettings({
-      //   userId: user?.id,
-      //   preferences
-      // });
+      await updateUserSettings({
+        userId: user?.id,
+        preferences
+      });
       setIsEditing(false);
     } catch (error: any) {
       setErrors({
@@ -90,12 +89,14 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
   // Handle 2FA toggle with security confirmation
   const handle2FAToggle = async () => {
     if (!preferences.twoFactorEnabled) {
-      const confirmed = window.confirm(String(t('settings.2fa.enableConfirmation')));
+      // Implement 2FA setup flow
+      const confirmed = window.confirm("Are you sure you want to enable two-factor authentication?");
       if (confirmed) {
         handlePreferenceChange('twoFactorEnabled', true);
       }
     } else {
-      const confirmed = window.confirm(String(t('settings.2fa.disableWarning')));
+      // Implement 2FA disable flow with additional security
+      const confirmed = window.confirm("Warning: Disabling two-factor authentication will reduce your account security. Are you sure?");
       if (confirmed) {
         handlePreferenceChange('twoFactorEnabled', false);
       }
@@ -132,7 +133,11 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
   }
 
   return (
-    <div className={`user-settings ${className || ''}`}>
+    <div className={`user-settings ${className || ''}`} style={{
+      maxWidth: '800px',
+      margin: '0 auto',
+      padding: 'var(--spacing-lg)'
+    }}>
       {/* Profile Section */}
       <Card
         elevation="medium"
@@ -278,49 +283,6 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
           </button>
         </div>
       )}
-
-      <style jsx>{`
-        .user-settings {
-          max-width: 800px;
-          margin: 0 auto;
-          padding: var(--spacing-lg);
-        }
-
-        .user-settings__section {
-          margin-bottom: var(--spacing-xl);
-        }
-
-        .user-settings__field {
-          margin-bottom: var(--spacing-md);
-        }
-
-        .user-settings__value {
-          color: var(--color-text-secondary);
-          font-size: var(--font-size-sm);
-        }
-
-        .user-settings__error {
-          color: var(--color-error);
-          margin-top: var(--spacing-sm);
-        }
-
-        .user-settings__actions {
-          display: flex;
-          gap: var(--spacing-md);
-          margin-top: var(--spacing-lg);
-        }
-
-        .user-settings__warning {
-          position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          background: var(--color-background);
-          padding: var(--spacing-xl);
-          border-radius: var(--border-radius-lg);
-          box-shadow: var(--shadow-lg);
-        }
-      `}</style>
     </div>
   );
 });
