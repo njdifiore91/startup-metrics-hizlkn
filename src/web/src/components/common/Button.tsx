@@ -16,8 +16,16 @@ interface ButtonProps {
   tabIndex?: number;
 }
 
+// Separate interface for style props
+interface ButtonStyleProps {
+  variant?: ButtonProps['variant'];
+  size?: ButtonProps['size'];
+  disabled?: boolean;
+  className?: string;
+}
+
 // Utility function to generate button classes
-const getButtonClasses = (props: ButtonProps): string => {
+const getButtonClasses = (props: ButtonStyleProps): string => {
   const {
     variant = 'primary',
     size = 'medium',
