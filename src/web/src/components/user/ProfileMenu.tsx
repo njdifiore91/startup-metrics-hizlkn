@@ -10,8 +10,7 @@ import { analytics } from '@segment/analytics-next';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './ProfileMenu.module.css';
 
-// Constants for menu interactions
-const MENU_CLOSE_DELAY = 150;
+// Constants for session monitoring
 const SESSION_CHECK_INTERVAL = 60000; // 1 minute
 const INACTIVITY_WARNING_THRESHOLD = 300000; // 5 minutes
 
