@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from '@emotion/styled';
 
 // Internal imports
-import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import MetricComparison from '../components/metrics/MetricComparison';
-import ErrorBoundary from '../components/common/ErrorBoundary';
-import { Card } from '../components/common/Card';
-import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { ToastType, useToast } from '../hooks/useToast';
+import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm.js';
+import { MetricComparison } from '../components/metrics/MetricComparison.js';
+import { useCompanyMetrics } from '../hooks/useCompanyMetrics.js';
+import { ErrorBoundary } from '../components/common/ErrorBoundary.js';
+import { Card } from '../components/common/Card.js';
+import { ICompanyMetric } from '../interfaces/ICompanyMetric.js';
+import { ToastType, useToast } from '../hooks/useToast.js';
 
 // Styled components with enterprise-ready styling
 const StyledPage = styled.div`
@@ -67,12 +68,12 @@ const CompanyMetrics: React.FC = () => {
   } = useCompanyMetrics();
 
   // Local state
-  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | undefined>(undefined);
+  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch metrics on mount
   useEffect(() => {
-    fetchMetrics().catch(() => {
+    fetchMetrics().catch((err: Error) => {
       showToast('Failed to load metrics', ToastType.ERROR);
     });
   }, [fetchMetrics, showToast]);
@@ -97,10 +98,13 @@ const CompanyMetrics: React.FC = () => {
         await createMetric(metricData);
         showToast('Metric created successfully', ToastType.SUCCESS);
       }
-      setSelectedMetric(undefined);
+      setSelectedMetric(null);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save metric';
-      showToast(errorMessage, ToastType.ERROR);
+      const error = err as Error;
+      showToast(
+        error.message || 'Failed to save metric',
+        ToastType.ERROR
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -117,7 +121,7 @@ const CompanyMetrics: React.FC = () => {
    * Handles form cancellation
    */
   const handleCancel = useCallback(() => {
-    setSelectedMetric(undefined);
+    setSelectedMetric(null);
   }, []);
 
   /**
