@@ -1,8 +1,8 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@5.0.0
 import { Chart as ChartJS, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
-import { CHART_COLORS } from '../../config/chart';
-import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers';
+import { chartColors } from '../../config/chart.js';
+import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers.js';
 
 // Default chart height in pixels
 const DEFAULT_HEIGHT = 300;
@@ -42,7 +42,7 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
   onError
 }) => {
   // Chart instance reference for cleanup
-  const chartRef = useRef<ChartJS<'line'>>(null);
+  const chartRef = useRef<any>(null);
 
   // Memoized chart data preparation
   const getChartData = useCallback(() => {
@@ -52,11 +52,11 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
         label: ariaLabel || 'Metric trend',
         data: data.map(point => point.y),
         fill: false,
-        borderColor: CHART_COLORS.primary,
-        backgroundColor: CHART_COLORS.background,
+        borderColor: chartColors.primary,
+        backgroundColor: chartColors.background,
         borderWidth: 2,
-        pointBackgroundColor: CHART_COLORS.accent,
-        pointHoverBackgroundColor: CHART_COLORS.secondary,
+        pointBackgroundColor: chartColors.accent,
+        pointHoverBackgroundColor: chartColors.secondary,
         pointHoverRadius: 6,
         pointHitRadius: 8,
         tension: 0.4,
@@ -86,7 +86,7 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
           callbacks: {
             label: (context: any) => {
               const value = context.raw as number;
-              return formatMetricValue(value, metricType, { style: 'decimal' });
+              return formatMetricValue(value, metricType, { locale });
             }
           }
         }
@@ -95,9 +95,9 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
         ...baseOptions.scales,
         y: {
           ...baseOptions.scales?.y,
-          position: isRTL ? 'right' : 'left' as const,
+          position: isRTL ? 'right' : 'left',
           ticks: {
-            callback: (value: number) => formatMetricValue(value, metricType, { style: 'decimal' })
+            callback: (value: number) => formatMetricValue(value, metricType, { locale })
           }
         }
       }
