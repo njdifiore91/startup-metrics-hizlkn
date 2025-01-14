@@ -8,9 +8,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { Analytics } from '@analytics/react';
-import { Layout } from '../components/layout/Layout';
-import { UserSettings } from '../components/user/UserSettings';
-import { useAuth } from '../hooks/useAuth';
+import { Layout } from '../components/layout/Layout.js';
+import { UserSettings } from '../components/user/UserSettings.js';
+import { useAuth } from '../hooks/useAuth.js';
 
 // Styles for the settings page
 const styles = {
