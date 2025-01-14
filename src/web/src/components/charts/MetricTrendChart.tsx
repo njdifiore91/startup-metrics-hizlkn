@@ -23,11 +23,6 @@ interface IMetricTrendChartProps {
   accessibilityLabel?: string;
 }
 
-// Worker for performance-optimized data processing
-const dataProcessingWorker = new Worker(
-  new URL('../../workers/chartDataProcessor.ts', import.meta.url)
-);
-
 /**
  * Prepares metric data for visualization with performance optimizations
  * @param data - Raw metric data points
@@ -61,7 +56,7 @@ const prepareChartData = (
     datasets: [{
       label: 'Metric Value',
       data: sortedData.map(point => point.value),
-      borderColor: metricTrendOptions.plugins?.legend?.labels?.color || '#151e2d',
+      borderColor: '#151e2d',
       backgroundColor: 'rgba(21, 30, 45, 0.1)',
       fill: true,
       tension: 0.4,
@@ -85,7 +80,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
   locale = 'en-US',
   accessibilityLabel
 }) => {
-  const chartRef = useRef<ChartJS>(null);
+  const chartRef = useRef<ChartJS | null>(null);
 
   // Memoized chart data preparation
   const chartData = useMemo(() => 
@@ -95,7 +90,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
 
   // Memoized chart options with accessibility enhancements
   const chartOptions = useMemo(() => {
-    const options: ChartOptions = generateChartOptions('line', metricTrendOptions, {
+    const options = generateChartOptions('line', metricTrendOptions, {
       announceOnRender: true,
       description: accessibilityLabel || 'Metric trend visualization'
     });
@@ -109,7 +104,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
         callbacks: {
           label: (context) => {
             const value = context.raw as number;
-            return `${context.dataset.label}: ${formatMetricValue(value, metricType)}`;
+            return `${context.dataset.label}: ${formatMetricValue(value, 'number')}`;
           }
         }
       }
@@ -122,8 +117,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
         ...options.scales?.x,
         reverse: isRTL,
         ticks: {
-          ...options.scales?.x?.ticks,
-          align: isRTL ? 'end' : 'center'
+          ...options.scales?.x?.ticks
         }
       }
     };
@@ -197,9 +191,8 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
       aria-label={accessibilityLabel || 'Metric trend chart'}
     >
       <Line
-        ref={chartRef}
         data={chartData}
-        options={chartOptions}
+        options={chartOptions as ChartOptions<'line'>}
         plugins={[{
           id: 'accessibility',
           afterDraw: (chart) => {
