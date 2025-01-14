@@ -2,11 +2,11 @@ import { memoize } from 'lodash';
 import { 
   ValidationRule, 
   MetricValueType, 
-} from '../interfaces/IMetric';
+} from '../interfaces/IMetric.js';
 import { 
   ICompanyMetric,
   isCompanyMetric 
-} from '../interfaces/ICompanyMetric';
+} from '../interfaces/ICompanyMetric.js';
 
 /**
  * Interface for validation results with enhanced error reporting
