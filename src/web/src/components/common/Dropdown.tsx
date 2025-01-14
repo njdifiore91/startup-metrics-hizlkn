@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Button from './Button.tsx';
+import Button from './Button';
 import '../../styles/theme.css';
 
 // Interfaces
@@ -18,6 +18,7 @@ export interface DropdownProps {
   trigger?: React.ReactNode;
   multiple?: boolean;
   searchable?: boolean;
+  virtualized?: boolean;
   placeholder?: string;
   disabled?: boolean;
   error?: string;
@@ -154,6 +155,7 @@ export const Dropdown: React.FC<DropdownProps> = React.memo((props) => {
     value,
     multiple = false,
     searchable = false,
+    virtualized = false,
     placeholder = 'Select option',
     disabled = false,
     error,
