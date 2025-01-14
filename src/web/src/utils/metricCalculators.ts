@@ -1,4 +1,4 @@
-import { IMetric, MetricValueType } from '../interfaces/IMetric';
+import { IMetric } from '../interfaces/IMetric';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
 
