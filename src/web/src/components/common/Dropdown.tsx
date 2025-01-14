@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Button from './Button';
+import Button from './Button.tsx';
 import '../../styles/theme.css';
 
 // Interfaces
