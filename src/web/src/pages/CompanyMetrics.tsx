@@ -3,9 +3,8 @@ import styled from '@emotion/styled';
 
 // Internal imports
 import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import { MetricComparison } from '../components/metrics/MetricComparison';
-import { useCompanyMetrics } from '../hooks/useCompanyMetrics';
-import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import MetricComparison from '../components/metrics/MetricComparison';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { ToastType, useToast } from '../hooks/useToast';
@@ -68,12 +67,12 @@ const CompanyMetrics: React.FC = () => {
   } = useCompanyMetrics();
 
   // Local state
-  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch metrics on mount
   useEffect(() => {
-    fetchMetrics().catch((error) => {
+    fetchMetrics().catch(() => {
       showToast('Failed to load metrics', ToastType.ERROR);
     });
   }, [fetchMetrics, showToast]);
@@ -98,12 +97,10 @@ const CompanyMetrics: React.FC = () => {
         await createMetric(metricData);
         showToast('Metric created successfully', ToastType.SUCCESS);
       }
-      setSelectedMetric(null);
-    } catch (error) {
-      showToast(
-        error.message || 'Failed to save metric',
-        ToastType.ERROR
-      );
+      setSelectedMetric(undefined);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save metric';
+      showToast(errorMessage, ToastType.ERROR);
     } finally {
       setIsSubmitting(false);
     }
@@ -120,7 +117,7 @@ const CompanyMetrics: React.FC = () => {
    * Handles form cancellation
    */
   const handleCancel = useCallback(() => {
-    setSelectedMetric(null);
+    setSelectedMetric(undefined);
   }, []);
 
   /**
