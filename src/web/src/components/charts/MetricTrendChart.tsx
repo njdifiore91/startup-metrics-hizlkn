@@ -1,10 +1,10 @@
 import React, { useMemo, useCallback, useRef, useEffect } from 'react';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@4.0.0
 import { Chart as ChartJS, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
-import { metricTrendOptions } from '../../config/chart';
-import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers';
-import { calculateGrowthRate } from '../../utils/metricCalculators';
-import { MetricValueType } from '../../interfaces/IMetric';
+import { metricTrendOptions } from '../../config/chart.js';
+import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers.js';
+import { calculateGrowthRate } from '../../utils/metricCalculators.js';
+import { MetricValueType } from '../../interfaces/IMetric.js';
 
 // Enhanced interface for metric trend data points
 interface MetricDataPoint {
@@ -56,7 +56,7 @@ const prepareChartData = (
     datasets: [{
       label: 'Metric Value',
       data: sortedData.map(point => point.value),
-      borderColor: '#151e2d',
+      borderColor: metricTrendOptions.plugins?.legend?.labels?.color || '#151e2d',
       backgroundColor: 'rgba(21, 30, 45, 0.1)',
       fill: true,
       tension: 0.4,
@@ -104,7 +104,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
         callbacks: {
           label: (context) => {
             const value = context.raw as number;
-            return `${context.dataset.label}: ${formatMetricValue(value, 'number')}`;
+            return `${context.dataset.label}: ${formatMetricValue(value, metricType)}`;
           }
         }
       }
@@ -115,10 +115,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
       ...options.scales,
       x: {
         ...options.scales?.x,
-        reverse: isRTL,
-        ticks: {
-          ...options.scales?.x?.ticks
-        }
+        reverse: isRTL
       }
     };
 
@@ -192,7 +189,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
     >
       <Line
         data={chartData}
-        options={chartOptions as ChartOptions<'line'>}
+        options={chartOptions}
         plugins={[{
           id: 'accessibility',
           afterDraw: (chart) => {
