@@ -2,13 +2,12 @@ import React, { useCallback, useState, useEffect, memo } from 'react';
 import { debounce } from 'lodash'; // ^4.17.21
 
 // Internal imports
-import { IMetric, MetricValueType } from '../../interfaces/IMetric.js';
-import { IBenchmark } from '../../interfaces/IBenchmark.js';
-import BenchmarkChart from '../charts/BenchmarkChart.js';
-import { useBenchmarks } from '../../hooks/useBenchmarks.js';
-import { formatMetricValue } from '../../utils/chartHelpers.js';
-import { ToastType, useToast } from '../../hooks/useToast.js';
-import { CHART_CONSTANTS } from '../../config/constants.js';
+import { IMetric, MetricValueType } from '../../interfaces/IMetric';
+import BenchmarkChart from '../charts/BenchmarkChart';
+import { useBenchmarks } from '../../hooks/useBenchmarks';
+import { formatMetricValue } from '../../utils/chartHelpers';
+import { ToastType, useToast } from '../../hooks/useToast';
+import { CHART_CONSTANTS } from '../../config/constants';
 
 // Types and Interfaces
 interface ComparisonResult {
@@ -99,7 +98,8 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
    * Formats percentile values based on metric type
    */
   const formatPercentileValue = useCallback((value: number, valueType: MetricValueType): string => {
-    return formatMetricValue(value, valueType);
+    const formattedType = valueType === 'ratio' ? 'number' : valueType;
+    return formatMetricValue(value, formattedType);
   }, []);
 
   /**
@@ -164,6 +164,8 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
     );
   }
 
+  const currentBenchmark = benchmarks?.[0];
+
   return (
     <div 
       className={`metric-comparison ${className}`}
@@ -172,12 +174,14 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
     >
       {/* Chart Section */}
       <section className="comparison-chart" aria-label="Benchmark visualization">
-        <BenchmarkChart
-          benchmark={benchmarks[0]}
-          companyMetric={companyValue}
-          height={CHART_CONSTANTS.DIMENSIONS.DEFAULT_HEIGHT}
-          ariaLabel={`Benchmark chart for ${metric.name}`}
-        />
+        {currentBenchmark && (
+          <BenchmarkChart
+            benchmark={currentBenchmark}
+            companyMetric={companyValue}
+            height={CHART_CONSTANTS.DIMENSIONS.DEFAULT_HEIGHT}
+            ariaLabel={`Benchmark chart for ${metric.name}`}
+          />
+        )}
       </section>
 
       {/* Percentile Breakdown */}
@@ -185,7 +189,7 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
         className="percentile-breakdown"
         aria-label="Detailed percentile breakdown"
       >
-        {benchmarks[0] && (
+        {currentBenchmark && (
           <div className="percentile-grid">
             {(['p10', 'p25', 'p50', 'p75', 'p90'] as const).map((percentile) => (
               <div 
@@ -197,7 +201,7 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
                   {percentile.substring(1)}th Percentile
                 </span>
                 <span className="percentile-value">
-                  {formatPercentileValue(benchmarks[0][percentile], metric.valueType)}
+                  {formatPercentileValue(currentBenchmark[percentile], metric.valueType)}
                 </span>
               </div>
             ))}
