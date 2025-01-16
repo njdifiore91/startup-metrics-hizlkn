@@ -61,11 +61,10 @@ describe('useAuth Hook', () => {
 
   // Test successful login flow
   it('should handle successful login', async () => {
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
@@ -89,11 +88,10 @@ describe('useAuth Hook', () => {
     (AuthService as jest.MockedClass<typeof AuthService>).prototype.loginWithGoogle = 
       jest.fn().mockRejectedValue(mockError);
 
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
@@ -106,11 +104,10 @@ describe('useAuth Hook', () => {
 
   // Test successful logout
   it('should handle successful logout', async () => {
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     // First login
     await act(async () => {
@@ -129,11 +126,10 @@ describe('useAuth Hook', () => {
 
   // Test token refresh
   it('should handle token refresh', async () => {
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
@@ -146,11 +142,10 @@ describe('useAuth Hook', () => {
 
   // Test session validation
   it('should validate session status', async () => {
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
@@ -165,11 +160,10 @@ describe('useAuth Hook', () => {
   it('should automatically refresh token before expiry', async () => {
     jest.useFakeTimers();
 
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
@@ -187,11 +181,10 @@ describe('useAuth Hook', () => {
   it('should handle session timeout', async () => {
     jest.useFakeTimers();
 
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
@@ -220,11 +213,10 @@ describe('useAuth Hook', () => {
     (AuthService as jest.MockedClass<typeof AuthService>).prototype.refreshAuthToken = 
       jest.fn().mockRejectedValue(mockError);
 
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
@@ -237,11 +229,10 @@ describe('useAuth Hook', () => {
 
   // Test user activity monitoring
   it('should monitor user activity', async () => {
-    const { result } = renderHook(() => useAuth(), {
-      wrapper: ({ children }) => (
-        <Provider store={mockStore}>{children}</Provider>
-      )
-    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Provider store={mockStore}>{children}</Provider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
     await act(async () => {
       await result.current.login();
