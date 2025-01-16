@@ -3,6 +3,7 @@ import { renderHook, act } from '@testing-library/react-hooks'; // ^8.0.1
 import { Provider } from 'react-redux'; // ^8.1.0
 import { configureStore } from '@reduxjs/toolkit'; // ^1.9.5
 import { waitFor } from '@testing-library/react'; // ^13.4.0
+import React from 'react';
 
 // Internal imports
 import { useBenchmarks } from '../../src/hooks/useBenchmarks';
@@ -58,7 +59,7 @@ const mockComparisonResult = {
 // Test setup
 describe('useBenchmarks hook', () => {
   let mockStore;
-  let wrapper;
+  let wrapper: React.FC;
 
   beforeEach(() => {
     // Reset mocks
@@ -72,10 +73,8 @@ describe('useBenchmarks hook', () => {
     });
 
     // Configure test wrapper
-    wrapper = ({ children }) => (
-      <Provider store={mockStore}>
-        {children}
-      </Provider>
+    wrapper = ({ children }: { children: React.ReactNode }) => (
+      React.createElement(Provider, { store: mockStore }, children)
     );
 
     // Configure service mocks
