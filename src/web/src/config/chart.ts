@@ -1,4 +1,4 @@
-import { Chart, ChartType, ChartOptions } from 'chart.js';
+import { Chart, ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
 
 // Type-safe interface for chart color palette
 export interface IChartColors {
@@ -17,16 +17,6 @@ export interface IChartOptions extends ChartOptions {
   interaction: object;
   responsive: boolean;
   maintainAspectRatio: boolean;
-  elements?: {
-    line?: {
-      tension?: number;
-    };
-    point?: {
-      radius?: number;
-      hitRadius?: number;
-      hoverRadius?: number;
-    };
-  };
 }
 
 // WCAG-compliant brand color palette constants
@@ -53,7 +43,7 @@ Chart.defaults.maintainAspectRatio = false;
  * @param chartType - The type of chart being configured
  * @returns Optimized Chart.js configuration object
  */
-export const getDefaultChartOptions = (chartType: ChartType): IChartOptions => {
+export const getDefaultChartOptions = (_chartType: ChartType): IChartOptions => {
   const baseOptions: IChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -63,7 +53,7 @@ export const getDefaultChartOptions = (chartType: ChartType): IChartOptions => {
       duration: 400,
       easing: 'easeOutQuart',
       mode: 'show',
-      delay: (context) => context.dataIndex * 10
+      delay: (context: { dataIndex: number }) => context.dataIndex * 10
     },
     
     // Set touch-friendly interaction modes
@@ -148,7 +138,7 @@ export const benchmarkChartOptions: IChartOptions = {
         drawBorder: false
       },
       ticks: {
-        callback: (value) => `${value}%`
+        callback: (value: number) => `${value}%`
       }
     }
   },
