@@ -7,12 +7,12 @@ import NodeCache from 'node-cache'; // ^5.1.2
 import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
 import { apiConfig } from '../config/api';
 import { handleApiError } from '../utils/errorHandlers';
-import { API_CONFIG, REVENUE_RANGES, RevenueRange } from '../config/constants';
+import { API_CONFIG, REVENUE_RANGES } from '../config/constants';
 
 // Types and Interfaces
 interface BenchmarkFilter {
   metricIds?: string[];
-  revenueRange?: RevenueRange;
+  revenueRange?: string;
   startDate?: Date;
   endDate?: Date;
   categories?: string[];
@@ -144,7 +144,7 @@ export const getBenchmarksByMetric = async (
  * Fetches benchmarks by revenue range with pagination support
  */
 export const getBenchmarksByRevenueRange = async (
-  revenueRange: RevenueRange,
+  revenueRange: string,
   metricIds: string[],
   pagination: PaginationOptions
 ): Promise<PaginatedBenchmarks> => {
@@ -177,7 +177,7 @@ export const getBenchmarksByRevenueRange = async (
 export const compareBenchmarks = async (
   metricId: string,
   companyValue: number,
-  revenueRange: RevenueRange,
+  revenueRange: string,
   options: ComparisonOptions = {}
 ): Promise<ComparisonResult> => {
   try {
