@@ -149,9 +149,8 @@ export const Input = React.memo(({
     if (onChange) {
       onChange(e);
     }
-    if (formContext) {
-      // Pass the event directly to the register props
-      registerProps.onChange?.(e);
+    if (formContext && registerProps.onChange) {
+      registerProps.onChange(e);
     }
   };
 
