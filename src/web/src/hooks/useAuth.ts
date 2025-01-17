@@ -6,9 +6,9 @@
 
 import { useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { AuthService } from '../services/auth.js';
-import { authActions, SessionStatus, AuthError } from '../store/authSlice.js';
-import type { IUser } from '../interfaces/IUser.js';
+import { AuthService } from '../services/auth';
+import { authActions, SessionStatus, AuthError } from '../store/authSlice';
+import type { IUser } from '../interfaces/IUser';
 
 // Constants for security and session management
 const TOKEN_REFRESH_INTERVAL = 300000; // 5 minutes
@@ -143,7 +143,6 @@ export const useAuth = (): UseAuthReturn => {
       dispatch(authActions.setLoading(true));
       const newToken = await authService.refreshAuthToken();
       dispatch(authActions.refreshTokens());
-      return newToken;
     } catch (error: any) {
       dispatch(authActions.setError({
         code: 'TOKEN_REFRESH_ERROR',
