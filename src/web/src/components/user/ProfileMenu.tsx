@@ -6,11 +6,12 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { analytics } from '@segment/analytics-next';
+import { Analytics } from '@segment/analytics-next';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './ProfileMenu.module.css';
 
 // Constants for menu interactions
+const MENU_CLOSE_DELAY = 150;
 const SESSION_CHECK_INTERVAL = 60000; // 1 minute
 const INACTIVITY_WARNING_THRESHOLD = 300000; // 5 minutes
 
@@ -74,7 +75,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = React.memo(({
   // Handle menu selection
   const handleMenuSelect = useCallback(async (action: string) => {
     try {
-      analytics.track('Profile Menu Action', { action });
+      Analytics.track('Profile Menu Action', { action });
 
       switch (action) {
         case 'profile':
@@ -99,7 +100,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = React.memo(({
   // Handle secure logout
   const handleLogout = async () => {
     try {
-      analytics.track('User Logout');
+      Analytics.track('User Logout');
       await logout();
       navigate('/login');
     } catch (error) {
