@@ -1,11 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
-import { selectMetrics, selectMetricsLoading } from '../store/metricsSlice';
+import { metricsSlice } from '../store/metricsSlice';
 
 // Constants
-const CACHE_TTL = 300000; // 5 minutes
 const MAX_RETRIES = 3;
 
 /**
@@ -14,9 +13,7 @@ const MAX_RETRIES = 3;
  */
 export const useMetrics = () => {
   // Initialize Redux
-  const dispatch = useDispatch();
-  const metrics = useSelector(selectMetrics);
-  const loadingState = useSelector(selectMetricsLoading);
+  const metrics = useSelector(metricsSlice.selectAllMetrics);
 
   // Local state for granular loading and error states
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -139,7 +136,7 @@ export const useMetrics = () => {
     const cacheKey = `benchmark_${metricId}_${revenueRange}`;
     let retryCount = 0;
 
-    const attemptFetch = async () => {
+    const attemptFetch = async (): Promise<any> => {
       try {
         // Cancel any existing request
         if (abortControllers.current[cacheKey]) {
