@@ -10,7 +10,7 @@ import { IBenchmark } from '../../interfaces/IBenchmark';
 const EXPORT_FORMAT_OPTIONS = [
   { value: 'PDF', label: 'PDF Document', ariaLabel: 'Export as PDF document' },
   { value: 'CSV', label: 'CSV Spreadsheet', ariaLabel: 'Export as CSV spreadsheet' }
-] as const;
+];
 
 const ERROR_MESSAGES = {
   NO_METRICS: 'Please select at least one metric for the report',
@@ -29,7 +29,6 @@ interface ReportGeneratorProps {
   onExportProgress?: (progress: number) => void;
   onExportComplete?: () => void;
   onError?: (error: Error) => void;
-  onMetricSelect?: (metric: IMetric) => void;
 }
 
 const ReportGenerator: React.FC<ReportGeneratorProps> = ({
@@ -39,12 +38,11 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   onExportStart,
   onExportProgress,
   onExportComplete,
-  onError,
-  onMetricSelect
+  onError
 }) => {
   // State management
   const [isLoading, setIsLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'PDF' | 'CSV' | ''>('');
+  const [exportFormat, setExportFormat] = useState<'PDF' | 'CSV'>('PDF');
   const { showToast } = useToast();
 
   // Validate required data before export
@@ -64,13 +62,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       return false;
     }
 
-    if (!exportFormat) {
-      showToast(ERROR_MESSAGES.NO_FORMAT, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return false;
-    }
-
     return true;
-  }, [metrics, benchmarks, revenueRange, exportFormat, showToast]);
+  }, [metrics, benchmarks, revenueRange, showToast]);
 
   // Handle export process with progress tracking
   const handleExport = useCallback(async () => {
@@ -162,28 +155,26 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         </Button>
       </div>
 
-      <style>
-        {`
-          .report-generator {
-            padding: var(--spacing-md);
-            border-radius: var(--border-radius-md);
-            background-color: var(--color-background);
-          }
+      <style jsx>{`
+        .report-generator {
+          padding: var(--spacing-md);
+          border-radius: var(--border-radius-md);
+          background-color: var(--color-background);
+        }
 
+        .export-controls {
+          display: flex;
+          gap: var(--spacing-md);
+          align-items: flex-end;
+        }
+
+        @media (max-width: 768px) {
           .export-controls {
-            display: flex;
-            gap: var(--spacing-md);
-            align-items: flex-end;
+            flex-direction: column;
+            align-items: stretch;
           }
-
-          @media (max-width: 768px) {
-            .export-controls {
-              flex-direction: column;
-              align-items: stretch;
-            }
-          }
-        `}
-      </style>
+        }
+      `}</style>
     </div>
   );
 };
