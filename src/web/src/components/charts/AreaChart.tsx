@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@5.0.0
 import { Chart as ChartJS } from 'chart.js/auto'; // chart.js@4.0.0
-import { chartColors } from '../../config/chart';
+import { CHART_COLORS } from '../../config/chart';
 import { generateChartOptions } from '../../utils/chartHelpers';
 
 // Default height for the area chart if not specified
@@ -37,7 +37,7 @@ const AreaChart: React.FC<IAreaChartProps> = React.memo(({
   // Memoize chart options for performance
   const chartOptions = useMemo(() => {
     return generateChartOptions({
-      onClick: (_: unknown, elements: any[]) => {
+      onClick: (event: any, elements: any[]) => {
         if (elements.length > 0 && onDataPointClick) {
           const index = elements[0].index;
           onDataPointClick(index, data[index]);
@@ -52,16 +52,16 @@ const AreaChart: React.FC<IAreaChartProps> = React.memo(({
             weight: 'bold'
           }
         },
-        accessibility: {
-          enabled: true,
-          description: ariaLabel
+        tooltip: {
+          callbacks: {
+            label: (context: any) => {
+              return `${context.dataset.label}: ${context.formattedValue}`;
+            }
+          }
         }
       }
-    }, {
-      announceOnRender: true,
-      description: ariaLabel
     });
-  }, [title, ariaLabel, onDataPointClick, data]);
+  }, [title, onDataPointClick, data]);
 
   // Memoize chart data configuration
   const chartData = useMemo(() => ({
@@ -70,12 +70,12 @@ const AreaChart: React.FC<IAreaChartProps> = React.memo(({
       label: title,
       data: data,
       fill: fillArea,
-      backgroundColor: `${chartColors.primary}40`,
-      borderColor: chartColors.primary,
+      backgroundColor: `${CHART_COLORS.primary}40`,
+      borderColor: CHART_COLORS.primary,
       tension: 0.4,
       pointRadius: 4,
       pointHoverRadius: 6,
-      pointBackgroundColor: chartColors.primary,
+      pointBackgroundColor: CHART_COLORS.primary,
       pointBorderColor: '#ffffff',
       pointBorderWidth: 2,
       'aria-label': `${title} data points`,
