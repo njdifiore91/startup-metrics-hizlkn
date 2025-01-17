@@ -1,15 +1,7 @@
-```
-
-This error occurs because the ProfileMenu component is exported as a default export in ProfileMenu.tsx, but we're trying to use a named import in Header.tsx.
-
-Here's the regenerated file with the fix:
-
-# src/web/src/components/layout/Header.tsx
-```typescript
 import React, { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; // v6.0.0
 import { useMetrics } from '../../hooks/useMetrics';
-import ProfileMenu from '../user/ProfileMenu';
+import { ProfileMenu } from '../user/ProfileMenu';
 import { Button } from '../common/Button';
 import ErrorBoundary from '../common/ErrorBoundary';
 import logo from '../../assets/images/logo.svg';
@@ -125,7 +117,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           />
         </div>
 
-        <style jsx>{`
+        <style>
+          {`
           .header {
             position: fixed;
             top: 0;
@@ -211,7 +204,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               transition: none;
             }
           }
-        `}</style>
+          `}
+        </style>
       </header>
     </ErrorBoundary>
   );
