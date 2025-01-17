@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback, useRef, useEffect } from 'react';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@4.0.0
-import { Chart as ChartJS, ChartOptions, LineOptions } from 'chart.js/auto'; // chart.js@4.0.0
+import { Chart as ChartJS, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
 import { metricTrendOptions } from '../../config/chart';
 import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers';
 import { calculateGrowthRate } from '../../utils/metricCalculators';
@@ -22,6 +22,11 @@ interface IMetricTrendChartProps {
   locale?: string;
   accessibilityLabel?: string;
 }
+
+// Worker for performance-optimized data processing
+const dataProcessingWorker = new Worker(
+  new URL('../../workers/chartDataProcessor.ts', import.meta.url)
+);
 
 /**
  * Prepares metric data for visualization with performance optimizations
@@ -56,7 +61,7 @@ const prepareChartData = (
     datasets: [{
       label: 'Metric Value',
       data: sortedData.map(point => point.value),
-      borderColor: metricTrendOptions.plugins?.legend?.labels?.color || '#151e2d',
+      borderColor: '#151e2d',
       backgroundColor: 'rgba(21, 30, 45, 0.1)',
       fill: true,
       tension: 0.4,
@@ -80,7 +85,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
   locale = 'en-US',
   accessibilityLabel
 }) => {
-  const chartRef = useRef<ChartJS<"line">>(null);
+  const chartRef = useRef<ChartJS>(null);
 
   // Memoized chart data preparation
   const chartData = useMemo(() => 
@@ -90,7 +95,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
 
   // Memoized chart options with accessibility enhancements
   const chartOptions = useMemo(() => {
-    const options: ChartOptions<"line"> = generateChartOptions('line', metricTrendOptions, {
+    const options = generateChartOptions({
       announceOnRender: true,
       description: accessibilityLabel || 'Metric trend visualization'
     });
@@ -104,7 +109,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
         callbacks: {
           label: (context) => {
             const value = context.raw as number;
-            return `${context.dataset.label}: ${formatMetricValue(value, metricType)}`;
+            return `${context.dataset.label}: ${formatMetricValue(value, metricType === 'ratio' ? 'number' : metricType)}`;
           }
         }
       }
@@ -117,7 +122,8 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
         ...options.scales?.x,
         reverse: isRTL,
         ticks: {
-          ...options.scales?.x?.ticks
+          ...options.scales?.x?.ticks,
+          align: isRTL ? 'end' : 'center'
         }
       }
     };
