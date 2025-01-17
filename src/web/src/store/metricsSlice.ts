@@ -2,8 +2,6 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
 import { handleApiError } from '../utils/errorHandlers';
-import { AxiosError } from 'axios';
-import { ApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -53,9 +51,9 @@ export const fetchMetrics = createAsyncThunk(
         throw new Error(response.error);
       }
 
-      return response.data;
+      return response.data || [];
     } catch (error) {
-      const handledError = handleApiError(error as AxiosError<ApiError>);
+      const handledError = handleApiError(error);
       return rejectWithValue(handledError.message);
     }
   }
@@ -72,11 +70,11 @@ export const fetchMetricsByCategory = createAsyncThunk(
       }
 
       return {
-        metrics: response.data,
+        metrics: response.data || [],
         category
       };
     } catch (error) {
-      const handledError = handleApiError(error as AxiosError<ApiError>);
+      const handledError = handleApiError(error);
       return rejectWithValue(handledError.message);
     }
   }
