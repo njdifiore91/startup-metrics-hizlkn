@@ -27,6 +27,7 @@ import {
   ChevronRight
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
+import { analytics } from '@analytics/react';
 import { UI_CONSTANTS } from '../../config/constants';
 
 // Interfaces
@@ -52,8 +53,8 @@ interface NavItem {
 const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   width: ${props => props.isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH};
   height: 100vh;
-  background-color: ${props => props.theme.palette.primary.main};
-  color: ${props => props.theme.palette.primary.contrastText};
+  background-color: ${props => props.theme.palette?.primary?.main || '#fff'};
+  color: ${props => props.theme.palette?.primary?.contrastText || '#000'};
   transition: width 0.3s ease;
   overflow-x: hidden;
   overflow-y: auto;
@@ -72,21 +73,21 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   }
 
   &::-webkit-scrollbar-track {
-    background: ${props => props.theme.palette.primary.dark};
+    background: ${props => props.theme.palette?.primary?.dark || '#e0e0e0'};
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.palette.primary.light};
+    background: ${props => props.theme.palette?.primary?.light || '#bdbdbd'};
     border-radius: 3px;
   }
 `;
 
 const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: ${props => props.theme.spacing(2)};
-  color: ${props => props.active ? props.theme.palette.secondary.main : 'inherit'};
+  padding: ${props => props.theme.spacing?.(2) || '16px'};
+  color: ${props => props.active ? props.theme.palette?.secondary?.main || '#000' : 'inherit'};
   
   &:hover {
-    background-color: ${props => props.theme.palette.primary.dark};
+    background-color: ${props => props.theme.palette?.primary?.dark || '#e0e0e0'};
   }
 
   .MuiListItemIcon-root {
@@ -164,14 +165,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       }
 
       // Track navigation event
-      if (window.dataLayer) {
-        window.dataLayer.push({
-          event: 'navigation_click',
-          path,
-          itemId: item.id,
-          timestamp: new Date().toISOString()
-        });
-      }
+      analytics.track('navigation_click', {
+        path,
+        itemId: item.id,
+        timestamp: new Date().toISOString()
+      });
 
       // Handle mobile menu
       if (isMobile) {
@@ -244,7 +242,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1 as any)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
