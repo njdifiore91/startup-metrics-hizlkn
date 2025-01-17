@@ -10,7 +10,7 @@ import App from './App';
 import { store } from './store';
 import { theme } from './config/theme';
 import { handleApiError } from './utils/errorHandlers';
-import { showToast, ToastType, ToastPosition } from './hooks/useToast';
+import { useToast, ToastType, ToastPosition } from './hooks/useToast';
 
 // Initialize performance monitoring
 const initializeMonitoring = () => {
@@ -38,6 +38,7 @@ const initializeMonitoring = () => {
 
 // Error fallback component
 const ErrorFallback = ({ error }: { error: Error }) => {
+  const toast = useToast();
   const formattedError = handleApiError(error as any, {
     showToast: false,
     logError: true,
@@ -97,16 +98,22 @@ const cleanupApp = () => {
 };
 
 // Error handler
-const handleError = (error: Error) => {
-  console.error('Application Error:', error);
+const ErrorHandler = () => {
+  const toast = useToast();
   
-  Sentry.captureException(error);
-  
-  showToast(
-    'An unexpected error occurred. Please try again.',
-    ToastType.ERROR,
-    ToastPosition.TOP_RIGHT
-  );
+  const handleError = (error: Error) => {
+    console.error('Application Error:', error);
+    
+    Sentry.captureException(error);
+    
+    toast.showToast(
+      'An unexpected error occurred. Please try again.',
+      ToastType.ERROR,
+      ToastPosition.TOP_RIGHT
+    );
+  };
+
+  return null;
 };
 
 // Get root element
@@ -124,7 +131,10 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
-      onError={handleError}
+      onError={(error) => {
+        const errorHandler = new ErrorHandler();
+        errorHandler.handleError(error);
+      }}
       onReset={() => window.location.reload()}
     >
       <Provider store={store}>
