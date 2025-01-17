@@ -3,6 +3,7 @@ import { debounce } from 'lodash'; // ^4.17.21
 
 // Internal imports
 import { IMetric, MetricValueType } from '../../interfaces/IMetric';
+import { IBenchmark } from '../../interfaces/IBenchmark';
 import BenchmarkChart from '../charts/BenchmarkChart';
 import { useBenchmarks } from '../../hooks/useBenchmarks';
 import { formatMetricValue } from '../../utils/chartHelpers';
@@ -72,14 +73,6 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
   }, [metric]);
 
   /**
-   * Formats percentile values based on metric type
-   */
-  const formatPercentileValue = useCallback((value: number, valueType: MetricValueType): string => {
-    const mappedType = valueType === 'ratio' ? 'number' : valueType;
-    return formatMetricValue(value, mappedType);
-  }, []);
-
-  /**
    * Handles metric value comparison with debouncing
    */
   const handleComparisonUpdate = useCallback(debounce(async (value: number) => {
@@ -101,6 +94,13 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
       showToast('Comparison failed. Please try again.', ToastType.ERROR);
     }
   }, 300), [metric.id, compareBenchmark, validateMetricValue, onComparisonComplete]);
+
+  /**
+   * Formats percentile values based on metric type
+   */
+  const formatPercentileValue = useCallback((value: number, valueType: MetricValueType): string => {
+    return formatMetricValue(value, valueType);
+  }, []);
 
   /**
    * Gets accessibility label for comparison result
@@ -172,14 +172,12 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
     >
       {/* Chart Section */}
       <section className="comparison-chart" aria-label="Benchmark visualization">
-        {benchmarks?.[0] && (
-          <BenchmarkChart
-            benchmark={benchmarks[0]}
-            companyMetric={companyValue}
-            height={CHART_CONSTANTS.DIMENSIONS.DEFAULT_HEIGHT}
-            ariaLabel={`Benchmark chart for ${metric.name}`}
-          />
-        )}
+        <BenchmarkChart
+          benchmark={benchmarks[0]}
+          companyMetric={companyValue}
+          height={CHART_CONSTANTS.DIMENSIONS.DEFAULT_HEIGHT}
+          ariaLabel={`Benchmark chart for ${metric.name}`}
+        />
       </section>
 
       {/* Percentile Breakdown */}
@@ -187,7 +185,7 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
         className="percentile-breakdown"
         aria-label="Detailed percentile breakdown"
       >
-        {benchmarks?.[0] && (
+        {benchmarks[0] && (
           <div className="percentile-grid">
             {(['p10', 'p25', 'p50', 'p75', 'p90'] as const).map((percentile) => (
               <div 
