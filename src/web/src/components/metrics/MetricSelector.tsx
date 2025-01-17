@@ -55,13 +55,11 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
     metrics,
     loading,
     error,
-    getMetricsByCategory,
-    validateMetricValue
+    getMetricsByCategory
   } = useMetrics();
 
   // Local state for filtered metrics
   const [filteredMetrics, setFilteredMetrics] = useState<IMetric[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
   // Transform metrics to select options with memoization
@@ -86,13 +84,11 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
   // Debounced search handler
   const handleSearch = useMemo(() => 
     debounce((term: string) => {
-      if (!Array.isArray(metrics)) return;
-      
       const filtered = metrics.filter(metric => 
         metric.category === category &&
         (metric.name.toLowerCase().includes(term.toLowerCase()) ||
          metric.description.toLowerCase().includes(term.toLowerCase()) ||
-         metric.tags.some(tag => tag.toLowerCase().includes(term.toLowerCase())))
+         metric.tags.some((tag: string) => tag.toLowerCase().includes(term.toLowerCase())))
       );
       setFilteredMetrics(filtered);
     }, 300),
@@ -100,12 +96,10 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
   );
 
   // Handle metric selection
-  const handleMetricSelect = useCallback((value: string | number) => {
-    if (!Array.isArray(metrics)) return;
-    
-    const selectedMetric = metrics.find(m => m.id === value.toString());
+  const handleMetricSelect = useCallback((value: string) => {
+    const selectedMetric = metrics.find(m => m.id === value);
     if (selectedMetric) {
-      onMetricSelect(selectedMetric.id, selectedMetric);
+      onMetricSelect(value, selectedMetric);
     }
   }, [metrics, onMetricSelect]);
 
@@ -152,14 +146,14 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
         label="Select Metric"
         placeholder="Choose a metric..."
         disabled={disabled || loading[`category_${category}`]}
-        error={error[`category_${category}`] || undefined}
+        error={error[`category_${category}`]}
         loading={loading[`category_${category}`]}
         required
         className={className}
         aria-label={ariaLabel}
       />
 
-      <style jsx>{`
+      <style>{`
         .metric-selector {
           width: 100%;
           max-width: 400px;
