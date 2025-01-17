@@ -9,6 +9,8 @@ export interface IChartDataset {
   data: number[];
   backgroundColor: string;
   borderColor: string;
+  borderWidth?: number;
+  borderDash?: number[];
   fill: boolean;
   'aria-label': string;
   role: string;
