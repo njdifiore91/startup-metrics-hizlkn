@@ -3,8 +3,17 @@ import styled from '@emotion/styled';
 
 // Internal imports
 import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import MetricComparison from '../components/metrics/MetricComparison';
-import ErrorBoundary from '../components/common/ErrorBoundary';
+import { MetricComparison } from '../components/metrics/MetricComparison';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { 
+  selectAllMetrics,
+  selectLoadingState,
+  selectError,
+  fetchCompanyMetrics,
+  createCompanyMetric,
+  updateCompanyMetric
+} from '../store/companyMetricsSlice';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { ToastType, useToast } from '../hooks/useToast';
@@ -57,14 +66,10 @@ const StyledLoadingOverlay = styled.div`
 const CompanyMetrics: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
-  const {
-    metrics,
-    loading,
-    error,
-    fetchMetrics,
-    createMetric,
-    updateMetric
-  } = useCompanyMetrics();
+  const dispatch = useAppDispatch();
+  const metrics = useAppSelector(selectAllMetrics);
+  const loading = useAppSelector((state) => selectLoadingState(state, 'fetchAll')?.isLoading || false);
+  const error = useAppSelector(selectError);
 
   // Local state
   const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
@@ -72,10 +77,10 @@ const CompanyMetrics: React.FC = () => {
 
   // Fetch metrics on mount
   useEffect(() => {
-    fetchMetrics().catch(() => {
+    dispatch(fetchCompanyMetrics()).catch((err: Error) => {
       showToast('Failed to load metrics', ToastType.ERROR);
     });
-  }, [fetchMetrics, showToast]);
+  }, [dispatch, showToast]);
 
   // Memoized sorted metrics
   const sortedMetrics = useMemo(() => {
@@ -91,22 +96,20 @@ const CompanyMetrics: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (selectedMetric) {
-        await updateMetric(selectedMetric.id, metricData);
+        await dispatch(updateCompanyMetric({ id: selectedMetric.id, data: metricData })).unwrap();
         showToast('Metric updated successfully', ToastType.SUCCESS);
       } else {
-        await createMetric(metricData);
+        await dispatch(createCompanyMetric(metricData)).unwrap();
         showToast('Metric created successfully', ToastType.SUCCESS);
       }
       setSelectedMetric(null);
-    } catch (error) {
-      showToast(
-        error.message || 'Failed to save metric',
-        ToastType.ERROR
-      );
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save metric';
+      showToast(errorMessage, ToastType.ERROR);
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedMetric, createMetric, updateMetric, showToast]);
+  }, [selectedMetric, dispatch, showToast]);
 
   /**
    * Handles metric selection for editing
@@ -136,87 +139,85 @@ const CompanyMetrics: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <React.Fragment>
-        <StyledPage>
-          <StyledHeader role="banner">
-            <h1>Company Metrics</h1>
-            <p>Manage and compare your company's performance metrics</p>
-          </StyledHeader>
+      <StyledPage>
+        <StyledHeader role="banner">
+          <h1>Company Metrics</h1>
+          <p>Manage and compare your company's performance metrics</p>
+        </StyledHeader>
 
-          <StyledContent role="main">
-            {/* Metric Form Section */}
-            <section aria-label="Metric Input Form">
+        <StyledContent role="main">
+          {/* Metric Form Section */}
+          <section aria-label="Metric Input Form">
+            <Card elevation="medium">
+              <CompanyMetricForm
+                initialData={selectedMetric}
+                onSubmitSuccess={handleMetricSubmit}
+                onCancel={handleCancel}
+                isSubmitting={isSubmitting}
+              />
+            </Card>
+          </section>
+
+          {/* Comparison Section */}
+          {selectedMetric && (
+            <section aria-label="Metric Comparison">
               <Card elevation="medium">
-                <CompanyMetricForm
-                  initialData={selectedMetric || undefined}
-                  onSubmitSuccess={() => handleMetricSubmit}
-                  onCancel={handleCancel}
-                  isSubmitting={isSubmitting}
+                <MetricComparison
+                  metric={selectedMetric.metric}
+                  revenueRange="1M-5M"
+                  companyValue={selectedMetric.value}
+                  onComparisonComplete={handleComparisonComplete}
                 />
               </Card>
             </section>
+          )}
 
-            {/* Comparison Section */}
-            {selectedMetric && (
-              <section aria-label="Metric Comparison">
-                <Card elevation="medium">
-                  <MetricComparison
-                    metric={selectedMetric.metric}
-                    revenueRange="1M-5M"
-                    companyValue={selectedMetric.value}
-                    onComparisonComplete={handleComparisonComplete}
-                  />
+          {/* Metrics List Section */}
+          <section 
+            aria-label="Saved Metrics"
+            className="metrics-list-section"
+          >
+            <StyledMetricList role="list">
+              {sortedMetrics.map((metric) => (
+                <Card
+                  key={metric.id}
+                  interactive
+                  onClick={() => handleMetricSelect(metric)}
+                  elevation="low"
+                  role="listitem"
+                  ariaLabel={`${metric.metric.name}: ${metric.value}`}
+                >
+                  <h3>{metric.metric.name}</h3>
+                  <p>Value: {metric.value}</p>
+                  <p>Last Updated: {new Date(metric.timestamp).toLocaleDateString()}</p>
                 </Card>
-              </section>
-            )}
+              ))}
+            </StyledMetricList>
+          </section>
+        </StyledContent>
 
-            {/* Metrics List Section */}
-            <section 
-              aria-label="Saved Metrics"
-              className="metrics-list-section"
-            >
-              <StyledMetricList role="list">
-                {sortedMetrics.map((metric) => (
-                  <Card
-                    key={metric.id}
-                    interactive
-                    onClick={() => handleMetricSelect(metric)}
-                    elevation="low"
-                    role="listitem"
-                    ariaLabel={`${metric.metric.name}: ${metric.value}`}
-                  >
-                    <h3>{metric.metric.name}</h3>
-                    <p>Value: {metric.value}</p>
-                    <p>Last Updated: {new Date(metric.timestamp).toLocaleDateString()}</p>
-                  </Card>
-                ))}
-              </StyledMetricList>
-            </section>
-          </StyledContent>
+        {/* Loading Overlay */}
+        {loading && (
+          <StyledLoadingOverlay 
+            role="status" 
+            aria-label="Loading metrics"
+          >
+            <span className="loading-spinner" />
+            <span className="sr-only">Loading...</span>
+          </StyledLoadingOverlay>
+        )}
 
-          {/* Loading Overlay */}
-          {loading && (
-            <StyledLoadingOverlay 
-              role="status" 
-              aria-label="Loading metrics"
-            >
-              <span className="loading-spinner" />
-              <span className="sr-only">Loading...</span>
-            </StyledLoadingOverlay>
-          )}
-
-          {/* Error Display */}
-          {error && (
-            <div 
-              role="alert" 
-              className="error-message"
-              aria-live="polite"
-            >
-              {error.toString()}
-            </div>
-          )}
-        </StyledPage>
-      </React.Fragment>
+        {/* Error Display */}
+        {error && (
+          <div 
+            role="alert" 
+            className="error-message"
+            aria-live="polite"
+          >
+            {error}
+          </div>
+        )}
+      </StyledPage>
     </ErrorBoundary>
   );
 };
