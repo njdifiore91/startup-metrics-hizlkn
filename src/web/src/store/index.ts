@@ -1,8 +1,8 @@
 import { configureStore, combineReducers, createListenerMiddleware } from '@reduxjs/toolkit'; // v1.9.5
-import authReducer from './authSlice.js';
-import metricsReducer from './metricsSlice.js';
-import benchmarkReducer from './benchmarkSlice.js';
-import companyMetricsReducer from './companyMetricsSlice.js';
+import authReducer from './authSlice';
+import metricsReducer from './metricsSlice';
+import benchmarkReducer from './benchmarkSlice';
+import companyMetricsReducer from './companyMetricsSlice';
 
 /**
  * Listener middleware for handling side effects and async operations
@@ -96,9 +96,9 @@ if (process.env.NODE_ENV === 'development') {
   store.subscribe(() => {
     const state = store.getState();
     // Validate state structure
-    const requiredSlices = ['auth', 'metrics', 'benchmarks', 'companyMetrics'];
+    const requiredSlices = ['auth', 'metrics', 'benchmarks', 'companyMetrics'] as const;
     requiredSlices.forEach(slice => {
-      if (!state[slice]) {
+      if (!(slice in state)) {
         console.error(`Missing required state slice: ${slice}`);
       }
     });
@@ -109,7 +109,7 @@ if (process.env.NODE_ENV === 'development') {
  * Add performance monitoring listeners
  */
 listenerMiddleware.startListening({
-  predicate: (action, currentState, previousState) => {
+  predicate: (_, currentState) => {
     // Monitor state changes that might impact performance
     const stateSize = JSON.stringify(currentState).length;
     return stateSize > 1000000; // 1MB threshold
