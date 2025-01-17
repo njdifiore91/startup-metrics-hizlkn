@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
-import Select from '../common/Select.js';
-import { REVENUE_RANGES } from '../../config/constants.js';
+import styled from '@emotion/styled';
+import Select from '../common/Select';
+import { REVENUE_RANGES } from '../../config/constants';
 
 /**
  * Props interface for the RevenueRangeSelector component
@@ -17,6 +18,28 @@ interface RevenueRangeSelectorProps {
   /** Accessible label for screen readers */
   ariaLabel?: string;
 }
+
+const SelectorContainer = styled.div`
+  width: 100%;
+  max-width: 200px;
+  margin-bottom: var(--spacing-3);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+
+  /* High contrast mode support */
+  @media (forced-colors: active) {
+    select {
+      border: 1px solid CanvasText;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    select {
+      transition: none;
+    }
+  }
+`;
 
 /**
  * A revenue range selector component with comprehensive accessibility features
@@ -50,7 +73,7 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(({
   }, [onRangeChange]);
 
   return (
-    <div 
+    <SelectorContainer 
       className={`revenue-range-selector ${className}`.trim()}
       role="group"
       aria-label={ariaLabel}
@@ -68,31 +91,7 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(({
         aria-label={ariaLabel}
         data-testid="revenue-range-selector"
       />
-
-      <style jsx>{`
-        .revenue-range-selector {
-          width: 100%;
-          max-width: 200px;
-          margin-bottom: var(--spacing-3);
-          font-family: var(--font-family-base);
-          font-size: var(--font-size-base);
-        }
-
-        /* High contrast mode support */
-        @media (forced-colors: active) {
-          .revenue-range-selector :global(select) {
-            border: 1px solid CanvasText;
-          }
-        }
-
-        /* Reduced motion support */
-        @media (prefers-reduced-motion: reduce) {
-          .revenue-range-selector :global(select) {
-            transition: none;
-          }
-        }
-      `}</style>
-    </div>
+    </SelectorContainer>
   );
 });
 
