@@ -1,14 +1,10 @@
 // External imports with versions
 import { useSelector, useDispatch } from 'react-redux'; // ^8.1.0
 import { useState, useCallback } from 'react'; // ^18.2.0
+import { AppDispatch } from '../store/store';
 
 // Internal imports
-import { IBenchmark } from '../interfaces/IBenchmark.js';
-import { 
-  getBenchmarksByMetric, 
-  getBenchmarksByRevenueRange, 
-  compareBenchmarks 
-} from '../services/benchmark.js';
+import { IBenchmark } from '../interfaces/IBenchmark';
 import { 
   selectBenchmarks,
   selectBenchmarkLoading,
@@ -17,8 +13,8 @@ import {
   fetchBenchmarksByRevenue,
   compareBenchmarkData,
   clearErrors
-} from '../store/benchmarkSlice.js';
-import { handleApiError } from '../utils/errorHandlers.js';
+} from '../store/benchmarkSlice';
+import { handleApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -49,10 +45,10 @@ const benchmarkCache = new Map<string, { data: IBenchmark[]; timestamp: number }
  * @version 1.0.0
  */
 export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const benchmarks = useSelector(selectBenchmarks);
-  const loading = useSelector(selectBenchmarkLoading) as Record<string, boolean>;
-  const errors = useSelector(selectBenchmarkErrors) as Record<string, { message: string }>;
+  const loading = useSelector(selectBenchmarkLoading);
+  const errors = useSelector(selectBenchmarkErrors);
 
   const [localError, setLocalError] = useState<string | null>(null);
   const [activeRequests] = useState(new Set<string>());
@@ -107,12 +103,12 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
+          await dispatch(fetchBenchmarksByMetric(metricId));
         } else if (revenueRange) {
           await dispatch(fetchBenchmarksByRevenue({ 
             revenueRange, 
             metricIds: [] 
-          })).unwrap();
+          }));
         }
 
         // Update cache
@@ -127,7 +123,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
-          const formattedError = handleApiError(error);
+          const formattedError = handleApiError(error as Error);
           setLocalError(formattedError.message);
           activeRequests.delete(cacheKey);
           return;
@@ -154,16 +150,16 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
         metricId,
         companyValue,
         revenueRange: options.revenueRange || ''
-      })).unwrap();
+      }));
 
       return {
-        percentile: result.percentile,
-        difference: result.difference,
-        trend: result.trend
+        percentile: result.payload.percentile,
+        difference: result.payload.difference,
+        trend: result.payload.trend
       };
 
     } catch (error) {
-      const formattedError = handleApiError(error);
+      const formattedError = handleApiError(error as Error);
       setLocalError(formattedError.message);
       return null;
     }
