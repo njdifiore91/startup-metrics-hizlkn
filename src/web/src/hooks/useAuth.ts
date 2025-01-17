@@ -1,9 +1,3 @@
-```
-
-This error occurs because we're declaring the `newToken` variable but not using it in the `refreshToken` function. We need to fix this by either using the value or removing the variable declaration.
-
-# src/web/src/hooks/useAuth.ts
-```typescript
 /**
  * Enhanced Authentication Hook for Startup Metrics Benchmarking Platform
  * Provides secure authentication state management and session monitoring
@@ -44,6 +38,7 @@ interface UseAuthReturn {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   validateSession: () => Promise<boolean>;
+  updateUserSettings: (settings: Partial<IUser>) => Promise<void>;
 }
 
 /**
@@ -163,6 +158,25 @@ export const useAuth = (): UseAuthReturn => {
   }, [dispatch, authService, logout]);
 
   /**
+   * Updates user settings
+   */
+  const updateUserSettings = useCallback(async (settings: Partial<IUser>): Promise<void> => {
+    try {
+      dispatch(authActions.setLoading(true));
+      const updatedUser = await authService.updateUserSettings(settings);
+      dispatch(authActions.setUser(updatedUser));
+    } catch (error: any) {
+      dispatch(authActions.setError({
+        code: 'UPDATE_SETTINGS_ERROR',
+        message: error.message || 'Failed to update user settings',
+        details: error.details || {}
+      }));
+    } finally {
+      dispatch(authActions.setLoading(false));
+    }
+  }, [dispatch, authService]);
+
+  /**
    * Validates current session status
    */
   const validateSession = useCallback(async (): Promise<boolean> => {
@@ -224,6 +238,7 @@ export const useAuth = (): UseAuthReturn => {
     login,
     logout,
     refreshToken,
-    validateSession
+    validateSession,
+    updateUserSettings
   };
 };
