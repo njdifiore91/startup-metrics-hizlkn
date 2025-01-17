@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { debounce } from 'lodash'; // v4.17.21
 import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
 import { analytics } from '@segment/analytics-next'; // v1.51.0
@@ -13,7 +13,6 @@ import { useMetrics } from '../hooks/useMetrics';
 import { useBenchmarks } from '../hooks/useBenchmarks';
 import { useToast, ToastType } from '../hooks/useToast';
 import { REVENUE_RANGES } from '../config/constants';
-import { handleApiError } from '../utils/errorHandlers';
 import { setSelectedMetric, setSelectedRevenueRange } from '../store/benchmarkSlice';
 
 // Error Fallback Component
@@ -39,12 +38,12 @@ const Benchmarks: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
   const { metrics, loading: metricsLoading, error: metricsError } = useMetrics();
-  const { benchmarks, loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
+  const { loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
 
   // Local state
   const [selectedMetricId, setSelectedMetricId] = useState<string>('');
   const [selectedRange, setSelectedRange] = useState<string>(REVENUE_RANGES.ranges[0]);
-  const [companyValue, setCompanyValue] = useState<number | undefined>(undefined);
+  const [companyValue, setCompanyValue] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Memoized selected metric
@@ -99,7 +98,7 @@ const Benchmarks: React.FC = () => {
         return;
       }
     }
-    setCompanyValue(undefined);
+    setCompanyValue(null);
   }, [selectedMetric]);
 
   /**
@@ -128,7 +127,7 @@ const Benchmarks: React.FC = () => {
       onReset={() => {
         setSelectedMetricId('');
         setSelectedRange(REVENUE_RANGES.ranges[0]);
-        setCompanyValue(undefined);
+        setCompanyValue(null);
       }}
     >
       <div className="benchmarks-container">
@@ -138,7 +137,7 @@ const Benchmarks: React.FC = () => {
           <MetricSelector
             selectedMetricId={selectedMetricId}
             onMetricSelect={handleMetricSelect}
-            disabled={!!metricsLoading}
+            disabled={metricsLoading}
             category="financial"
             className="metric-selector"
             ariaLabel="Select metric for benchmark analysis"
@@ -167,7 +166,7 @@ const Benchmarks: React.FC = () => {
 
         {(metricsError || benchmarksError) && (
           <div className="error-container" role="alert">
-            <p>{metricsError || benchmarksError}</p>
+            <div>{metricsError || benchmarksError}</div>
           </div>
         )}
 
