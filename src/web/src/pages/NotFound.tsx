@@ -5,7 +5,7 @@ import { analytics } from '@segment/analytics-next';
 import Layout from '../components/layout/Layout';
 import Button from '../components/common/Button';
 
-// Styled components with theme integration
+// Styled components with theme integration and fallbacks
 const NotFoundContainer = styled.div`
   display: flex;
   flex-direction: column;
