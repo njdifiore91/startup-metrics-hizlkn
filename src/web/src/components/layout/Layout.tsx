@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
-import Header from './Header.js';
-import Footer from './Footer.js';
-import Sidebar from './Sidebar.js';
-import ErrorBoundary from '../common/ErrorBoundary.js';
-import { useAuth } from '../../hooks/useAuth.js';
-import { showToast, ToastType, ToastPosition } from '../../hooks/useToast.js';
+import Header from './Header';
+import Footer from './Footer';
+import Sidebar from './Sidebar';
+import ErrorBoundary from '../common/ErrorBoundary';
+import { useAuth } from '../../hooks/useAuth';
+import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
 
 // Layout Props Interface
 interface LayoutProps {
@@ -65,8 +65,8 @@ const Layout: React.FC<LayoutProps> = React.memo(({
 }) => {
   // State Management
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const { validateSession, sessionStatus } = useAuth();
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const { validateSession } = useAuth();
+  const toast = useToast();
 
   // Session Monitoring
   useEffect(() => {
@@ -74,7 +74,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({
       try {
         const isValid = await validateSession();
         if (!isValid) {
-          showToast(
+          toast.showToast(
             'Your session has expired. Please log in again.',
             ToastType.WARNING,
             ToastPosition.TOP_RIGHT
@@ -87,11 +87,10 @@ const Layout: React.FC<LayoutProps> = React.memo(({
 
     const sessionInterval = setInterval(checkSession, 60000); // Check every minute
     return () => clearInterval(sessionInterval);
-  }, [validateSession]);
+  }, [validateSession, toast]);
 
   // Theme Change Handler
   const handleThemeChange = useCallback((newTheme: 'light' | 'dark') => {
-    setTheme(newTheme);
     document.documentElement.classList.toggle('theme-dark', newTheme === 'dark');
   }, []);
 
@@ -102,12 +101,12 @@ const Layout: React.FC<LayoutProps> = React.memo(({
 
   // Error Handler
   const handleError = useCallback((error: Error) => {
-    showToast(
+    toast.showToast(
       error.message,
       ToastType.ERROR,
       ToastPosition.TOP_RIGHT
     );
-  }, []);
+  }, [toast]);
 
   // Keyboard Navigation Handler
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
