@@ -5,7 +5,6 @@
  */
 
 // External imports - versions specified as per requirements
-import type { gapi } from '@types/gapi'; // v0.0.44
 import CryptoJS from 'crypto-js'; // v4.1.1
 
 // Internal imports
@@ -35,6 +34,16 @@ interface ITokens {
 }
 
 /**
+ * Structured error interface for authentication failures
+ */
+interface IAuthError {
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+  timestamp: number;
+}
+
+/**
  * Rate limiting configuration
  */
 const RATE_LIMIT = {
@@ -47,8 +56,9 @@ const RATE_LIMIT = {
  * Enhanced authentication service with security features
  */
 export class AuthService {
-  private googleAuth: gapi.auth.GoogleAuth | null = null;
+  private googleAuth: any = null;
   private currentUser: IUser | null = null;
+  private sessionId: string = '';
   private refreshTimer: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -62,13 +72,13 @@ export class AuthService {
   public async initializeGoogleAuth(): Promise<void> {
     try {
       await new Promise<void>((resolve, reject) => {
-        gapi.load('auth', {
+        window.gapi.load('auth2', {
           callback: resolve,
           onerror: reject
         });
       });
 
-      this.googleAuth = await gapi.auth.init({
+      this.googleAuth = await window.gapi.auth2.init({
         client_id: authConfig.googleClientId,
         scope: authConfig.googleScopes.join(' ')
       });
@@ -140,6 +150,7 @@ export class AuthService {
 
       this.clearTokens();
       this.currentUser = null;
+      this.sessionId = '';
 
       if (this.googleAuth) {
         await this.googleAuth.signOut();
@@ -273,7 +284,7 @@ export class AuthService {
     }, 60000); // Check every minute
   }
 
-  private handleUserChange(googleUser: gapi.auth.GoogleUser): void {
+  private handleUserChange(googleUser: any): void {
     const isSignedIn = googleUser.isSignedIn();
     if (!isSignedIn && this.currentUser) {
       this.logout();
