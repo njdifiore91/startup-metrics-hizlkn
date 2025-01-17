@@ -1,11 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
-import { selectAllMetrics, selectMetricLoadingState } from '../store/metricsSlice';
+import { metricsSlice, selectMetrics, selectMetricsLoading } from '../store/metricsSlice';
 
 // Constants
-const CACHE_TTL = 300000; // 5 minutes
 const MAX_RETRIES = 3;
 
 /**
@@ -14,8 +13,9 @@ const MAX_RETRIES = 3;
  */
 export const useMetrics = () => {
   // Initialize Redux
-  const metrics = useSelector(selectAllMetrics);
-  const loadingState = useSelector(selectMetricLoadingState);
+  const dispatch = useDispatch();
+  const metrics = useSelector(selectMetrics);
+  const loadingState = useSelector(selectMetricsLoading);
 
   // Local state for granular loading and error states
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -88,7 +88,7 @@ export const useMetrics = () => {
         throw new Error(response.error);
       }
 
-      return response.data;
+      return response.data || [];
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metrics by category';
       setError(prev => ({ ...prev, [cacheKey]: errorMessage }));
