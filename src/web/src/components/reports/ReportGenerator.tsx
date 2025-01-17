@@ -29,6 +29,7 @@ interface ReportGeneratorProps {
   onExportProgress?: (progress: number) => void;
   onExportComplete?: () => void;
   onError?: (error: Error) => void;
+  onMetricSelect?: (metric: IMetric) => void;
 }
 
 const ReportGenerator: React.FC<ReportGeneratorProps> = ({
@@ -38,7 +39,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   onExportStart,
   onExportProgress,
   onExportComplete,
-  onError
+  onError,
+  onMetricSelect
 }) => {
   // State management
   const [isLoading, setIsLoading] = useState(false);
