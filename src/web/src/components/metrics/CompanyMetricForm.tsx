@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input } from '../common/Input';
+import { Input, InputProps } from '../common/Input';
 import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
 
@@ -131,25 +131,19 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
           metadata: formData.metadata
         });
       } else {
-        // Create new metric with required fields
+        // Create new metric
         await createMetric({
           value: formData.value,
           metricId: formData.metricId,
-          metadata: formData.metadata || {},
-          timestamp: new Date().toISOString(),
-          userId: '', // Will be set by backend
-          isActive: true,
-          metric: null!, // Will be populated by backend
-          createdAt: new Date().toISOString(),
-          lastModified: new Date().toISOString()
+          metadata: formData.metadata,
+          timestamp: new Date().toISOString()
         });
       }
       onSubmitSuccess();
-    } catch (error: any) {
+    } catch (error) {
       // Handle validation errors
       if (error.response?.data?.errors) {
-        const apiErrors = error.response.data.errors as Array<{ field: string; message: string }>;
-        apiErrors.forEach((err) => {
+        error.response.data.errors.forEach((err: any) => {
           setError(err.field as keyof FormValues, {
             type: 'manual',
             message: err.message
@@ -182,6 +176,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         type="number"
         {...register('value', {
           required: 'Value is required',
+          valueAsNumber: true,
           min: 0
         })}
         error={errors.value?.message}
@@ -189,6 +184,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         aria-describedby={errors.value ? 'value-error' : undefined}
         inputMode="decimal"
         step={0.01}
+        min={0}
       />
 
       {!initialData && (
