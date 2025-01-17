@@ -5,7 +5,7 @@
  */
 
 // External imports - versions specified as per requirements
-import type { gapi } from 'gapi-script'; // v0.0.44
+import '@types/gapi';
 import CryptoJS from 'crypto-js'; // v4.1.1
 
 // Internal imports
@@ -35,6 +35,16 @@ interface ITokens {
 }
 
 /**
+ * Structured error interface for authentication failures
+ */
+interface IAuthError {
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+  timestamp: number;
+}
+
+/**
  * Rate limiting configuration
  */
 const RATE_LIMIT = {
@@ -47,8 +57,9 @@ const RATE_LIMIT = {
  * Enhanced authentication service with security features
  */
 export class AuthService {
-  private googleAuth: gapi.auth2.GoogleAuth | null = null;
+  private googleAuth: typeof gapi.auth2.GoogleAuth | null = null;
   private currentUser: IUser | null = null;
+  private sessionId: string = '';
   private refreshTimer: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -140,6 +151,7 @@ export class AuthService {
 
       this.clearTokens();
       this.currentUser = null;
+      this.sessionId = '';
 
       if (this.googleAuth) {
         await this.googleAuth.signOut();
