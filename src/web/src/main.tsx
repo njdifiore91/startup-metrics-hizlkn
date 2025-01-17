@@ -9,8 +9,8 @@ import { Analytics } from '@segment/analytics-next';
 import App from './App';
 import { store } from './store';
 import { theme } from './config/theme';
-import { handleApiError } from './utils/errorHandlers';
-import { useToast, ToastType, ToastPosition } from './hooks/useToast';
+import { formatErrorMessage } from './utils/errorHandlers';
+import { showToast, ToastType, ToastPosition } from './hooks/useToast';
 
 // Initialize performance monitoring
 const initializeMonitoring = () => {
@@ -38,11 +38,7 @@ const initializeMonitoring = () => {
 
 // Error fallback component
 const ErrorFallback = ({ error }: { error: Error }) => {
-  const toast = useToast();
-  const formattedError = handleApiError(error as any, {
-    showToast: false,
-    logError: true,
-  });
+  const formattedError = formatErrorMessage(error);
 
   return (
     <div role="alert" aria-live="assertive" style={{
@@ -53,7 +49,7 @@ const ErrorFallback = ({ error }: { error: Error }) => {
       backgroundColor: 'var(--color-background)',
     }}>
       <h2 style={{ color: 'var(--color-error)' }}>Application Error</h2>
-      <pre style={{ margin: 'var(--spacing-md) 0' }}>{formattedError.message}</pre>
+      <pre style={{ margin: 'var(--spacing-md) 0' }}>{formattedError}</pre>
       <button
         onClick={() => window.location.reload()}
         style={{
@@ -97,25 +93,6 @@ const cleanupApp = () => {
   window.removeEventListener('unload', cleanupApp);
 };
 
-// Error handler
-const ErrorHandler = () => {
-  const toast = useToast();
-  
-  const handleError = (error: Error) => {
-    console.error('Application Error:', error);
-    
-    Sentry.captureException(error);
-    
-    toast.showToast(
-      'An unexpected error occurred. Please try again.',
-      ToastType.ERROR,
-      ToastPosition.TOP_RIGHT
-    );
-  };
-
-  return null;
-};
-
 // Get root element
 const rootElement = document.getElementById('root') as HTMLElement;
 if (!rootElement) {
@@ -131,10 +108,6 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
-      onError={(error) => {
-        const errorHandler = new ErrorHandler();
-        errorHandler.handleError(error);
-      }}
       onReset={() => window.location.reload()}
     >
       <Provider store={store}>
