@@ -4,13 +4,14 @@ import sanitizeHtml from 'sanitize-html'; // v2.11.0
 
 // Internal imports
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { useAppDispatch, useAppSelector } from '../store';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   selectAllMetrics,
   selectMetricById,
   selectLoadingState,
   selectError,
   fetchCompanyMetrics,
+  fetchCompanyMetricById,
   createCompanyMetric,
   updateCompanyMetric,
   deleteCompanyMetric
@@ -77,12 +78,11 @@ export const useCompanyMetrics = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      const metric = selectMetricById({ companyMetrics: { metrics } }, id);
-      return metric;
+      await dispatch(fetchCompanyMetricById(id)).unwrap();
     } catch (error) {
       console.error('Error fetching metric:', error);
     }
-  }, [metrics]);
+  }, [dispatch]);
 
   /**
    * Creates a new company metric with validation and sanitization
