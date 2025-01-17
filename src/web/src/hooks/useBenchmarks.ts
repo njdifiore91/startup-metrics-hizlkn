@@ -1,10 +1,14 @@
 // External imports with versions
 import { useSelector, useDispatch } from 'react-redux'; // ^8.1.0
 import { useState, useCallback } from 'react'; // ^18.2.0
-import { AppDispatch } from '../store/store';
 
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
+import { 
+  getBenchmarksByMetric, 
+  getBenchmarksByRevenueRange, 
+  compareBenchmarks 
+} from '../services/benchmark';
 import { 
   selectBenchmarks,
   selectBenchmarkLoading,
@@ -15,6 +19,7 @@ import {
   clearErrors
 } from '../store/benchmarkSlice';
 import { handleApiError } from '../utils/errorHandlers';
+import { RevenueRange } from '../config/constants';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -24,7 +29,7 @@ const RETRY_DELAY_BASE = 1000;
 // Types
 interface UseBenchmarksOptions {
   metricId?: string;
-  revenueRange?: string;
+  revenueRange?: RevenueRange;
   retryAttempts?: number;
 }
 
@@ -45,7 +50,7 @@ const benchmarkCache = new Map<string, { data: IBenchmark[]; timestamp: number }
  * @version 1.0.0
  */
 export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useDispatch();
   const benchmarks = useSelector(selectBenchmarks);
   const loading = useSelector(selectBenchmarkLoading);
   const errors = useSelector(selectBenchmarkErrors);
@@ -56,7 +61,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
   /**
    * Generates cache key for benchmark data
    */
-  const generateCacheKey = useCallback((metricId?: string, revenueRange?: string): string => {
+  const generateCacheKey = useCallback((metricId?: string, revenueRange?: RevenueRange): string => {
     return `${metricId || ''}_${revenueRange || ''}`;
   }, []);
 
@@ -75,7 +80,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
    */
   const fetchBenchmarkData = useCallback(async (
     metricId?: string,
-    revenueRange?: string,
+    revenueRange?: RevenueRange,
     retryAttempts: number = MAX_RETRY_ATTEMPTS
   ): Promise<void> => {
     if (!metricId && !revenueRange) {
@@ -103,12 +108,12 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId));
+          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
         } else if (revenueRange) {
           await dispatch(fetchBenchmarksByRevenue({ 
             revenueRange, 
             metricIds: [] 
-          }));
+          })).unwrap();
         }
 
         // Update cache
@@ -123,7 +128,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
-          const formattedError = handleApiError(error as Error);
+          const formattedError = handleApiError(error);
           setLocalError(formattedError.message);
           activeRequests.delete(cacheKey);
           return;
@@ -149,17 +154,17 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       const result = await dispatch(compareBenchmarkData({
         metricId,
         companyValue,
-        revenueRange: options.revenueRange || ''
-      }));
+        revenueRange: options.revenueRange || '0-1M'
+      })).unwrap();
 
       return {
-        percentile: result.payload.percentile,
-        difference: result.payload.difference,
-        trend: result.payload.trend
+        percentile: result.percentile,
+        difference: result.difference,
+        trend: result.trend
       };
 
     } catch (error) {
-      const formattedError = handleApiError(error as Error);
+      const formattedError = handleApiError(error);
       setLocalError(formattedError.message);
       return null;
     }
