@@ -76,10 +76,9 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = memo(({
         ...benchmarkChartOptions,
         plugins: {
           ...benchmarkChartOptions.plugins,
-          accessibility: {
-            enabled: true,
-            announceOnRender: true,
-            description: chartData.metadata.description
+          title: {
+            display: true,
+            text: ariaLabel || `Benchmark comparison chart for ${benchmark.metric.name}`
           }
         }
       }
