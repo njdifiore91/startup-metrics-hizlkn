@@ -48,7 +48,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Track error with Sentry
-    Sentry.withScope((scope: Sentry.Scope) => {
+    Sentry.withScope((scope) => {
       scope.setExtras({
         errorInfo,
         retryCount: this.state.retryCount,
@@ -58,7 +58,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     });
 
     // Format error for consistent handling
-    handleApiError(error as any, {
+    const formattedError = handleApiError(error, {
       showToast: false,
       logError: true
     });
