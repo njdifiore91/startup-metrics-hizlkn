@@ -1,13 +1,12 @@
 import { memoize } from 'lodash';
 import { 
-  IMetric, 
   ValidationRule, 
   MetricValueType, 
-} from '../interfaces/IMetric.js';
+} from '../interfaces/IMetric';
 import { 
   ICompanyMetric,
   isCompanyMetric 
-} from '../interfaces/ICompanyMetric.js';
+} from '../interfaces/ICompanyMetric';
 
 /**
  * Interface for validation results with enhanced error reporting
@@ -143,9 +142,6 @@ export const validateMetricValue = memoize((
     context: { locale, valueType }
   };
 });
-
-// Alias for backward compatibility
-export const validateMetricData = validateMetricValue;
 
 /**
  * Validates complete company metric entries
