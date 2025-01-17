@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import styled from 'styled-components/macro';
+import styled from 'styled-components';
 import '../../styles/theme.css';
 import '../../styles/animations.css';
 
@@ -21,8 +21,13 @@ interface Position {
   left: string;
 }
 
+interface TooltipContainerProps {
+  position: string;
+  isVisible: boolean;
+}
+
 // Styled Components
-const TooltipContainer = styled.div<{ position: string; isVisible: boolean }>`
+const TooltipContainer = styled.div<TooltipContainerProps>`
   position: fixed;
   background-color: var(--color-primary);
   color: #ffffff;
