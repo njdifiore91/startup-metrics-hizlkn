@@ -1,3 +1,9 @@
+```
+
+This error occurs because we're declaring the `newToken` variable but not using it in the `refreshToken` function. We need to fix this by either using the value or removing the variable declaration.
+
+# src/web/src/hooks/useAuth.ts
+```typescript
 /**
  * Enhanced Authentication Hook for Startup Metrics Benchmarking Platform
  * Provides secure authentication state management and session monitoring
@@ -141,7 +147,7 @@ export const useAuth = (): UseAuthReturn => {
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
       dispatch(authActions.setLoading(true));
-      const newToken = await authService.refreshAuthToken();
+      await authService.refreshAuthToken();
       dispatch(authActions.refreshTokens());
     } catch (error: any) {
       dispatch(authActions.setError({
