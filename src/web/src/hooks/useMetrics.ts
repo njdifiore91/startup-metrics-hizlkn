@@ -2,9 +2,10 @@ import { useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
-import { metricsSlice, selectMetrics, selectMetricsLoading } from '../store/metricsSlice';
+import { selectMetrics, selectMetricsLoading } from '../store/metricsSlice';
 
 // Constants
+const CACHE_TTL = 300000; // 5 minutes
 const MAX_RETRIES = 3;
 
 /**
@@ -88,7 +89,7 @@ export const useMetrics = () => {
         throw new Error(response.error);
       }
 
-      return response.data || [];
+      return response.data;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metrics by category';
       setError(prev => ({ ...prev, [cacheKey]: errorMessage }));
