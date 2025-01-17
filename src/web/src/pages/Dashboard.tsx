@@ -72,25 +72,22 @@ const Dashboard: React.FC = () => {
   // Custom Hooks
   const { 
     metrics, 
-    loading: metricsLoading, 
+    loading, 
     error: metricsError,
     getMetricsByCategory 
   } = useMetrics();
 
   const {
-    benchmarks,
-    loading: benchmarksLoading,
+    loading: benchmarkLoading,
     error: benchmarksError,
-    fetchBenchmarkData,
-    compareBenchmark
+    fetchBenchmarkData
   } = useBenchmarks({
     revenueRange: state.revenueRange
   });
 
   // Memoized filtered metrics
   const filteredMetrics = useMemo(() => {
-    const typedMetrics = metrics as IMetric[];
-    return typedMetrics.filter((metric: IMetric) => metric.category === state.selectedCategory);
+    return metrics.filter(metric => metric.category === state.selectedCategory);
   }, [metrics, state.selectedCategory]);
 
   // Handlers
@@ -218,11 +215,11 @@ const Dashboard: React.FC = () => {
           </FilterSection>
 
           <MetricsGrid role="grid" aria-label="Metrics grid">
-            {filteredMetrics.map((metric: IMetric) => (
+            {filteredMetrics.map(metric => (
               <MetricCard
                 key={metric.id}
                 metric={metric}
-                value={metric.value}
+                value={metric.metadata?.value as number}
                 selected={state.selectedMetric?.id === metric.id}
                 onClick={() => handleMetricSelect(metric)}
                 testId={`metric-card-${metric.id}`}
@@ -238,7 +235,7 @@ const Dashboard: React.FC = () => {
 
           {(metricsError || benchmarksError) && (
             <div role="alert" className="error-container">
-              <span>{metricsError || benchmarksError}</span>
+              {metricsError?.toString() || benchmarksError?.toString()}
             </div>
           )}
         </DashboardContainer>
