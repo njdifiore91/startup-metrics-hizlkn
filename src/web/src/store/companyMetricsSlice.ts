@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric.js';
-import { companyMetricsService } from '../services/companyMetrics.js';
-import { handleApiError } from '../utils/errorHandlers.js';
+import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
+import { companyMetricsService } from '../services/companyMetrics';
+import { handleApiError } from '../utils/errorHandlers';
+import { AxiosError } from 'axios';
+import { ApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -41,27 +43,7 @@ export const fetchCompanyMetrics = createAsyncThunk(
       const metrics = await companyMetricsService.getCompanyMetrics();
       return metrics;
     } catch (error) {
-      return rejectWithValue(handleApiError(error));
-    }
-  }
-);
-
-export const fetchCompanyMetricById = createAsyncThunk(
-  'companyMetrics/fetchById',
-  async (id: string, { rejectWithValue, getState }) => {
-    try {
-      const state = getState() as { companyMetrics: CompanyMetricsState };
-      const cacheKey = `metric_${id}`;
-      const cached = state.companyMetrics.requestCache[cacheKey];
-      
-      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        return cached.data;
-      }
-
-      const metric = await companyMetricsService.getCompanyMetricById(id);
-      return metric;
-    } catch (error) {
-      return rejectWithValue(handleApiError(error));
+      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
     }
   }
 );
@@ -78,7 +60,7 @@ export const createCompanyMetric = createAsyncThunk(
       const createdMetric = await companyMetricsService.createCompanyMetric(metricData);
       return createdMetric;
     } catch (error) {
-      return rejectWithValue(handleApiError(error));
+      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
     }
   }
 );
@@ -97,19 +79,19 @@ export const updateCompanyMetric = createAsyncThunk(
       const updatedMetric = await companyMetricsService.updateCompanyMetric(id, data);
       return updatedMetric;
     } catch (error) {
-      return rejectWithValue(handleApiError(error));
+      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
     }
   }
 );
 
-export const deleteMetric = createAsyncThunk(
+export const deleteCompanyMetric = createAsyncThunk(
   'companyMetrics/delete',
   async (id: string, { rejectWithValue }) => {
     try {
       await companyMetricsService.deleteCompanyMetric(id);
       return id;
     } catch (error) {
-      return rejectWithValue(handleApiError(error));
+      return rejectWithValue(handleApiError(error as AxiosError<ApiError>));
     }
   }
 );
@@ -146,26 +128,6 @@ const companyMetricsSlice = createSlice({
         state.loadingStates['fetchAll'] = { isLoading: false, operation: 'fetch' };
         state.error = action.payload as { message: string; code: string; details?: any };
       })
-      // Fetch metric by id
-      .addCase(fetchCompanyMetricById.pending, (state) => {
-        state.loadingStates['fetchById'] = { isLoading: true, operation: 'fetch' };
-        state.error = null;
-      })
-      .addCase(fetchCompanyMetricById.fulfilled, (state, action) => {
-        const index = state.metrics.findIndex(m => m.id === action.payload.id);
-        if (index !== -1) {
-          state.metrics[index] = action.payload;
-        } else {
-          state.metrics.push(action.payload);
-        }
-        state.loadingStates['fetchById'] = { isLoading: false, operation: 'fetch' };
-        state.requestCache[`metric_${action.payload.id}`] = { data: action.payload, timestamp: Date.now() };
-        state.lastUpdated = Date.now();
-      })
-      .addCase(fetchCompanyMetricById.rejected, (state, action) => {
-        state.loadingStates['fetchById'] = { isLoading: false, operation: 'fetch' };
-        state.error = action.payload as { message: string; code: string; details?: any };
-      })
       // Create metric
       .addCase(createCompanyMetric.pending, (state) => {
         state.loadingStates['create'] = { isLoading: true, operation: 'create' };
@@ -200,17 +162,17 @@ const companyMetricsSlice = createSlice({
         state.error = action.payload as { message: string; code: string; details?: any };
       })
       // Delete metric
-      .addCase(deleteMetric.pending, (state) => {
+      .addCase(deleteCompanyMetric.pending, (state) => {
         state.loadingStates['delete'] = { isLoading: true, operation: 'delete' };
         state.error = null;
       })
-      .addCase(deleteMetric.fulfilled, (state, action) => {
+      .addCase(deleteCompanyMetric.fulfilled, (state, action) => {
         state.metrics = state.metrics.filter(m => m.id !== action.payload);
         state.loadingStates['delete'] = { isLoading: false, operation: 'delete' };
         state.lastUpdated = Date.now();
         state.requestCache = {}; // Invalidate cache
       })
-      .addCase(deleteMetric.rejected, (state, action) => {
+      .addCase(deleteCompanyMetric.rejected, (state, action) => {
         state.loadingStates['delete'] = { isLoading: false, operation: 'delete' };
         state.error = action.payload as { message: string; code: string; details?: any };
       });
@@ -226,9 +188,6 @@ export const selectMetricById = (state: { companyMetrics: CompanyMetricsState },
 
 export const selectLoadingState = (state: { companyMetrics: CompanyMetricsState }, operation: string) => 
   state.companyMetrics.loadingStates[operation];
-
-export const selectLoading = (state: { companyMetrics: CompanyMetricsState }) => 
-  Object.values(state.companyMetrics.loadingStates).some(state => state.isLoading);
 
 export const selectError = (state: { companyMetrics: CompanyMetricsState }) => 
   state.companyMetrics.error;
