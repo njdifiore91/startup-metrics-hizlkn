@@ -5,6 +5,7 @@ import {
   getBenchmarksByRevenueRange, 
   compareBenchmarks 
 } from '../services/benchmark';
+import { handleApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -15,7 +16,7 @@ interface BenchmarkState {
   selectedMetricId: string | null;
   selectedRevenueRange: string | null;
   loading: Record<string, boolean>;
-  error: Record<string, { message: string; code: string }>;
+  error: Record<string, { message: string; code: string } | undefined>;
   comparisonResult: object | null;
   cache: Record<string, { data: IBenchmark[]; timestamp: number }>;
 }
@@ -47,15 +48,16 @@ export const fetchBenchmarksByMetric = createAsyncThunk(
 
       const benchmarks = await getBenchmarksByMetric(metricId);
       return benchmarks;
-    } catch (error: any) {
-      return rejectWithValue({ message: error.message, code: error.code || 'UNKNOWN' });
+    } catch (error) {
+      const formattedError = handleApiError(error);
+      return rejectWithValue(formattedError);
     }
   }
 );
 
 export const fetchBenchmarksByRevenue = createAsyncThunk(
   'benchmark/fetchByRevenue',
-  async ({ revenueRange, metricIds }: { revenueRange: string; metricIds: string[] }, { rejectWithValue, getState }) => {
+  async ({ revenueRange, metricIds }: { revenueRange: "0-1M" | "1M-5M" | "5M-20M" | "20M-50M" | "50M+"; metricIds: string[] }, { rejectWithValue, getState }) => {
     try {
       const cacheKey = `revenue_${revenueRange}_${metricIds.join('_')}`;
       const state = getState() as { benchmark: BenchmarkState };
@@ -68,8 +70,9 @@ export const fetchBenchmarksByRevenue = createAsyncThunk(
 
       const benchmarks = await getBenchmarksByRevenueRange(revenueRange, metricIds, { page: 1, limit: 100 });
       return benchmarks.data;
-    } catch (error: any) {
-      return rejectWithValue({ message: error.message, code: error.code || 'UNKNOWN' });
+    } catch (error) {
+      const formattedError = handleApiError(error);
+      return rejectWithValue(formattedError);
     }
   }
 );
@@ -78,7 +81,7 @@ export const compareBenchmarkData = createAsyncThunk(
   'benchmark/compare',
   async (
     { metricId, companyValue, revenueRange }: 
-    { metricId: string; companyValue: number; revenueRange: string },
+    { metricId: string; companyValue: number; revenueRange: "0-1M" | "1M-5M" | "5M-20M" | "20M-50M" | "50M+" },
     { rejectWithValue }
   ) => {
     try {
@@ -87,8 +90,9 @@ export const compareBenchmarkData = createAsyncThunk(
         includePeers: true
       });
       return result;
-    } catch (error: any) {
-      return rejectWithValue({ message: error.message, code: error.code || 'UNKNOWN' });
+    } catch (error) {
+      const formattedError = handleApiError(error);
+      return rejectWithValue(formattedError);
     }
   }
 );
@@ -100,11 +104,11 @@ const benchmarkSlice = createSlice({
   reducers: {
     setSelectedMetric: (state, action: PayloadAction<string>) => {
       state.selectedMetricId = action.payload;
-      state.error['selectedMetric'] = null;
+      state.error['selectedMetric'] = undefined;
     },
     setSelectedRevenueRange: (state, action: PayloadAction<string>) => {
       state.selectedRevenueRange = action.payload;
-      state.error['selectedRevenueRange'] = null;
+      state.error['selectedRevenueRange'] = undefined;
     },
     clearBenchmarks: (state) => {
       state.benchmarks = [];
@@ -119,9 +123,9 @@ const benchmarkSlice = createSlice({
   },
   extraReducers: (builder) => {
     // fetchBenchmarksByMetric
-    builder.addCase(fetchBenchmarksByMetric.pending, (state, action) => {
+    builder.addCase(fetchBenchmarksByMetric.pending, (state) => {
       state.loading['fetchByMetric'] = true;
-      state.error['fetchByMetric'] = null;
+      state.error['fetchByMetric'] = undefined;
     });
     builder.addCase(fetchBenchmarksByMetric.fulfilled, (state, action) => {
       state.loading['fetchByMetric'] = false;
@@ -139,7 +143,7 @@ const benchmarkSlice = createSlice({
     // fetchBenchmarksByRevenue
     builder.addCase(fetchBenchmarksByRevenue.pending, (state) => {
       state.loading['fetchByRevenue'] = true;
-      state.error['fetchByRevenue'] = null;
+      state.error['fetchByRevenue'] = undefined;
     });
     builder.addCase(fetchBenchmarksByRevenue.fulfilled, (state, action) => {
       state.loading['fetchByRevenue'] = false;
@@ -157,7 +161,7 @@ const benchmarkSlice = createSlice({
     // compareBenchmarkData
     builder.addCase(compareBenchmarkData.pending, (state) => {
       state.loading['compare'] = true;
-      state.error['compare'] = null;
+      state.error['compare'] = undefined;
     });
     builder.addCase(compareBenchmarkData.fulfilled, (state, action) => {
       state.loading['compare'] = false;
