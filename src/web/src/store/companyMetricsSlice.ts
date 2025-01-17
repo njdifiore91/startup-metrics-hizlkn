@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
 import { companyMetricsService } from '../services/companyMetrics';
-import { handleApiError, ApiError } from '../utils/errorHandlers';
+import { handleApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
