@@ -38,7 +38,6 @@ interface UseAuthReturn {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   validateSession: () => Promise<boolean>;
-  updateUserSettings: (settings: Partial<IUser>) => Promise<void>;
 }
 
 /**
@@ -142,8 +141,9 @@ export const useAuth = (): UseAuthReturn => {
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
       dispatch(authActions.setLoading(true));
-      await authService.refreshAuthToken();
+      const newToken = await authService.refreshAuthToken();
       dispatch(authActions.refreshTokens());
+      return newToken;
     } catch (error: any) {
       dispatch(authActions.setError({
         code: 'TOKEN_REFRESH_ERROR',
@@ -156,25 +156,6 @@ export const useAuth = (): UseAuthReturn => {
       dispatch(authActions.setLoading(false));
     }
   }, [dispatch, authService, logout]);
-
-  /**
-   * Updates user settings
-   */
-  const updateUserSettings = useCallback(async (settings: Partial<IUser>): Promise<void> => {
-    try {
-      dispatch(authActions.setLoading(true));
-      const updatedUser = await authService.updateUserSettings(settings);
-      dispatch(authActions.setUser(updatedUser));
-    } catch (error: any) {
-      dispatch(authActions.setError({
-        code: 'UPDATE_SETTINGS_ERROR',
-        message: error.message || 'Failed to update user settings',
-        details: error.details || {}
-      }));
-    } finally {
-      dispatch(authActions.setLoading(false));
-    }
-  }, [dispatch, authService]);
 
   /**
    * Validates current session status
@@ -238,7 +219,6 @@ export const useAuth = (): UseAuthReturn => {
     login,
     logout,
     refreshToken,
-    validateSession,
-    updateUserSettings
+    validateSession
   };
 };
