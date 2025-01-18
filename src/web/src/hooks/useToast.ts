@@ -57,30 +57,6 @@ interface UseToastReturn {
   clearAllToasts: () => void;
 }
 
-// Standalone toast utility for non-React contexts
-let globalToastCallback: ((
-  message: string,
-  type?: ToastType,
-  position?: ToastPosition,
-  duration?: number,
-  theme?: ToastTheme,
-  onClick?: () => void
-) => string) | null = null;
-
-export const showToast = (
-  message: string,
-  type: ToastType = ToastType.INFO,
-  position: ToastPosition = ToastPosition.TOP_RIGHT,
-  duration: number = DEFAULT_DURATION,
-  theme?: ToastTheme,
-  onClick?: () => void
-): string => {
-  if (!globalToastCallback) {
-    throw new Error('Toast system not initialized. Make sure useToast hook is mounted.');
-  }
-  return globalToastCallback(message, type, position, duration, theme, onClick);
-};
-
 export const useToast = (): UseToastReturn => {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [timers, setTimers] = useState<{ [key: string]: NodeJS.Timeout }>({});
@@ -119,7 +95,7 @@ export const useToast = (): UseToastReturn => {
   }, [timers]);
 
   // Show new toast
-  const showToastCallback = useCallback((
+  const showToast = useCallback((
     message: string,
     type: ToastType = ToastType.INFO,
     position: ToastPosition = ToastPosition.TOP_RIGHT,
@@ -206,14 +182,6 @@ export const useToast = (): UseToastReturn => {
     setToasts([]);
   }, [clearTimer]);
 
-  // Register global toast callback
-  useEffect(() => {
-    globalToastCallback = showToastCallback;
-    return () => {
-      globalToastCallback = null;
-    };
-  }, [showToastCallback]);
-
   // Clean up timers on unmount
   useEffect(() => {
     return () => {
@@ -237,7 +205,6 @@ export const useToast = (): UseToastReturn => {
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
       const deltaX = touchEndX - touchStartX;
-      const deltaY = touchEndY - touchStartY;
 
       // Swipe threshold
       if (Math.abs(deltaX) > 50) {
@@ -261,7 +228,7 @@ export const useToast = (): UseToastReturn => {
 
   return {
     toasts,
-    showToast: showToastCallback,
+    showToast,
     hideToast,
     pauseToast,
     resumeToast,
