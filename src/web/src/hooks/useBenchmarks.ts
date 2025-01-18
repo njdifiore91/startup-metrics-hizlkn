@@ -1,14 +1,10 @@
 // External imports with versions
 import { useSelector, useDispatch } from 'react-redux'; // ^8.1.0
 import { useState, useCallback } from 'react'; // ^18.2.0
+import { AnyAction } from '@reduxjs/toolkit';
 
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
-import { 
-  getBenchmarksByMetric, 
-  getBenchmarksByRevenueRange, 
-  compareBenchmarks 
-} from '../services/benchmark';
 import { 
   selectBenchmarks,
   selectBenchmarkLoading,
@@ -107,12 +103,12 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
+          await (dispatch(fetchBenchmarksByMetric(metricId)) as unknown as Promise<AnyAction>);
         } else if (revenueRange) {
-          await dispatch(fetchBenchmarksByRevenue({ 
+          await (dispatch(fetchBenchmarksByRevenue({ 
             revenueRange, 
             metricIds: [] 
-          })).unwrap();
+          })) as unknown as Promise<AnyAction>);
         }
 
         // Update cache
@@ -124,7 +120,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
         activeRequests.delete(cacheKey);
         return;
 
-      } catch (error) {
+      } catch (error: any) {
         attempt++;
         if (attempt === retryAttempts) {
           const formattedError = handleApiError(error);
@@ -150,11 +146,11 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     }
 
     try {
-      const result = await dispatch(compareBenchmarkData({
+      const result = await (dispatch(compareBenchmarkData({
         metricId,
         companyValue,
         revenueRange: options.revenueRange || ''
-      })).unwrap();
+      })) as unknown as Promise<AnyAction>);
 
       return {
         percentile: result.percentile,
@@ -162,7 +158,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
         trend: result.trend
       };
 
-    } catch (error) {
+    } catch (error: any) {
       const formattedError = handleApiError(error);
       setLocalError(formattedError.message);
       return null;
