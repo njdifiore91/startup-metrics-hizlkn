@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Chart, ChartData, ChartOptions, TooltipModel, ChartTypeRegistry, TooltipItem } from 'chart.js/auto';
-import { useDebounce } from 'use-debounce';
-import { chartColors } from '../../config/chart';
+import { Chart, ChartData } from 'chart.js/auto'; // chart.js@4.0.0
+import { useDebounce } from 'use-debounce'; // use-debounce@9.0.0
+import { CHART_COLORS } from '../../config/chart';
 import { generateChartOptions } from '../../utils/chartHelpers';
 
+// Enhanced interface for bar chart data points
 interface IBarChartProps {
   data: Array<{ value: number; label: string }>;
   labels: string[];
@@ -15,8 +16,10 @@ interface IBarChartProps {
   highContrastMode?: boolean;
 }
 
+// Default chart dimensions
 const CHART_DEFAULT_HEIGHT = 300;
 
+// Memoized bar chart component for performance optimization
 const BarChart: React.FC<IBarChartProps> = React.memo(({
   data,
   labels,
@@ -27,15 +30,18 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
   ariaLabel,
   highContrastMode = false
 }) => {
+  // Chart instance reference
   const chartRef = useRef<Chart | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Debounced resize handler for performance
   const [debouncedResize] = useDebounce(() => {
     if (chartRef.current) {
       chartRef.current.resize();
     }
   }, 250);
 
+  // Cleanup chart instance on unmount
   useEffect(() => {
     return () => {
       if (chartRef.current) {
@@ -44,31 +50,32 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
     };
   }, []);
 
+  // Initialize chart with accessibility features
   const initializeChart = useCallback(() => {
     if (!canvasRef.current) return;
 
+    // Configure chart data with WCAG-compliant colors
     const chartData: ChartData = {
       labels,
       datasets: [{
         data: data.map(d => d.value),
         backgroundColor: highContrastMode ? 
-          chartColors.highContrast.background : 
-          `${chartColors.primary}CC`,
+          CHART_COLORS.background : 
+          `${CHART_COLORS.primary}CC`,
         borderColor: highContrastMode ? 
-          chartColors.highContrast.border : 
-          chartColors.primary,
+          CHART_COLORS.text : 
+          CHART_COLORS.primary,
         borderWidth: 1,
         borderRadius: 4,
         barThickness: 'flex',
         maxBarThickness: 64,
-        minBarLength: 4,
-        'aria-label': `${ariaLabel} data series`,
-        role: 'graphics-symbol'
+        minBarLength: 4
       }]
     };
 
+    // Enhanced chart options with accessibility support
     const options = generateChartOptions('bar', {
-      onClick: (_event, elements) => {
+      onClick: (event: Event, elements: Array<{ index: number }>) => {
         if (onBarClick && elements.length > 0) {
           const index = elements[0].index;
           onBarClick(index, data[index].value);
@@ -83,8 +90,8 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
         tooltip: {
           enabled: true,
           backgroundColor: highContrastMode ? 
-            chartColors.highContrast.tooltip : 
-            `${chartColors.primary}E6`,
+            CHART_COLORS.text : 
+            `${CHART_COLORS.primary}E6`,
           titleFont: {
             family: 'Inter',
             size: 14,
@@ -97,8 +104,8 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
           padding: 12,
           cornerRadius: 4,
           callbacks: {
-            label: (tooltipItem: TooltipItem<keyof ChartTypeRegistry>) => {
-              const value = tooltipItem.raw as number;
+            label: (context) => {
+              const value = context.raw as number;
               return `Value: ${value.toLocaleString()}`;
             }
           }
@@ -106,6 +113,7 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
       }
     });
 
+    // Initialize chart with error boundary
     try {
       if (chartRef.current) {
         chartRef.current.destroy();
@@ -118,13 +126,16 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
       });
     } catch (error) {
       console.error('Error initializing chart:', error);
+      // Implement error boundary fallback UI if needed
     }
   }, [data, labels, onBarClick, ariaLabel, highContrastMode]);
 
+  // Handle chart updates
   useEffect(() => {
     initializeChart();
   }, [initializeChart]);
 
+  // Handle resize events
   useEffect(() => {
     window.addEventListener('resize', debouncedResize);
     return () => {
@@ -132,6 +143,7 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
     };
   }, [debouncedResize]);
 
+  // Setup keyboard navigation
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (!chartRef.current) return;
 
