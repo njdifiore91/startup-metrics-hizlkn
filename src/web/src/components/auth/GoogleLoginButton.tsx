@@ -4,19 +4,17 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
-import Button from '../common/Button';
-import type { ButtonProps } from '../common/Button';
-import type { IUser } from '../../interfaces/IUser';
+import Button, { ButtonProps } from '../common/Button';
 
 /**
  * Props for the GoogleLoginButton component
  */
 export interface GoogleLoginButtonProps {
   className?: string;
-  onSuccess?: (response: { token: string; user: IUser }) => void;
+  onSuccess?: (response: { token: string; user: User }) => void;
   onError?: (error: { code: string; message: string }) => void;
   disabled?: boolean;
   testId?: string;
@@ -34,6 +32,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
   testId = 'google-login-button'
 }) => {
   const { login, isLoading, error } = useAuth();
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Debounced login handler to prevent multiple rapid clicks
   const handleGoogleLogin = useCallback(
@@ -41,10 +40,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
       if (disabled || isLoading) return;
 
       try {
-        const response = await login();
-        if (response && onSuccess) {
-          onSuccess(response);
-        }
+        await login();
       } catch (error: any) {
         onError?.({
           code: error.code || 'AUTH_ERROR',
@@ -52,7 +48,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
         });
       }
     }, 300, { leading: true, trailing: false }),
-    [login, disabled, isLoading, onSuccess, onError]
+    [login, disabled, isLoading, onError]
   );
 
   // Clean up debounce on unmount
@@ -79,13 +75,12 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
     onClick: handleGoogleLogin,
     className: `google-login-button ${className || ''}`,
     ariaLabel: 'Sign in with Google',
-    'data-testid': testId,
     role: 'button',
     tabIndex: disabled ? -1 : 0
   };
 
   return (
-    <Button {...buttonProps}>
+    <Button {...buttonProps} ref={buttonRef}>
       <div className="google-button-content">
         <GoogleIcon className="google-icon" />
         <span className="google-button-text">
@@ -93,7 +88,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
         </span>
       </div>
 
-      <style>{`
+      <style jsx>{`
         .google-login-button {
           display: flex;
           align-items: center;
