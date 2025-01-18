@@ -7,8 +7,8 @@ import Select from '../common/Select';
 import { MetricCategory } from '../../interfaces/IMetric';
 import { 
   fetchMetricsByCategory, 
-  selectMetricsError, 
-  selectMetricsLoading 
+  selectMetricError, 
+  selectMetricLoading 
 } from '../../store/metricsSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
 
@@ -39,10 +39,10 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
   initialCategory,
   disabled = false
 }) => {
-  // Redux hooks with proper typing
-  const dispatch = useDispatch<any>();
-  const isLoading = useSelector(selectMetricsLoading);
-  const error = useSelector(selectMetricsError);
+  // Redux hooks
+  const dispatch = useDispatch();
+  const isLoading = useSelector(selectMetricLoading);
+  const error = useSelector(selectMetricError);
 
   // Debounce category changes to prevent rapid API calls
   const [debouncedChange] = useDebounce(onCategoryChange, 300);
@@ -76,53 +76,49 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
 
   return (
     <ErrorBoundary>
-      <React.Fragment>
-        <div 
-          className={containerClasses}
-          role="region"
-          aria-label="Metric category filter"
+      <div 
+        className={containerClasses}
+        role="region"
+        aria-label="Metric category filter"
+      >
+        <label 
+          htmlFor="metric-category"
+          className={styles['filter-label']}
         >
-          <label 
-            htmlFor="metric-category"
-            className={styles['filter-label']}
+          Filter by Category
+        </label>
+
+        <Select
+          id="metric-category"
+          name="metric-category"
+          options={categoryOptions}
+          value={initialCategory || ''}
+          onChange={handleCategoryChange}
+          disabled={disabled || isLoading}
+          error={error?.fetchMetricsByCategory || undefined}
+          loading={isLoading}
+          placeholder="Select a category"
+          required
+          aria-describedby={error ? 'metric-filter-error' : undefined}
+          data-testid="metric-category-select"
+        />
+
+        {error && (
+          <div 
+            id="metric-filter-error"
+            className={styles['filter-error']}
+            role="alert"
           >
-            Filter by Category
-          </label>
-
-          <Select
-            id="metric-category"
-            name="metric-category"
-            options={categoryOptions}
-            value={initialCategory || ''}
-            onChange={handleCategoryChange}
-            disabled={Boolean(disabled || isLoading)}
-            error={error?.message}
-            loading={Boolean(isLoading)}
-            placeholder="Select a category"
-            required
-            aria-describedby={error ? 'metric-filter-error' : undefined}
-            data-testid="metric-category-select"
-          />
-
-          {error && (
-            <div 
-              id="metric-filter-error"
-              className={styles['filter-error']}
-              role="alert"
-            >
-              {error.message}
-            </div>
-          )}
-
-          {/* Screen reader announcements for state changes */}
-          <div aria-live="polite" className="sr-only">
-            <React.Fragment>
-              {isLoading && 'Loading metric categories...'}
-              {error && `Error: ${error.message}`}
-            </React.Fragment>
+            {error.fetchMetricsByCategory}
           </div>
+        )}
+
+        {/* Screen reader announcements for state changes */}
+        <div aria-live="polite" className="sr-only">
+          {isLoading && 'Loading metric categories...'}
+          {error && `Error: ${error.fetchMetricsByCategory}`}
         </div>
-      </React.Fragment>
+      </div>
     </ErrorBoundary>
   );
 });
