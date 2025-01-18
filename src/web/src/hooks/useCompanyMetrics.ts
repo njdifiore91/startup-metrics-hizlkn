@@ -1,25 +1,20 @@
 import { useCallback, useEffect, useRef } from 'react'; // v18.2.0
 import * as yup from 'yup'; // v1.0.0
 import sanitizeHtml from 'sanitize-html'; // v2.11.0
-import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 
 // Internal imports
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { RootState, AppDispatch } from '../store';
+import { useAppDispatch, useAppSelector } from '../store';
 import {
   selectAllMetrics,
-  selectMetricById,
-  selectLoadingState,
+  selectLoading,
   selectError,
   fetchCompanyMetrics,
+  fetchCompanyMetricById,
   createCompanyMetric,
   updateCompanyMetric,
-  deleteCompanyMetric as deleteMetric
+  deleteMetric
 } from '../store/companyMetricsSlice';
-
-// Custom typed hooks
-export const useAppDispatch = () => useDispatch<AppDispatch>();
-export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
 
 // Validation schema for metric data
 const metricDataSchema = yup.object().shape({
@@ -38,7 +33,7 @@ export const useCompanyMetrics = () => {
 
   // Selectors
   const metrics = useAppSelector(selectAllMetrics);
-  const loading = useAppSelector(state => selectLoadingState(state, 'fetchAll')?.isLoading || false);
+  const loading = useAppSelector(selectLoading);
   const error = useAppSelector(selectError);
 
   // Cleanup function for request cancellation
@@ -64,6 +59,27 @@ export const useCompanyMetrics = () => {
       await dispatch(fetchCompanyMetrics()).unwrap();
     } catch (error) {
       console.error('Error fetching metrics:', error);
+    }
+  }, [dispatch]);
+
+  /**
+   * Fetches a specific company metric by ID with validation
+   */
+  const fetchMetricById = useCallback(async (id: string) => {
+    try {
+      if (!id) {
+        throw new Error('Metric ID is required');
+      }
+
+      // Cancel any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      await dispatch(fetchCompanyMetricById(id)).unwrap();
+    } catch (error) {
+      console.error('Error fetching metric:', error);
     }
   }, [dispatch]);
 
@@ -150,6 +166,7 @@ export const useCompanyMetrics = () => {
 
     // Operations
     fetchMetrics,
+    fetchMetricById,
     createMetric,
     updateMetric,
     deleteMetric: deleteMetricById
