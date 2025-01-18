@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import Button, { ButtonProps } from '../common/Button';
 import { exportService } from '../../services/export';
-import { useToast, ToastPosition } from '../../hooks/useToast';
+import { useToast, ToastPosition, ToastType } from '../../hooks/useToast';
 import { IMetric } from '../../interfaces/IMetric';
 import { IBenchmark } from '../../interfaces/IBenchmark';
 
@@ -42,12 +42,24 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
   const cancelRef = useRef<() => void>();
   const { showToast } = useToast();
 
+  // Progress tracking handler
+  const handleProgress = useCallback((currentProgress: number) => {
+    setProgress(currentProgress);
+    onProgress?.(currentProgress);
+
+    // Update ARIA live region for screen readers
+    const liveRegion = document.getElementById('export-progress');
+    if (liveRegion) {
+      liveRegion.textContent = `Export progress: ${currentProgress}%`;
+    }
+  }, [onProgress]);
+
   // Export handler with enhanced error handling
   const handleExport = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
 
     if (!metrics.length || !benchmarks.length) {
-      showToast('No data available for export', 'error', ToastPosition.TOP_RIGHT);
+      showToast('No data available for export', ToastType.ERROR, ToastPosition.TOP_RIGHT);
       return;
     }
 
@@ -89,7 +101,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       // Success notification
       showToast(
         `Export completed successfully. Your ${format} file is ready.`,
-        'success',
+        ToastType.SUCCESS,
         ToastPosition.TOP_RIGHT
       );
 
@@ -104,7 +116,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
       // Enhanced error feedback
       showToast(
         `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
-        'error',
+        ToastType.ERROR,
         ToastPosition.TOP_RIGHT
       );
 
