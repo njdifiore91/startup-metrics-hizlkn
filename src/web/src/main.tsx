@@ -10,7 +10,7 @@ import App from './App';
 import { store } from './store';
 import { theme } from './config/theme';
 import { handleApiError } from './utils/errorHandlers';
-import { useToast } from './hooks/useToast';
+import { showToast, ToastType, ToastPosition } from './hooks/useToast';
 
 // Initialize performance monitoring
 const initializeMonitoring = () => {
@@ -29,7 +29,7 @@ const initializeMonitoring = () => {
   });
 
   // Initialize Segment Analytics
-  const analytics = Analytics.init({
+  const analytics = Analytics.load({
     writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
     trackApplicationLifecycle: true,
     recordScreenViews: true,
@@ -38,7 +38,6 @@ const initializeMonitoring = () => {
 
 // Error fallback component
 const ErrorFallback = ({ error }: { error: Error }) => {
-  const toast = useToast();
   const formattedError = handleApiError(error as any, {
     showToast: false,
     logError: true,
@@ -87,6 +86,9 @@ const initializeApp = () => {
 
 // Cleanup function
 const cleanupApp = () => {
+  // Flush any pending analytics
+  Analytics.flush();
+
   // Clear any application caches
   store.dispatch({ type: 'RESET_STATE' });
 
@@ -100,11 +102,10 @@ const handleError = (error: Error) => {
   
   Sentry.captureException(error);
   
-  const toast = useToast();
-  toast.showToast(
+  showToast(
     'An unexpected error occurred. Please try again.',
-    'error',
-    'top-right'
+    ToastType.ERROR,
+    ToastPosition.TOP_RIGHT
   );
 };
 
