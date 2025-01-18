@@ -3,12 +3,11 @@ import { debounce } from 'lodash'; // ^4.17.21
 
 // Internal imports
 import { IMetric, MetricValueType } from '../../interfaces/IMetric';
-import { IBenchmark } from '../../interfaces/IBenchmark';
 import BenchmarkChart from '../charts/BenchmarkChart';
 import { useBenchmarks } from '../../hooks/useBenchmarks';
 import { formatMetricValue } from '../../utils/chartHelpers';
 import { ToastType, useToast } from '../../hooks/useToast';
-import { CHART_CONSTANTS, RevenueRange } from '../../config/constants';
+import { CHART_CONSTANTS } from '../../config/constants';
 
 // Types and Interfaces
 interface ComparisonResult {
@@ -24,7 +23,7 @@ interface MetricComparisonProps {
   /** Metric to be compared with validation rules */
   metric: IMetric;
   /** Selected revenue range for benchmark comparison */
-  revenueRange: RevenueRange;
+  revenueRange: string;
   /** Company's metric value for comparison with validation */
   companyValue?: number;
   /** Callback for comparison completion with result data */
@@ -99,7 +98,8 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
    * Formats percentile values based on metric type
    */
   const formatPercentileValue = useCallback((value: number, valueType: MetricValueType): string => {
-    return formatMetricValue(value, valueType);
+    const mappedType = valueType === 'ratio' ? 'number' : valueType;
+    return formatMetricValue(value, mappedType);
   }, []);
 
   /**
