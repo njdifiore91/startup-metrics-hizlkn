@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
-import { analytics } from '@segment/analytics-next';
+import { Analytics } from '@segment/analytics-next';
 import Layout from '../components/layout/Layout';
 import Button from '../components/common/Button';
 
@@ -56,7 +56,7 @@ const NotFound: React.FC = React.memo(() => {
 
   // Track 404 occurrence
   useEffect(() => {
-    analytics.track('404_error', {
+    Analytics.track('404_error', {
       path: window.location.pathname,
       referrer: document.referrer,
       timestamp: new Date().toISOString()
@@ -66,7 +66,7 @@ const NotFound: React.FC = React.memo(() => {
   // Handle navigation with error tracking
   const handleBackToDashboard = useCallback(async () => {
     try {
-      analytics.track('404_recovery_attempt', {
+      Analytics.track('404_recovery_attempt', {
         action: 'navigate_to_dashboard',
         timestamp: new Date().toISOString()
       });
@@ -74,7 +74,7 @@ const NotFound: React.FC = React.memo(() => {
       navigate('/dashboard');
     } catch (error) {
       console.error('Navigation failed:', error);
-      analytics.track('404_recovery_failed', {
+      Analytics.track('404_recovery_failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
       });

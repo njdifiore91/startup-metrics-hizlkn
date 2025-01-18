@@ -25,7 +25,6 @@ interface ModalProps {
   ariaLabel?: string;
   ariaDescribedBy?: string;
   initialFocusRef?: React.RefObject<HTMLElement>;
-  finalFocusRef?: React.RefObject<HTMLElement>;
   onAnimationComplete?: () => void;
 }
 
@@ -105,7 +104,6 @@ export const Modal: React.FC<ModalProps> = memo(({
   ariaLabel,
   ariaDescribedBy,
   initialFocusRef,
-  finalFocusRef,
   onAnimationComplete
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);

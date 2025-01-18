@@ -5,12 +5,12 @@
  */
 
 // External imports - versions specified as per requirements
-import type { gapi } from '@types/gapi'; // v0.0.44
+import { gapi } from 'gapi';
 import CryptoJS from 'crypto-js'; // v4.1.1
 
 // Internal imports
 import { authConfig } from '../config/auth';
-import { api } from './services/api';
+import { api } from './api';
 import type { IUser } from '../interfaces/IUser';
 
 /**
@@ -57,7 +57,7 @@ const RATE_LIMIT = {
  * Enhanced authentication service with security features
  */
 export class AuthService {
-  private googleAuth: gapi.auth2.GoogleAuth | null = null;
+  private googleAuth: gapi.auth.GoogleAuth | null = null;
   private currentUser: IUser | null = null;
   private sessionId: string = '';
   private refreshTimer: NodeJS.Timeout | null = null;
@@ -73,13 +73,13 @@ export class AuthService {
   public async initializeGoogleAuth(): Promise<void> {
     try {
       await new Promise<void>((resolve, reject) => {
-        gapi.load('auth2', {
+        gapi.load('auth', {
           callback: resolve,
           onerror: reject
         });
       });
 
-      this.googleAuth = await gapi.auth2.init({
+      this.googleAuth = await gapi.auth.init({
         client_id: authConfig.googleClientId,
         scope: authConfig.googleScopes.join(' ')
       });
@@ -285,7 +285,7 @@ export class AuthService {
     }, 60000); // Check every minute
   }
 
-  private handleUserChange(googleUser: gapi.auth2.GoogleUser): void {
+  private handleUserChange(googleUser: gapi.auth.GoogleUser): void {
     const isSignedIn = googleUser.isSignedIn();
     if (!isSignedIn && this.currentUser) {
       this.logout();

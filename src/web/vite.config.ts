@@ -1,27 +1,19 @@
-import { defineConfig } from 'vite'; // v4.0.0
-import react from '@vitejs/plugin-react'; // v4.0.0
-import tsconfigPaths from 'vite-tsconfig-paths'; // v4.0.0
-import path from 'path';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
   plugins: [
     react({
-      // Enable Fast Refresh for rapid development
-      fastRefresh: true,
       jsxRuntime: 'automatic',
-      // Configure Babel plugins for enhanced compatibility
       babel: {
         plugins: ['@babel/plugin-transform-runtime'],
         presets: ['@babel/preset-env']
       }
     }),
-    // Enable TypeScript path aliases from tsconfig.json
-    tsconfigPaths({
-      extensions: ['.ts', '.tsx', '.js', '.jsx']
-    })
+    tsconfigPaths()
   ],
 
-  // Development server configuration
   server: {
     port: 3000,
     strictPort: true,
@@ -30,7 +22,6 @@ export default defineConfig({
     hmr: {
       overlay: true
     },
-    // API proxy configuration for development
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
@@ -41,21 +32,18 @@ export default defineConfig({
     }
   },
 
-  // Production build configuration
   build: {
     outDir: 'dist',
     sourcemap: true,
     minify: 'terser',
     target: 'esnext',
     chunkSizeWarningLimit: 1000,
-    // Terser optimization options
     terserOptions: {
       compress: {
         drop_console: true,
         drop_debugger: true
       }
     },
-    // Chunk splitting strategy for optimal loading
     rollupOptions: {
       output: {
         manualChunks: {
@@ -68,14 +56,12 @@ export default defineConfig({
     }
   },
 
-  // Preview server configuration
   preview: {
     port: 3000,
     strictPort: true,
     host: true
   },
 
-  // Path resolution configuration
   resolve: {
     alias: {
       '@': '/src',
@@ -92,7 +78,6 @@ export default defineConfig({
     }
   },
 
-  // CSS processing configuration
   css: {
     modules: {
       localsConvention: 'camelCase',
@@ -106,11 +91,10 @@ export default defineConfig({
       }
     },
     postcss: {
-      plugins: ['autoprefixer', 'cssnano']
+      plugins: [require('autoprefixer'), require('cssnano')]
     }
   },
 
-  // Dependency optimization configuration
   optimizeDeps: {
     include: [
       'react',

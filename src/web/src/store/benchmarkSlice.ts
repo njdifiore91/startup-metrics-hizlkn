@@ -6,6 +6,7 @@ import {
   compareBenchmarks 
 } from '../services/benchmark';
 import { handleApiError } from '../utils/errorHandlers';
+import { RevenueRange } from '../config/constants';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -16,7 +17,7 @@ interface BenchmarkState {
   selectedMetricId: string | null;
   selectedRevenueRange: string | null;
   loading: Record<string, boolean>;
-  error: Record<string, { message: string; code: string }>;
+  error: Record<string, { message: string; code: string } | null>;
   comparisonResult: object | null;
   cache: Record<string, { data: IBenchmark[]; timestamp: number }>;
 }
@@ -57,7 +58,7 @@ export const fetchBenchmarksByMetric = createAsyncThunk(
 
 export const fetchBenchmarksByRevenue = createAsyncThunk(
   'benchmark/fetchByRevenue',
-  async ({ revenueRange, metricIds }: { revenueRange: string; metricIds: string[] }, { rejectWithValue, getState }) => {
+  async ({ revenueRange, metricIds }: { revenueRange: RevenueRange; metricIds: string[] }, { rejectWithValue, getState }) => {
     try {
       const cacheKey = `revenue_${revenueRange}_${metricIds.join('_')}`;
       const state = getState() as { benchmark: BenchmarkState };
@@ -123,7 +124,7 @@ const benchmarkSlice = createSlice({
   },
   extraReducers: (builder) => {
     // fetchBenchmarksByMetric
-    builder.addCase(fetchBenchmarksByMetric.pending, (state, action) => {
+    builder.addCase(fetchBenchmarksByMetric.pending, (state) => {
       state.loading['fetchByMetric'] = true;
       state.error['fetchByMetric'] = null;
     });

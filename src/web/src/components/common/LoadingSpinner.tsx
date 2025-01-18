@@ -1,6 +1,6 @@
 import React from 'react'; // v18.2.0
 import styled from '@emotion/styled'; // v11.11.0
-import { colors, transitions } from '../../config/theme';
+import { theme } from '../../config/theme';
 
 // Props interface with comprehensive documentation
 interface LoadingSpinnerProps {
@@ -38,7 +38,7 @@ const SpinnerContainer = styled.div<LoadingSpinnerProps>`
   border-radius: 50%;
   transform: translateZ(0); /* Hardware acceleration */
   will-change: transform; /* Performance optimization */
-  animation: spin ${transitions.normal} linear infinite;
+  animation: spin ${theme.transitions.normal} linear infinite;
 
   /* Respect user's motion preferences */
   @media (prefers-reduced-motion: reduce) {
@@ -58,7 +58,7 @@ const SpinnerContainer = styled.div<LoadingSpinnerProps>`
  */
 const LoadingSpinner: React.FC<LoadingSpinnerProps> = React.memo(({
   size = '24px',
-  color = colors.primary,
+  color = theme.colors.primary,
   thickness = '2px',
   ariaLabel = 'Loading in progress'
 }) => {

@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { Analytics } from '@analytics/react';
@@ -81,16 +81,6 @@ const Settings: React.FC = React.memo(() => {
     return () => clearInterval(interval);
   }, [validateSession, t]);
 
-  // Handle settings errors
-  const handleError = useCallback((error: Error) => {
-    setError(error.message);
-    Analytics.track('settings_error', {
-      error: error.message,
-      userId: user?.id,
-      timestamp: new Date().toISOString()
-    });
-  }, [user]);
-
   // Redirect to login if session is invalid
   if (!isSessionValid) {
     return <Navigate to="/login" replace />;
@@ -150,7 +140,7 @@ const Settings: React.FC = React.memo(() => {
         {/* Settings Content */}
         <UserSettings 
           className="settings-content"
-          onError={handleError}
+          onError={setError}
         />
       </div>
     </Layout>

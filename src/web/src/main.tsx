@@ -29,11 +29,13 @@ const initializeMonitoring = () => {
   });
 
   // Initialize Segment Analytics
-  Analytics.init({
-    writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
-    trackApplicationLifecycle: true,
-    recordScreenViews: true,
-  });
+  if (process.env.VITE_SEGMENT_WRITE_KEY) {
+    Analytics.init({
+      writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
+      trackApplicationLifecycle: true,
+      recordScreenViews: true,
+    });
+  }
 };
 
 // Error fallback component

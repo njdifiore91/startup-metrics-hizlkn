@@ -7,13 +7,12 @@
 
 import React, { FC, PropsWithChildren, useEffect, memo } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import LoadingSpinner from '../common/LoadingSpinner';
-import { theme } from '../../config/theme';
+import { useAuth } from '../../hooks/useAuth.js';
+import LoadingSpinner from '../common/LoadingSpinner.js';
+import { theme } from '../../config/theme.js';
 
 // Route constants
 const LOGIN_ROUTE = '/login';
-const DASHBOARD_ROUTE = '/dashboard';
 const DEFAULT_REDIRECT = '/unauthorized';
 
 /**

@@ -1,8 +1,8 @@
 import React from 'react'; // ^18.2.0
 import classnames from 'classnames'; // ^2.3.2
-import { Card, CardProps } from '../common/Card';
-import { IMetric, MetricCategory } from '../../interfaces/IMetric';
-import { formatMetricValue } from '../../utils/numberFormatters';
+import { Card } from '../common/Card.js';
+import { IMetric, MetricCategory } from '../../interfaces/IMetric.js';
+import { formatMetricValue } from '../../utils/numberFormatters.js';
 
 interface MetricCardProps {
   metric: IMetric;
@@ -46,13 +46,6 @@ const MetricCard: React.FC<MetricCardProps> = React.memo(({
     }
   }, [value, metric]);
 
-  const handleKeyDown = React.useCallback((event: React.KeyboardEvent) => {
-    if (onClick && (event.key === 'Enter' || event.key === ' ')) {
-      event.preventDefault();
-      onClick();
-    }
-  }, [onClick]);
-
   const cardClasses = classnames(
     'metric-card',
     {
@@ -88,7 +81,7 @@ const MetricCard: React.FC<MetricCardProps> = React.memo(({
           </div>
         )}
       </div>
-      <style jsx>{`
+      <style>{`
         .metric-card {
           min-width: 200px;
           min-height: 120px;

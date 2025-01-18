@@ -57,20 +57,33 @@ interface UseToastReturn {
   clearAllToasts: () => void;
 }
 
+// Helper function to generate unique ID for toast
+const generateId = (): string => {
+  return `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Helper function to calculate z-index for new toast
+const calculateZIndex = (toasts: Toast[], position: ToastPosition): number => {
+  const positionToasts = toasts.filter(t => t.position === position);
+  return BASE_Z_INDEX + positionToasts.length;
+};
+
+// Standalone showToast function for direct import
+export const showToast = (
+  message: string,
+  type: ToastType = ToastType.INFO,
+  position: ToastPosition = ToastPosition.TOP_RIGHT,
+  duration: number = DEFAULT_DURATION,
+  theme?: ToastTheme,
+  onClick?: () => void
+): string => {
+  const hook = useToast();
+  return hook.showToast(message, type, position, duration, theme, onClick);
+};
+
 export const useToast = (): UseToastReturn => {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [timers, setTimers] = useState<{ [key: string]: NodeJS.Timeout }>({});
-
-  // Generate unique ID for toast
-  const generateId = (): string => {
-    return `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  };
-
-  // Calculate z-index for new toast
-  const calculateZIndex = (position: ToastPosition): number => {
-    const positionToasts = toasts.filter(t => t.position === position);
-    return BASE_Z_INDEX + positionToasts.length;
-  };
 
   // Create timer for toast auto-dismissal
   const createTimer = useCallback((id: string, duration: number) => {
@@ -104,7 +117,7 @@ export const useToast = (): UseToastReturn => {
     onClick?: () => void
   ): string => {
     const id = generateId();
-    const zIndex = calculateZIndex(position);
+    const zIndex = calculateZIndex(toasts, position);
 
     const newToast: Toast = {
       id,
@@ -145,7 +158,7 @@ export const useToast = (): UseToastReturn => {
     }, 1000);
 
     return id;
-  }, [createTimer]);
+  }, [createTimer, toasts]);
 
   // Hide specific toast
   const hideToast = useCallback((id: string) => {
@@ -203,9 +216,7 @@ export const useToast = (): UseToastReturn => {
       if (!touchStartX || !touchStartY) return;
 
       const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
       const deltaX = touchEndX - touchStartX;
-      const deltaY = touchEndY - touchStartY;
 
       // Swipe threshold
       if (Math.abs(deltaX) > 50) {

@@ -23,11 +23,6 @@ interface IMetricTrendChartProps {
   accessibilityLabel?: string;
 }
 
-// Worker for performance-optimized data processing
-const dataProcessingWorker = new Worker(
-  new URL('../../workers/chartDataProcessor.ts', import.meta.url)
-);
-
 /**
  * Prepares metric data for visualization with performance optimizations
  * @param data - Raw metric data points
@@ -61,7 +56,7 @@ const prepareChartData = (
     datasets: [{
       label: 'Metric Value',
       data: sortedData.map(point => point.value),
-      borderColor: metricTrendOptions.plugins?.legend?.labels?.color || '#151e2d',
+      borderColor: '#151e2d',
       backgroundColor: 'rgba(21, 30, 45, 0.1)',
       fill: true,
       tension: 0.4,

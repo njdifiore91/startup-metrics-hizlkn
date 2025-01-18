@@ -81,7 +81,7 @@ export const fetchMetricsByCategory = createAsyncThunk(
 );
 
 // Create the metrics slice
-const metricsSlice = createSlice({
+export const metricsSlice = createSlice({
   name: 'metrics',
   initialState,
   reducers: {

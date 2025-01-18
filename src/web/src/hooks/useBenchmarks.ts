@@ -5,11 +5,6 @@ import { useState, useCallback } from 'react'; // ^18.2.0
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { 
-  getBenchmarksByMetric, 
-  getBenchmarksByRevenueRange, 
-  compareBenchmarks 
-} from '../services/benchmark';
-import { 
   selectBenchmarks,
   selectBenchmarkLoading,
   selectBenchmarkErrors,
@@ -49,7 +44,7 @@ const benchmarkCache = new Map<string, { data: IBenchmark[]; timestamp: number }
  * @version 1.0.0
  */
 export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<any>(); // Type assertion to any to handle async thunk actions
   const benchmarks = useSelector(selectBenchmarks);
   const loading = useSelector(selectBenchmarkLoading);
   const errors = useSelector(selectBenchmarkErrors);

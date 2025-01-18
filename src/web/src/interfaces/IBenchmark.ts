@@ -1,4 +1,4 @@
-import { IMetric } from './IMetric';
+import { IMetric } from './IMetric.js';
 
 /**
  * Type definition for valid benchmark percentile keys

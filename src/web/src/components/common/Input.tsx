@@ -149,9 +149,6 @@ export const Input = React.memo(({
     if (onChange) {
       onChange(e);
     }
-    if (formContext) {
-      registerProps.onChange(e);
-    }
   };
 
   return (

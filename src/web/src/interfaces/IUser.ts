@@ -15,6 +15,7 @@ import { UserRole } from '../config/constants';
  * @property {string} email - User's email address from Google OAuth
  * @property {string} name - User's full name from Google OAuth
  * @property {UserRole} role - User's role for access control (USER, ANALYST, ADMIN, SYSTEM)
+ * @property {string[]} permissions - List of user permissions for role-based access control
  * @property {string} googleId - Google OAuth unique identifier
  * @property {Date} createdAt - Timestamp of user account creation
  * @property {Date} lastLoginAt - Timestamp of user's last successful login
@@ -25,6 +26,7 @@ export interface IUser {
   readonly email: string;
   readonly name: string;
   readonly role: UserRole;
+  readonly permissions: string[];
   readonly googleId: string;
   readonly createdAt: Date;
   readonly lastLoginAt: Date;

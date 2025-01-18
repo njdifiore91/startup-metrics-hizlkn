@@ -36,8 +36,8 @@ const AreaChart: React.FC<IAreaChartProps> = React.memo(({
 }) => {
   // Memoize chart options for performance
   const chartOptions = useMemo(() => {
-    return generateChartOptions('line', {
-      onClick: (event: any, elements: any[]) => {
+    return generateChartOptions({
+      onClick: (_: any, elements: any[]) => {
         if (elements.length > 0 && onDataPointClick) {
           const index = elements[0].index;
           onDataPointClick(index, data[index]);
@@ -57,9 +57,6 @@ const AreaChart: React.FC<IAreaChartProps> = React.memo(({
           description: ariaLabel
         }
       }
-    }, {
-      announceOnRender: true,
-      description: ariaLabel
     });
   }, [title, ariaLabel, onDataPointClick, data]);
 

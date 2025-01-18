@@ -24,6 +24,17 @@ interface IChartConfig {
 }
 
 /**
+ * User role enum
+ * Defines the available user roles in the system
+ */
+export enum UserRole {
+  USER = 'USER',
+  ANALYST = 'ANALYST',
+  ADMIN = 'ADMIN',
+  SYSTEM = 'SYSTEM'
+}
+
+/**
  * API configuration constants
  * Used for service communication and endpoint management
  */

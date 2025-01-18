@@ -95,7 +95,7 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
           value={initialCategory || ''}
           onChange={handleCategoryChange}
           disabled={disabled || isLoading}
-          error={error?.fetchMetricsByCategory}
+          error={error?.fetchMetricsByCategory || undefined}
           loading={isLoading}
           placeholder="Select a category"
           required
@@ -125,58 +125,5 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
 
 // Display name for debugging
 MetricFilter.displayName = 'MetricFilter';
-
-// CSS Module
-const cssModule = `
-.filter-container {
-  margin: var(--spacing-md) 0;
-  width: 100%;
-  max-width: 300px;
-  position: relative;
-}
-
-.filter-label {
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  margin-bottom: var(--spacing-xs);
-  font-weight: var(--font-weight-medium);
-}
-
-.filter-loading {
-  opacity: 0.7;
-  pointer-events: none;
-}
-
-.filter-error {
-  color: var(--color-error);
-  font-size: var(--font-size-sm);
-  margin-top: var(--spacing-xs);
-}
-
-/* Screen reader only class */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .filter-container {
-    transition: none;
-  }
-}
-
-@media (max-width: var(--breakpoint-mobile)) {
-  .filter-container {
-    max-width: 100%;
-  }
-}
-`;
 
 export default MetricFilter;

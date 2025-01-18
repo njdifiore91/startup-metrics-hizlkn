@@ -56,7 +56,7 @@ const Table: React.FC<TableProps> = ({
 
     // Manage focus for accessibility
     const target = event.target as HTMLElement;
-    target.setAttribute('aria-sort', newDirection);
+    target.setAttribute('aria-sort', newDirection === 'asc' ? 'ascending' : 'descending');
   }, [sortable, sortColumn, sortDirection, onSort]);
 
   // Virtual scrolling calculation
@@ -64,7 +64,7 @@ const Table: React.FC<TableProps> = ({
     if (!virtualized || !tableRef.current) return;
 
     const observer = new IntersectionObserver(
-      (entries) => {
+      () => {
         const tableHeight = tableRef.current?.clientHeight ?? 0;
         const visibleRows = Math.ceil(tableHeight / rowHeight);
         const buffer = Math.floor(visibleRows / 2);
@@ -99,7 +99,7 @@ const Table: React.FC<TableProps> = ({
             onKeyDown={column.sortable ? (e) => handleSort(column.id, e) : undefined}
             tabIndex={column.sortable ? 0 : -1}
             role={column.sortable ? 'columnheader button' : 'columnheader'}
-            aria-sort={sortColumn === column.id ? sortDirection : undefined}
+            aria-sort={sortColumn === column.id ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
           >
             <div className="header-content">
               {column.header}

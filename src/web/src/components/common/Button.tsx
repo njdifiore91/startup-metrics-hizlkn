@@ -17,7 +17,9 @@ interface ButtonProps {
 }
 
 // Utility function to generate button classes
-const getButtonClasses = (props: ButtonProps): string => {
+type ButtonStyleProps = Omit<ButtonProps, 'children' | 'onClick' | 'type' | 'ariaLabel' | 'ariaPressed' | 'role' | 'tabIndex'>;
+
+const getButtonClasses = (props: ButtonStyleProps): string => {
   const {
     variant = 'primary',
     size = 'medium',

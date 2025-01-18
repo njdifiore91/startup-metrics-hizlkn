@@ -24,11 +24,6 @@ const CACHE_CONFIG = {
   PREFIX: 'company_metrics'
 };
 
-const RETRY_CONFIG = {
-  MAX_RETRIES: 3,
-  DELAY: 1000
-};
-
 /**
  * Company metrics service with enhanced error handling and caching
  */
@@ -61,7 +56,7 @@ class CompanyMetricsService {
 
       this.setCachedData(cacheKey, metrics);
       return metrics;
-    } catch (error) {
+    } catch (error: any) {
       throw handleApiError(error);
     }
   }
@@ -94,7 +89,7 @@ class CompanyMetricsService {
 
       this.setCachedData(cacheKey, metric);
       return metric;
-    } catch (error) {
+    } catch (error: any) {
       throw handleApiError(error);
     }
   }
@@ -116,7 +111,7 @@ class CompanyMetricsService {
 
       this.invalidateCache();
       return createdMetric;
-    } catch (error) {
+    } catch (error: any) {
       throw handleApiError(error);
     }
   }
@@ -149,7 +144,7 @@ class CompanyMetricsService {
 
       this.invalidateCache();
       return updatedMetric;
-    } catch (error) {
+    } catch (error: any) {
       throw handleApiError(error);
     }
   }
@@ -167,7 +162,7 @@ class CompanyMetricsService {
 
       await api.delete(API_ENDPOINTS.BY_ID(id));
       this.invalidateCache();
-    } catch (error) {
+    } catch (error: any) {
       throw handleApiError(error);
     }
   }

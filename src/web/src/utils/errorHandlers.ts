@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios'; // v1.4.0
-import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { useToast, ToastType, ToastPosition } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
 // Interfaces
@@ -42,7 +42,7 @@ const ERROR_MESSAGES = {
 // Default error handler options
 const DEFAULT_OPTIONS: ErrorHandlerOptions = {
   showToast: true,
-  logError: API_CONFIG.ERROR_LOGGING_ENABLED,
+  logError: true,
   toastPosition: ToastPosition.TOP_RIGHT,
   toastDuration: 5000,
   sanitizeError: true
@@ -107,7 +107,8 @@ export const handleApiError = (
 
   // Show toast notification if enabled
   if (mergedOptions.showToast) {
-    showToast(
+    const toast = useToast();
+    toast.showToast(
       errorMessage,
       ToastType.ERROR,
       mergedOptions.toastPosition,
@@ -158,7 +159,8 @@ export const handleValidationError = (
 
   // Show toast notification if enabled
   if (mergedOptions.showToast) {
-    showToast(
+    const toast = useToast();
+    toast.showToast(
       errorMessage,
       ToastType.ERROR,
       mergedOptions.toastPosition,
