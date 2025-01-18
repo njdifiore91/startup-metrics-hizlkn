@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { debounce } from 'lodash'; // v4.17.21
 import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
-import { analytics } from '@segment/analytics-next'; // v1.51.0
+import { Analytics } from '@segment/analytics-next'; // v1.51.0
 
 // Internal imports
 import MetricSelector from '../components/metrics/MetricSelector';
@@ -15,6 +15,9 @@ import { useToast, ToastType } from '../hooks/useToast';
 import { REVENUE_RANGES } from '../config/constants';
 import { handleApiError } from '../utils/errorHandlers';
 import { setSelectedMetric, setSelectedRevenueRange } from '../store/benchmarkSlice';
+
+// Initialize analytics
+const analytics = new Analytics();
 
 // Error Fallback Component
 const ErrorFallback: React.FC<{ error: Error; resetErrorBoundary: () => void }> = ({ 
@@ -39,12 +42,12 @@ const Benchmarks: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
   const { metrics, loading: metricsLoading, error: metricsError } = useMetrics();
-  const { loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
+  const { benchmarks, loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
 
   // Local state
   const [selectedMetricId, setSelectedMetricId] = useState<string>('');
-  const [selectedRange, setSelectedRange] = useState<string>(REVENUE_RANGES.ranges[0]);
-  const [companyValue, setCompanyValue] = useState<number | null>(null);
+  const [selectedRange, setSelectedRange] = useState<typeof REVENUE_RANGES.ranges[number]>(REVENUE_RANGES.ranges[0]);
+  const [companyValue, setCompanyValue] = useState<number | undefined>(undefined);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Memoized selected metric
@@ -67,7 +70,7 @@ const Benchmarks: React.FC = () => {
         metricName: metric.name,
         category: metric.category
       });
-    } catch (error: any) {
+    } catch (error) {
       const handledError = handleApiError(error);
       showToast(handledError.message, ToastType.ERROR);
     }
@@ -76,7 +79,7 @@ const Benchmarks: React.FC = () => {
   /**
    * Handles revenue range selection with debouncing
    */
-  const handleRangeChange = useCallback(debounce((range: string) => {
+  const handleRangeChange = useCallback(debounce((range: typeof REVENUE_RANGES.ranges[number]) => {
     setSelectedRange(range);
     dispatch(setSelectedRevenueRange(range));
 
@@ -86,22 +89,6 @@ const Benchmarks: React.FC = () => {
       metricId: selectedMetricId
     });
   }, 300), [dispatch, selectedMetricId]);
-
-  /**
-   * Handles company value input with validation
-   */
-  const handleCompanyValueChange = useCallback((value: string) => {
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue) && selectedMetric?.validationRules) {
-      const { min, max } = selectedMetric.validationRules;
-      if ((min === undefined || numValue >= min) && 
-          (max === undefined || numValue <= max)) {
-        setCompanyValue(numValue);
-        return;
-      }
-    }
-    setCompanyValue(null);
-  }, [selectedMetric]);
 
   /**
    * Handles comparison completion
@@ -129,7 +116,7 @@ const Benchmarks: React.FC = () => {
       onReset={() => {
         setSelectedMetricId('');
         setSelectedRange(REVENUE_RANGES.ranges[0]);
-        setCompanyValue(null);
+        setCompanyValue(undefined);
       }}
     >
       <div className="benchmarks-container">
@@ -139,7 +126,7 @@ const Benchmarks: React.FC = () => {
           <MetricSelector
             selectedMetricId={selectedMetricId}
             onMetricSelect={handleMetricSelect}
-            disabled={metricsLoading}
+            disabled={!!metricsLoading}
             category="financial"
             className="metric-selector"
             ariaLabel="Select metric for benchmark analysis"
