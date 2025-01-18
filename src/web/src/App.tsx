@@ -33,6 +33,13 @@ const ROUTES = {
   SETTINGS: '/settings'
 } as const;
 
+// Error messages
+const ERROR_MESSAGES = {
+  ROUTE_ERROR: 'An error occurred while loading this page',
+  AUTH_ERROR: 'Authentication failed',
+  NETWORK_ERROR: 'Network connection lost'
+} as const;
+
 // Analytics configuration
 const analytics = Analytics({
   app: 'startup-metrics-platform',
@@ -109,69 +116,71 @@ const App: React.FC = () => {
       onError={handleError}
       onReset={() => window.location.reload()}
     >
-      <BrowserRouter>
-        <RouteTracker />
-        <Layout>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              {/* Public Routes */}
-              <Route path={ROUTES.LOGIN} element={<Login />} />
+      <Provider store={store}>
+        <BrowserRouter>
+          <RouteTracker />
+          <Layout>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                {/* Public Routes */}
+                <Route path={ROUTES.LOGIN} element={<Login />} />
 
-              {/* Protected Routes */}
-              <Route
-                path={ROUTES.DASHBOARD}
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path={ROUTES.BENCHMARKS}
-                element={
-                  <ProtectedRoute>
-                    <Benchmarks />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path={ROUTES.COMPANY_METRICS}
-                element={
-                  <ProtectedRoute>
-                    <CompanyMetrics />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path={ROUTES.REPORTS}
-                element={
-                  <ProtectedRoute>
-                    <Reports />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path={ROUTES.SETTINGS}
-                element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <Settings />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Protected Routes */}
+                <Route
+                  path={ROUTES.DASHBOARD}
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.BENCHMARKS}
+                  element={
+                    <ProtectedRoute>
+                      <Benchmarks />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.COMPANY_METRICS}
+                  element={
+                    <ProtectedRoute>
+                      <CompanyMetrics />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.REPORTS}
+                  element={
+                    <ProtectedRoute>
+                      <Reports />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ROUTES.SETTINGS}
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <Settings />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Redirects */}
-              <Route
-                path="/"
-                element={<Navigate to={ROUTES.DASHBOARD} replace />}
-              />
-              <Route
-                path="*"
-                element={<Navigate to={ROUTES.DASHBOARD} replace />}
-              />
-            </Routes>
-          </Suspense>
-        </Layout>
-      </BrowserRouter>
+                {/* Redirects */}
+                <Route
+                  path="/"
+                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
+                />
+                <Route
+                  path="*"
+                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
+                />
+              </Routes>
+            </Suspense>
+          </Layout>
+        </BrowserRouter>
+      </Provider>
     </ErrorBoundary>
   );
 };
