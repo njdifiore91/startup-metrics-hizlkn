@@ -4,10 +4,11 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
-import { Layout } from '../components/layout/Layout';
+import { Analytics } from '@analytics/react';
+import Layout from '../components/layout/Layout';
 import { UserSettings } from '../components/user/UserSettings';
 import { useAuth } from '../hooks/useAuth';
 
@@ -49,6 +50,15 @@ const Settings: React.FC = React.memo(() => {
   const { user, isLoading, validateSession } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isSessionValid, setIsSessionValid] = useState(true);
+
+  // Track page view
+  useEffect(() => {
+    Analytics.track('page_view', {
+      page: 'settings',
+      userId: user?.id,
+      timestamp: new Date().toISOString()
+    });
+  }, [user]);
 
   // Validate session on mount and periodically
   useEffect(() => {
@@ -130,6 +140,7 @@ const Settings: React.FC = React.memo(() => {
         {/* Settings Content */}
         <UserSettings 
           className="settings-content"
+          onError={setError}
         />
       </div>
     </Layout>
