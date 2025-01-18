@@ -242,7 +242,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1 as const)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
