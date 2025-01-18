@@ -7,8 +7,9 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
-import type { IUser } from '../interfaces/IUser';
 import Button from '../common/Button';
+import type { ButtonProps } from '../common/Button';
+import type { IUser } from '../../interfaces/IUser';
 
 /**
  * Props for the GoogleLoginButton component
@@ -73,19 +74,19 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
   }, [error, onError]);
 
   // Button props configuration
-  const buttonProps = {
-    type: 'button' as const,
+  const buttonProps: ButtonProps = {
+    type: 'button',
     disabled: disabled || isLoading,
     onClick: handleGoogleLogin,
     className: `google-login-button ${className || ''}`,
-    ariaLabel: 'Sign in with Google',
+    'aria-label': 'Sign in with Google',
     'data-testid': testId,
     role: 'button',
     tabIndex: disabled ? -1 : 0
   };
 
   return (
-    <Button {...buttonProps} ref={buttonRef}>
+    <Button {...buttonProps}>
       <div className="google-button-content">
         <GoogleIcon className="google-icon" />
         <span className="google-button-text">
@@ -93,7 +94,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
         </span>
       </div>
 
-      <style>{`
+      <style jsx>{`
         .google-login-button {
           display: flex;
           align-items: center;
