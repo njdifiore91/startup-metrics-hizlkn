@@ -8,7 +8,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { Card } from '../common/Card';
-import type { IUser } from '../../interfaces/IUser';
 
 // Interfaces
 interface UserSettingsProps {
@@ -32,7 +31,7 @@ const SESSION_TIMEOUT_WARNING = 5 * 60 * 1000; // 5 minutes
 
 const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => {
   const { t } = useTranslation();
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading, updateUserSettings, logout } = useAuth();
   
   // State management
   const [preferences, setPreferences] = useState<UserPreferences>({
@@ -75,7 +74,10 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
     setErrors({});
 
     try {
-      // TODO: Implement settings update logic once useAuth hook is updated
+      await updateUserSettings({
+        userId: user?.id,
+        preferences
+      });
       setIsEditing(false);
     } catch (error: any) {
       setErrors({
@@ -87,14 +89,12 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
   // Handle 2FA toggle with security confirmation
   const handle2FAToggle = async () => {
     if (!preferences.twoFactorEnabled) {
-      // Implement 2FA setup flow
-      const confirmed = window.confirm(t('settings.2fa.enableConfirmation'));
+      const confirmed = window.confirm(t('settings.2fa.enableConfirmation') || '');
       if (confirmed) {
         handlePreferenceChange('twoFactorEnabled', true);
       }
     } else {
-      // Implement 2FA disable flow with additional security
-      const confirmed = window.confirm(t('settings.2fa.disableWarning'));
+      const confirmed = window.confirm(t('settings.2fa.disableWarning') || '');
       if (confirmed) {
         handlePreferenceChange('twoFactorEnabled', false);
       }
@@ -278,48 +278,50 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
         </div>
       )}
 
-      <style jsx>{`
-        .user-settings {
-          max-width: 800px;
-          margin: 0 auto;
-          padding: var(--spacing-lg);
-        }
+      <style>
+        {`
+          .user-settings {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--spacing-lg);
+          }
 
-        .user-settings__section {
-          margin-bottom: var(--spacing-xl);
-        }
+          .user-settings__section {
+            margin-bottom: var(--spacing-xl);
+          }
 
-        .user-settings__field {
-          margin-bottom: var(--spacing-md);
-        }
+          .user-settings__field {
+            margin-bottom: var(--spacing-md);
+          }
 
-        .user-settings__value {
-          color: var(--color-text-secondary);
-          font-size: var(--font-size-sm);
-        }
+          .user-settings__value {
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-sm);
+          }
 
-        .user-settings__error {
-          color: var(--color-error);
-          margin-top: var(--spacing-sm);
-        }
+          .user-settings__error {
+            color: var(--color-error);
+            margin-top: var(--spacing-sm);
+          }
 
-        .user-settings__actions {
-          display: flex;
-          gap: var(--spacing-md);
-          margin-top: var(--spacing-lg);
-        }
+          .user-settings__actions {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-lg);
+          }
 
-        .user-settings__warning {
-          position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          background: var(--color-background);
-          padding: var(--spacing-xl);
-          border-radius: var(--border-radius-lg);
-          box-shadow: var(--shadow-lg);
-        }
-      `}</style>
+          .user-settings__warning {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--color-background);
+            padding: var(--spacing-xl);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-lg);
+          }
+        `}
+      </style>
     </div>
   );
 });
