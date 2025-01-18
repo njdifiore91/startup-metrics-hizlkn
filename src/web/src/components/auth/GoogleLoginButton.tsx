@@ -4,10 +4,10 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
-import Button from '../common/Button';
+import Button, { ButtonProps } from '../common/Button';
 import type { IUser } from '../interfaces/IUser';
 
 /**
@@ -33,7 +33,6 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
   testId = 'google-login-button'
 }) => {
   const { login, isLoading, error } = useAuth();
-  const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Debounced login handler to prevent multiple rapid clicks
   const handleGoogleLogin = useCallback(
@@ -42,7 +41,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
 
       try {
         const response = await login();
-        if (onSuccess) {
+        if (response && onSuccess) {
           onSuccess(response);
         }
       } catch (error: any) {
@@ -72,17 +71,20 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
     }
   }, [error, onError]);
 
+  // Button props configuration
+  const buttonProps: ButtonProps = {
+    type: 'button',
+    disabled: disabled || isLoading,
+    onClick: handleGoogleLogin,
+    className: `google-login-button ${className || ''}`,
+    'aria-label': 'Sign in with Google',
+    'data-testid': testId,
+    role: 'button',
+    tabIndex: disabled ? -1 : 0
+  };
+
   return (
-    <Button
-      type="button"
-      disabled={disabled || isLoading}
-      onClick={handleGoogleLogin}
-      className={`google-login-button ${className || ''}`}
-      ariaLabel="Sign in with Google"
-      data-testid={testId}
-      role="button"
-      tabIndex={disabled ? -1 : 0}
-    >
+    <Button {...buttonProps}>
       <div className="google-button-content">
         <GoogleIcon className="google-icon" />
         <span className="google-button-text">
@@ -90,7 +92,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
         </span>
       </div>
 
-      <style>{`
+      <style jsx>{`
         .google-login-button {
           display: flex;
           align-items: center;
