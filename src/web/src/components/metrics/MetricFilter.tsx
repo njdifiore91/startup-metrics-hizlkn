@@ -7,8 +7,8 @@ import Select from '../common/Select';
 import { MetricCategory } from '../../interfaces/IMetric';
 import { 
   fetchMetricsByCategory, 
-  selectMetricsError, 
-  selectMetricsLoading 
+  selectMetricError, 
+  selectMetricLoading 
 } from '../../store/metricsSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
 
@@ -41,8 +41,8 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
 }) => {
   // Redux hooks
   const dispatch = useDispatch();
-  const isLoading = useSelector(selectMetricsLoading);
-  const error = useSelector(selectMetricsError);
+  const isLoading = useSelector(selectMetricLoading);
+  const error = useSelector(selectMetricError);
 
   // Debounce category changes to prevent rapid API calls
   const [debouncedChange] = useDebounce(onCategoryChange, 300);
@@ -58,7 +58,7 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
   const handleCategoryChange = useCallback(async (value: string | number) => {
     try {
       const category = value as MetricCategory;
-      await dispatch(fetchMetricsByCategory(category) as any);
+      await dispatch(fetchMetricsByCategory(category));
       debouncedChange(category);
     } catch (error) {
       console.error('Failed to fetch metrics for category:', error);
@@ -94,9 +94,9 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
           options={categoryOptions}
           value={initialCategory || ''}
           onChange={handleCategoryChange}
-          disabled={!!disabled || !!isLoading}
-          error={error?.['fetchMetricsByCategory']}
-          loading={!!isLoading}
+          disabled={disabled || isLoading}
+          error={error?.fetchMetricsByCategory || undefined}
+          loading={isLoading}
           placeholder="Select a category"
           required
           aria-describedby={error ? 'metric-filter-error' : undefined}
@@ -109,13 +109,14 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
             className={styles['filter-error']}
             role="alert"
           >
-            {error['fetchMetricsByCategory']}
+            {error.fetchMetricsByCategory}
           </div>
         )}
 
+        {/* Screen reader announcements for state changes */}
         <div aria-live="polite" className="sr-only">
-          {isLoading ? 'Loading metric categories...' : null}
-          {error ? `Error: ${error['fetchMetricsByCategory']}` : null}
+          {isLoading && 'Loading metric categories...'}
+          {error && `Error: ${error.fetchMetricsByCategory}`}
         </div>
       </div>
     </ErrorBoundary>
@@ -124,5 +125,58 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
 
 // Display name for debugging
 MetricFilter.displayName = 'MetricFilter';
+
+// CSS Module
+const cssModule = `
+.filter-container {
+  margin: var(--spacing-md) 0;
+  width: 100%;
+  max-width: 300px;
+  position: relative;
+}
+
+.filter-label {
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.filter-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.filter-error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-xs);
+}
+
+/* Screen reader only class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-container {
+    transition: none;
+  }
+}
+
+@media (max-width: var(--breakpoint-mobile)) {
+  .filter-container {
+    max-width: 100%;
+  }
+}
+`;
 
 export default MetricFilter;
