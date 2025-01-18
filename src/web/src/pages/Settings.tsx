@@ -7,8 +7,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
-import { Analytics } from '@analytics/react';
-import { Layout } from '../components/layout/Layout';
+import Layout from '../components/layout/Layout';
 import { UserSettings } from '../components/user/UserSettings';
 import { useAuth } from '../hooks/useAuth';
 
@@ -53,11 +52,10 @@ const Settings: React.FC = React.memo(() => {
 
   // Track page view
   useEffect(() => {
-    Analytics.track('page_view', {
-      page: 'settings',
-      userId: user?.id,
-      timestamp: new Date().toISOString()
-    });
+    if (user?.id) {
+      // Analytics tracking will be handled by the analytics service
+      // once the dependency is installed
+    }
   }, [user]);
 
   // Validate session on mount and periodically
@@ -80,16 +78,6 @@ const Settings: React.FC = React.memo(() => {
 
     return () => clearInterval(interval);
   }, [validateSession, t]);
-
-  // Handle settings errors
-  const handleError = useCallback((error: Error) => {
-    setError(error.message);
-    Analytics.track('settings_error', {
-      error: error.message,
-      userId: user?.id,
-      timestamp: new Date().toISOString()
-    });
-  }, [user]);
 
   // Redirect to login if session is invalid
   if (!isSessionValid) {
@@ -148,9 +136,7 @@ const Settings: React.FC = React.memo(() => {
         )}
 
         {/* Settings Content */}
-        <UserSettings 
-          className="settings-content"
-        />
+        <UserSettings className="settings-content" />
       </div>
     </Layout>
   );
