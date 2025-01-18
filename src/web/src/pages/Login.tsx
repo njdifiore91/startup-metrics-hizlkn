@@ -1,8 +1,8 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { GoogleLoginButton } from '../components/auth/GoogleLoginButton';
-import { Card } from '../components/common/Card';
+import { useAuth } from '../../hooks/useAuth';
+import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton';
+import { Card } from '../../components/common/Card';
 import { useInteractions } from '@react-aria/interactions';
 import analytics from '@segment/analytics-next';
 
@@ -12,11 +12,11 @@ import analytics from '@segment/analytics-next';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, clearError } = useAuth();
+  const { isAuthenticated, error } = useAuth();
   const { focusWithin } = useInteractions();
 
   // Initialize analytics
-  const analyticsInstance = analytics.getInstance();
+  const analyticsInstance = analytics;
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
@@ -42,15 +42,6 @@ const Login: React.FC = () => {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
-
-  // Clear error state on unmount
-  useEffect(() => {
-    return () => {
-      if (error) {
-        clearError();
-      }
-    };
-  }, [error, clearError]);
 
   return (
     <div 
@@ -99,7 +90,7 @@ const Login: React.FC = () => {
         )}
       </Card>
 
-      <style jsx>{`
+      <style>{`
         .loginContainer {
           display: flex;
           flex-direction: column;
