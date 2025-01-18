@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Chart, ChartData } from 'chart.js/auto';
+import { Chart, ChartData, ChartOptions, TooltipModel, ChartTypeRegistry, TooltipItem } from 'chart.js/auto';
 import { useDebounce } from 'use-debounce';
-import { CHART_COLORS } from '../../config/chart';
+import { chartColors } from '../../config/chart';
 import { generateChartOptions } from '../../utils/chartHelpers';
 
 interface IBarChartProps {
@@ -52,21 +52,23 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
       datasets: [{
         data: data.map(d => d.value),
         backgroundColor: highContrastMode ? 
-          CHART_COLORS.background : 
-          `${CHART_COLORS.primary}CC`,
+          chartColors.highContrast.background : 
+          `${chartColors.primary}CC`,
         borderColor: highContrastMode ? 
-          CHART_COLORS.text : 
-          CHART_COLORS.primary,
+          chartColors.highContrast.border : 
+          chartColors.primary,
         borderWidth: 1,
         borderRadius: 4,
         barThickness: 'flex',
         maxBarThickness: 64,
-        minBarLength: 4
+        minBarLength: 4,
+        'aria-label': `${ariaLabel} data series`,
+        role: 'graphics-symbol'
       }]
     };
 
     const options = generateChartOptions('bar', {
-      onClick: (event: unknown, elements: { index: number }[]) => {
+      onClick: (_event, elements) => {
         if (onBarClick && elements.length > 0) {
           const index = elements[0].index;
           onBarClick(index, data[index].value);
@@ -81,8 +83,8 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
         tooltip: {
           enabled: true,
           backgroundColor: highContrastMode ? 
-            CHART_COLORS.text : 
-            `${CHART_COLORS.primary}E6`,
+            chartColors.highContrast.tooltip : 
+            `${chartColors.primary}E6`,
           titleFont: {
             family: 'Inter',
             size: 14,
@@ -95,8 +97,8 @@ const BarChart: React.FC<IBarChartProps> = React.memo(({
           padding: 12,
           cornerRadius: 4,
           callbacks: {
-            label: (context: { raw: number }) => {
-              const value = context.raw;
+            label: (tooltipItem: TooltipItem<keyof ChartTypeRegistry>) => {
+              const value = tooltipItem.raw as number;
               return `Value: ${value.toLocaleString()}`;
             }
           }
