@@ -19,7 +19,6 @@ import { UserRole } from '../config/constants';
  * @property {Date} createdAt - Timestamp of user account creation
  * @property {Date} lastLoginAt - Timestamp of user's last successful login
  * @property {boolean} isActive - Flag indicating if user account is active
- * @property {string[]} permissions - Array of permission strings for granular access control
  */
 export interface IUser {
   readonly id: string;
@@ -30,5 +29,4 @@ export interface IUser {
   readonly createdAt: Date;
   readonly lastLoginAt: Date;
   readonly isActive: boolean;
-  readonly permissions: string[];
 }
