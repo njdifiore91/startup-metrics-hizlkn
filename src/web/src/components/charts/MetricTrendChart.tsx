@@ -23,11 +23,6 @@ interface IMetricTrendChartProps {
   accessibilityLabel?: string;
 }
 
-// Worker for performance-optimized data processing
-const dataProcessingWorker = new Worker(
-  new URL('../../workers/chartDataProcessor.ts', import.meta.url)
-);
-
 /**
  * Prepares metric data for visualization with performance optimizations
  * @param data - Raw metric data points
@@ -61,7 +56,7 @@ const prepareChartData = (
     datasets: [{
       label: 'Metric Value',
       data: sortedData.map(point => point.value),
-      borderColor: metricTrendOptions.plugins?.legend?.labels?.color || '#151e2d',
+      borderColor: '#151e2d',
       backgroundColor: 'rgba(21, 30, 45, 0.1)',
       fill: true,
       tension: 0.4,
@@ -85,7 +80,7 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
   locale = 'en-US',
   accessibilityLabel
 }) => {
-  const chartRef = useRef<ChartJS>(null);
+  const chartRef = useRef<ChartJS | null>(null);
 
   // Memoized chart data preparation
   const chartData = useMemo(() => 
@@ -95,41 +90,37 @@ const MetricTrendChart: React.FC<IMetricTrendChartProps> = ({
 
   // Memoized chart options with accessibility enhancements
   const chartOptions = useMemo(() => {
-    const baseOptions = generateChartOptions('line', metricTrendOptions, {
+    const options: ChartOptions = generateChartOptions('line', metricTrendOptions, {
       announceOnRender: true,
       description: accessibilityLabel || 'Metric trend visualization'
     });
 
-    const options: ChartOptions<'line'> = {
-      ...baseOptions,
-      plugins: {
-        ...baseOptions.plugins,
-        tooltip: {
-          ...baseOptions.plugins?.tooltip,
-          position: isRTL ? 'nearest' : 'average',
-          callbacks: {
-            label: (context) => {
-              const value = context.raw as number;
-              // Convert MetricValueType to supported format type
-              const formatType = metricType === 'ratio' ? 'number' : 
-                               (metricType === 'percentage' || metricType === 'currency' ? metricType : 'number');
-              return `${context.dataset.label}: ${formatMetricValue(value, formatType)}`;
-            }
-          }
-        }
-      },
-      scales: {
-        ...baseOptions.scales,
-        x: {
-          ...baseOptions.scales?.x,
-          reverse: isRTL,
-          ticks: {
-            ...baseOptions.scales?.x?.ticks,
-            align: isRTL ? 'end' : 'center'
+    // Configure RTL-aware tooltips
+    options.plugins = {
+      ...options.plugins,
+      tooltip: {
+        ...options.plugins?.tooltip,
+        position: isRTL ? 'nearest' : 'average',
+        callbacks: {
+          label: (context) => {
+            const value = context.raw as number;
+            return `${context.dataset.label}: ${formatMetricValue(value, metricType)}`;
           }
         }
       }
     };
+
+    // Configure RTL-aware scales
+    if (options.scales) {
+      options.scales.x = {
+        ...options.scales.x,
+        reverse: isRTL,
+        type: 'linear',
+        ticks: {
+          align: isRTL ? 'end' : 'center'
+        }
+      };
+    }
 
     return options;
   }, [metricType, isRTL, accessibilityLabel]);
