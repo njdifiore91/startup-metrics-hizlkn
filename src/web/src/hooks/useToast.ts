@@ -203,7 +203,6 @@ export const useToast = (): UseToastReturn => {
       if (!touchStartX || !touchStartY) return;
 
       const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
       const deltaX = touchEndX - touchStartX;
 
       // Swipe threshold
