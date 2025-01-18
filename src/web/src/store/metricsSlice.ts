@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'; // v1.9.5
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
+import { handleApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -52,7 +53,8 @@ export const fetchMetrics = createAsyncThunk(
 
       return response.data;
     } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch metrics');
+      const handledError = handleApiError(error);
+      return rejectWithValue(handledError.message);
     }
   }
 );
@@ -72,13 +74,14 @@ export const fetchMetricsByCategory = createAsyncThunk(
         category
       };
     } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to fetch metrics by category');
+      const handledError = handleApiError(error);
+      return rejectWithValue(handledError.message);
     }
   }
 );
 
 // Create the metrics slice
-const metricsSlice = createSlice({
+export const metricsSlice = createSlice({
   name: 'metrics',
   initialState,
   reducers: {
