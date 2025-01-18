@@ -5,7 +5,7 @@
  */
 
 // External imports
-import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'; // ^1.4.0
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'; // ^1.4.0
 import axiosRetry from 'axios-retry'; // ^3.5.0
 
 // Internal imports
@@ -16,11 +16,10 @@ import { AUTH_CONSTANTS } from '../config/constants';
 /**
  * Enhanced request configuration interface with security options
  */
-export interface IRequestConfig extends InternalAxiosRequestConfig {
+export interface IRequestConfig extends AxiosRequestConfig {
   sanitize?: boolean;
   csrf?: boolean;
   cache?: boolean;
-  metadata?: Record<string, any>;
 }
 
 /**
@@ -41,7 +40,7 @@ const RETRY_CONFIG = {
   retries: 3,
   retryDelay: axiosRetry.exponentialDelay,
   retryCondition: (error: AxiosError): boolean => {
-    return (error.response?.status ?? 0) >= 500 || error.code === 'ECONNABORTED';
+    return error.response?.status >= 500 || error.code === 'ECONNABORTED';
   },
   shouldResetTimeout: true,
   onRetry: (retryCount: number, error: AxiosError) => {
@@ -82,19 +81,21 @@ const createApiInstance = (): AxiosInstance => {
 
   // Configure request interceptor
   instance.interceptors.request.use(
-    async (config: InternalAxiosRequestConfig) => {
+    async (config: AxiosRequestConfig) => {
       const startTime = performance.now();
       
       // Add auth token if available
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
-        config.headers = config.headers || {};
-        config.headers.Authorization = `Bearer ${token}`;
+        config.headers = {
+          ...config.headers,
+          Authorization: `Bearer ${token}`
+        };
       }
 
       // Add performance tracking
-      (config as IRequestConfig).metadata = {
-        ...(config as IRequestConfig).metadata,
+      config.metadata = {
+        ...config.metadata,
         startTime
       };
 
@@ -121,7 +122,7 @@ const createApiInstance = (): AxiosInstance => {
   instance.interceptors.response.use(
     (response: AxiosResponse) => {
       const endTime = performance.now();
-      const startTime = (response.config as IRequestConfig).metadata?.startTime;
+      const startTime = response.config.metadata?.startTime;
       
       // Calculate request duration
       const duration = startTime ? endTime - startTime : 0;
@@ -139,32 +140,41 @@ const createApiInstance = (): AxiosInstance => {
         });
       }
 
-      // Format response with metadata
+      // Return AxiosResponse with enhanced metadata
       return {
-        status: 'success',
-        data: response.data,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          duration,
-          headers: response.headers
+        ...response,
+        data: {
+          status: 'success',
+          data: response.data,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            duration,
+            headers: response.headers
+          }
         }
       };
     },
-    async (error: AxiosError & { isCache?: boolean }) => {
+    async (error: AxiosError) => {
       // Handle cache responses
       if (error.isCache) {
         return {
-          status: 'success',
-          data: error.response!.data,
-          metadata: {
-            fromCache: true,
-            timestamp: new Date().toISOString()
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: error.config,
+          data: {
+            status: 'success',
+            data: error.response.data,
+            metadata: {
+              fromCache: true,
+              timestamp: new Date().toISOString()
+            }
           }
         };
       }
 
       // Handle errors with enhanced error handler
-      const handledError = handleApiError(error);
+      const handledError = handleApiError(error as AxiosError<any>);
       
       // Clear cache for failed requests
       if (error.config?.url) {
