@@ -60,8 +60,6 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = memo(({
         data: Array(5).fill(companyMetric),
         borderColor: '#168947',
         backgroundColor: '#16894720',
-        borderWidth: 2,
-        borderDash: [5, 5],
         fill: false,
         'aria-label': `Your company's ${benchmark.metric.name} value`,
         role: 'graphics-symbol'
@@ -76,9 +74,10 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = memo(({
         ...benchmarkChartOptions,
         plugins: {
           ...benchmarkChartOptions.plugins,
-          title: {
-            display: true,
-            text: ariaLabel || `Benchmark comparison chart for ${benchmark.metric.name}`
+          accessibility: {
+            enabled: true,
+            announceOnRender: true,
+            description: chartData.metadata.description
           }
         }
       }
@@ -101,8 +100,6 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = memo(({
         data: Array(5).fill(companyMetric),
         borderColor: '#168947',
         backgroundColor: '#16894720',
-        borderWidth: 2,
-        borderDash: [5, 5],
         fill: false,
         'aria-label': `Your company's ${benchmark.metric.name} value`,
         role: 'graphics-symbol'
