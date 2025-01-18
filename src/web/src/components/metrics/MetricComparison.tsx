@@ -3,7 +3,6 @@ import { debounce } from 'lodash'; // ^4.17.21
 
 // Internal imports
 import { IMetric, MetricValueType } from '../../interfaces/IMetric';
-import { IBenchmark } from '../../interfaces/IBenchmark';
 import BenchmarkChart from '../charts/BenchmarkChart';
 import { useBenchmarks } from '../../hooks/useBenchmarks';
 import { formatMetricValue } from '../../utils/chartHelpers';
@@ -99,7 +98,9 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(({
    * Formats percentile values based on metric type
    */
   const formatPercentileValue = useCallback((value: number, valueType: MetricValueType): string => {
-    return formatMetricValue(value, valueType);
+    // Convert ratio type to number for formatting
+    const formattingType = valueType === 'ratio' ? 'number' : valueType;
+    return formatMetricValue(value, formattingType);
   }, []);
 
   /**
