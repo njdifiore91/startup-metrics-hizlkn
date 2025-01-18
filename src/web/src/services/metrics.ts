@@ -1,10 +1,8 @@
-import { AxiosResponse } from 'axios'; // v1.4.0
-import { IMetric, MetricCategory, ValidationRule } from '../interfaces/IMetric';
+import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
 import { api } from './api';
-import { calculatePercentile } from '../utils/metricCalculators';
-import { ToastType, ToastPosition } from '../hooks/useToast';
+import { showToast } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
 /**
@@ -63,6 +61,7 @@ export class MetricsService {
       return { data: metrics };
     } catch (error) {
       const errorMessage = 'Failed to fetch metrics';
+      showToast(errorMessage);
       return { data: [], error: errorMessage };
     } finally {
       this.pendingRequests.delete(cacheKey);
@@ -83,6 +82,7 @@ export class MetricsService {
       return { data: filteredMetrics };
     } catch (error) {
       const errorMessage = `Failed to fetch metrics for category: ${category}`;
+      showToast(errorMessage);
       return { data: [], error: errorMessage };
     }
   }
@@ -114,7 +114,8 @@ export class MetricsService {
       return { data: metric };
     } catch (error) {
       const errorMessage = `Failed to fetch metric with ID: ${id}`;
-      return { data: null, error: errorMessage };
+      showToast(errorMessage);
+      return { data: {} as IMetric, error: errorMessage };
     }
   }
 
@@ -131,14 +132,15 @@ export class MetricsService {
     try {
       // Fetch metric definition for validation
       const metricResponse = await this.getMetricById(metricId);
-      if (metricResponse.error) return { data: null, error: metricResponse.error };
+      if (metricResponse.error) return { data: {} as ICompanyMetric, error: metricResponse.error };
 
       const metric = metricResponse.data;
 
       // Validate metric value
       if (!validateCompanyMetricValue(value, metric)) {
         const errorMessage = 'Invalid metric value';
-        return { data: null, error: errorMessage };
+        showToast(errorMessage);
+        return { data: {} as ICompanyMetric, error: errorMessage };
       }
 
       const response = await api.post<ICompanyMetric>(
@@ -150,10 +152,12 @@ export class MetricsService {
         }
       );
 
+      showToast('Metric saved successfully');
       return { data: response.data };
     } catch (error) {
       const errorMessage = 'Failed to save company metric';
-      return { data: null, error: errorMessage };
+      showToast(errorMessage);
+      return { data: {} as ICompanyMetric, error: errorMessage };
     }
   }
 
@@ -194,7 +198,8 @@ export class MetricsService {
       return { data: benchmark };
     } catch (error) {
       const errorMessage = 'Failed to fetch benchmark data';
-      return { data: null, error: errorMessage };
+      showToast(errorMessage);
+      return { data: {} as IBenchmark, error: errorMessage };
     }
   }
 
