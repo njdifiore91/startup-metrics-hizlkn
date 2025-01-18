@@ -1,5 +1,5 @@
-import React from 'react'; // ^18.2.0
-import classNames from 'classnames'; // ^2.3.2
+import React from 'react';
+import classNames from 'classnames';
 import '../../styles/theme.css';
 
 interface CardProps {
@@ -23,7 +23,6 @@ const Card: React.FC<CardProps> = React.memo(({
   ariaLabel,
   role = 'region',
 }) => {
-  // Compute elevation styles based on prop
   const elevationStyles = {
     none: 'none',
     low: 'var(--shadow-sm)',
@@ -31,7 +30,6 @@ const Card: React.FC<CardProps> = React.memo(({
     high: 'var(--shadow-lg)',
   };
 
-  // Combine class names
   const cardClasses = classNames(
     'card',
     className,
@@ -40,7 +38,6 @@ const Card: React.FC<CardProps> = React.memo(({
     }
   );
 
-  // Handle keyboard interaction for interactive cards
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (interactive && onClick && (event.key === 'Enter' || event.key === 'Space')) {
       event.preventDefault();
@@ -86,7 +83,6 @@ const Card: React.FC<CardProps> = React.memo(({
   );
 });
 
-// Display name for debugging
 Card.displayName = 'Card';
 
 export type { CardProps };
