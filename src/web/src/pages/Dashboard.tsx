@@ -6,7 +6,7 @@ import { useMetrics } from '../hooks/useMetrics';
 import { useBenchmarks } from '../hooks/useBenchmarks';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
-import { Analytics } from '@segment/analytics-next';
+import { analytics } from '@segment/analytics-next';
 import { METRIC_TYPES, REVENUE_RANGES } from '../config/constants';
 
 // Styled Components
@@ -49,7 +49,7 @@ const ComparisonSection = styled.div`
 interface DashboardState {
   selectedMetric: IMetric | null;
   selectedCategory: MetricCategory;
-  revenueRange: "0-1M" | "1M-5M" | "5M-20M" | "20M-50M" | "50M+";
+  revenueRange: string;
   errors: Record<string, Error | null>;
   loadingStates: Record<string, boolean>;
   lastUpdated: Record<string, number>;
@@ -63,7 +63,7 @@ const Dashboard: React.FC = () => {
   const [state, setState] = useState<DashboardState>({
     selectedMetric: null,
     selectedCategory: 'financial',
-    revenueRange: "0-1M",
+    revenueRange: REVENUE_RANGES.ranges[0],
     errors: {},
     loadingStates: {},
     lastUpdated: {}
@@ -72,22 +72,22 @@ const Dashboard: React.FC = () => {
   // Custom Hooks
   const { 
     metrics, 
+    loading: metricsLoading, 
     error: metricsError,
     getMetricsByCategory 
   } = useMetrics();
 
   const {
-    benchmarks,
+    loading: benchmarksLoading,
     error: benchmarksError,
-    fetchBenchmarkData,
-    compareBenchmark
+    fetchBenchmarkData
   } = useBenchmarks({
     revenueRange: state.revenueRange
   });
 
   // Memoized filtered metrics
   const filteredMetrics = useMemo(() => {
-    return metrics.filter(metric => metric.category === state.selectedCategory);
+    return (metrics as IMetric[]).filter((metric: IMetric) => metric.category === state.selectedCategory);
   }, [metrics, state.selectedCategory]);
 
   // Handlers
@@ -107,7 +107,7 @@ const Dashboard: React.FC = () => {
         lastUpdated: { ...prev.lastUpdated, [metric.id]: Date.now() }
       }));
 
-      Analytics.track('Metric Selected', {
+      analytics?.track?.('Metric Selected', {
         metricId: metric.id,
         category: metric.category,
         revenueRange: state.revenueRange
@@ -141,7 +141,7 @@ const Dashboard: React.FC = () => {
         selectedMetric: null
       }));
 
-      Analytics.track('Category Changed', {
+      analytics?.track?.('Category Changed', {
         category,
         revenueRange: state.revenueRange
       });
@@ -179,7 +179,7 @@ const Dashboard: React.FC = () => {
     const startTime = performance.now();
     return () => {
       const duration = performance.now() - startTime;
-      Analytics.track('Dashboard Performance', {
+      analytics?.track?.('Dashboard Performance', {
         loadTime: duration,
         metricsCount: filteredMetrics.length
       });
@@ -205,7 +205,7 @@ const Dashboard: React.FC = () => {
 
             <select
               value={state.revenueRange}
-              onChange={(e) => setState(prev => ({ ...prev, revenueRange: e.target.value as "0-1M" | "1M-5M" | "5M-20M" | "20M-50M" | "50M+" }))}
+              onChange={(e) => setState(prev => ({ ...prev, revenueRange: e.target.value }))}
               aria-label="Select revenue range"
             >
               {REVENUE_RANGES.ranges.map(range => (
@@ -215,7 +215,7 @@ const Dashboard: React.FC = () => {
           </FilterSection>
 
           <MetricsGrid role="grid" aria-label="Metrics grid">
-            {filteredMetrics.map(metric => (
+            {filteredMetrics.map((metric: IMetric) => (
               <MetricCard
                 key={metric.id}
                 metric={metric}
@@ -235,7 +235,7 @@ const Dashboard: React.FC = () => {
 
           {(metricsError || benchmarksError) && (
             <div role="alert" className="error-container">
-              {metricsError || benchmarksError}
+              <span>{metricsError || benchmarksError}</span>
             </div>
           )}
         </DashboardContainer>
