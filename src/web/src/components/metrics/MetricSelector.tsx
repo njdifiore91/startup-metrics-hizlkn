@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { debounce } from 'lodash'; // v4.17.21
 import Select from '../common/Select';
 import { IMetric, MetricCategory } from '../../interfaces/IMetric';
 import { useMetrics } from '../../hooks/useMetrics';
@@ -54,13 +55,11 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
     metrics,
     loading,
     error,
-    getMetricsByCategory,
-    validateMetricValue
+    getMetricsByCategory
   } = useMetrics();
 
   // Local state for filtered metrics
   const [filteredMetrics, setFilteredMetrics] = useState<IMetric[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
   // Transform metrics to select options with memoization
@@ -82,23 +81,11 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
     [filteredMetrics, transformMetricsToOptions]
   );
 
-  // Handle search with debounced filtering
-  const handleSearch = useCallback((term: string) => {
-    const filtered = (metrics as IMetric[]).filter(metric => 
-      metric.category === category &&
-      (metric.name.toLowerCase().includes(term.toLowerCase()) ||
-       metric.description.toLowerCase().includes(term.toLowerCase()) ||
-       metric.tags.some(tag => tag.toLowerCase().includes(term.toLowerCase())))
-    );
-    setFilteredMetrics(filtered);
-    setSearchTerm(term);
-  }, [metrics, category]);
-
-  // Handle metric selection with type safety
-  const handleMetricSelect = useCallback((value: string | number) => {
-    const selectedMetric = (metrics as IMetric[]).find(m => m.id === value);
+  // Handle metric selection
+  const handleMetricSelect = useCallback((value: string) => {
+    const selectedMetric = metrics.find(m => m.id === value);
     if (selectedMetric) {
-      onMetricSelect(value.toString(), selectedMetric);
+      onMetricSelect(value, selectedMetric);
     }
   }, [metrics, onMetricSelect]);
 
@@ -138,14 +125,14 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
         label="Select Metric"
         placeholder="Choose a metric..."
         disabled={disabled || loading[`category_${category}`]}
-        error={error[`category_${category}`] || undefined}
+        error={error[`category_${category}`]}
         loading={loading[`category_${category}`]}
         required
         className={className}
         aria-label={ariaLabel}
       />
 
-      <style jsx>{`
+      <style>{`
         .metric-selector {
           width: 100%;
           max-width: 400px;
