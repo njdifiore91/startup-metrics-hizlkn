@@ -12,13 +12,11 @@ import analytics from '@segment/analytics-next';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, clearError } = useAuth();
+  const { isAuthenticated, error, login, clearError } = useAuth();
   const { focusWithin } = useInteractions();
 
   // Initialize analytics
-  const analyticsInstance = analytics.load({
-    writeKey: process.env.VITE_SEGMENT_WRITE_KEY || ''
-  });
+  const analyticsInstance = analytics.getInstance();
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
@@ -101,7 +99,8 @@ const Login: React.FC = () => {
         )}
       </Card>
 
-      <style jsx>{`
+      <style>
+        {`
         .loginContainer {
           display: flex;
           flex-direction: column;
@@ -168,7 +167,8 @@ const Login: React.FC = () => {
             font-size: var(--font-size-sm);
           }
         }
-      `}</style>
+        `}
+      </style>
     </div>
   );
 };
