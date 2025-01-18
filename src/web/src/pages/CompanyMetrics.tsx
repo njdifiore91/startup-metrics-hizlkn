@@ -3,9 +3,9 @@ import styled from '@emotion/styled';
 
 // Internal imports
 import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import { MetricComparison } from '../components/metrics/MetricComparison';
+import MetricComparison from '../components/metrics/MetricComparison';
 import { useCompanyMetrics } from '../hooks/useCompanyMetrics';
-import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { ToastType, useToast } from '../hooks/useToast';
@@ -68,12 +68,12 @@ const CompanyMetrics: React.FC = () => {
   } = useCompanyMetrics();
 
   // Local state
-  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | undefined>(undefined);
+  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch metrics on mount
   useEffect(() => {
-    fetchMetrics().catch((error) => {
+    fetchMetrics().catch((_error: unknown) => {
       showToast('Failed to load metrics', ToastType.ERROR);
     });
   }, [fetchMetrics, showToast]);
@@ -88,28 +88,25 @@ const CompanyMetrics: React.FC = () => {
   /**
    * Handles metric submission with enhanced validation and error handling
    */
-  const handleMetricSubmit = useCallback(() => {
+  const handleMetricSubmit = useCallback(async (metricData: ICompanyMetric) => {
     setIsSubmitting(true);
-    const submitMetric = async (metricData: ICompanyMetric) => {
-      try {
-        if (selectedMetric) {
-          await updateMetric(selectedMetric.id, metricData);
-          showToast('Metric updated successfully', ToastType.SUCCESS);
-        } else {
-          await createMetric(metricData);
-          showToast('Metric created successfully', ToastType.SUCCESS);
-        }
-        setSelectedMetric(undefined);
-      } catch (error) {
-        showToast(
-          error.message || 'Failed to save metric',
-          ToastType.ERROR
-        );
-      } finally {
-        setIsSubmitting(false);
+    try {
+      if (selectedMetric) {
+        await updateMetric(selectedMetric.id, metricData);
+        showToast('Metric updated successfully', ToastType.SUCCESS);
+      } else {
+        await createMetric(metricData);
+        showToast('Metric created successfully', ToastType.SUCCESS);
       }
-    };
-    return submitMetric;
+      setSelectedMetric(null);
+    } catch (error) {
+      showToast(
+        (error as Error).message || 'Failed to save metric',
+        ToastType.ERROR
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }, [selectedMetric, createMetric, updateMetric, showToast]);
 
   /**
@@ -123,7 +120,7 @@ const CompanyMetrics: React.FC = () => {
    * Handles form cancellation
    */
   const handleCancel = useCallback(() => {
-    setSelectedMetric(undefined);
+    setSelectedMetric(null);
   }, []);
 
   /**
@@ -152,7 +149,7 @@ const CompanyMetrics: React.FC = () => {
             <Card elevation="medium">
               <CompanyMetricForm
                 initialData={selectedMetric}
-                onSubmitSuccess={handleMetricSubmit()}
+                onSubmitSuccess={handleMetricSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}
               />
