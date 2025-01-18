@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios'; // v1.4.0
-import { useToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
 // Interfaces
@@ -54,7 +54,7 @@ const DEFAULT_OPTIONS: ErrorHandlerOptions = {
  * @param options - Error handling configuration options
  * @returns Formatted error object with user-friendly message
  */
-export const createApiErrorHandler = (toast: ReturnType<typeof useToast>) => (
+export const handleApiError = (
   error: AxiosError<ApiError>,
   options: Partial<ErrorHandlerOptions> = {}
 ): { message: string; details: Record<string, unknown> } => {
@@ -107,7 +107,7 @@ export const createApiErrorHandler = (toast: ReturnType<typeof useToast>) => (
 
   // Show toast notification if enabled
   if (mergedOptions.showToast) {
-    toast.showToast(
+    showToast(
       errorMessage,
       ToastType.ERROR,
       mergedOptions.toastPosition,
@@ -124,7 +124,7 @@ export const createApiErrorHandler = (toast: ReturnType<typeof useToast>) => (
  * @param options - Error handling configuration options
  * @returns Formatted validation error object with field-level details
  */
-export const createValidationErrorHandler = (toast: ReturnType<typeof useToast>) => (
+export const handleValidationError = (
   error: ValidationError,
   options: Partial<ErrorHandlerOptions> = {}
 ): { message: string; fields: Record<string, string> } => {
@@ -158,7 +158,7 @@ export const createValidationErrorHandler = (toast: ReturnType<typeof useToast>)
 
   // Show toast notification if enabled
   if (mergedOptions.showToast) {
-    toast.showToast(
+    showToast(
       errorMessage,
       ToastType.ERROR,
       mergedOptions.toastPosition,
