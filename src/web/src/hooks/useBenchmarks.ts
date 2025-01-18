@@ -1,9 +1,15 @@
 // External imports with versions
 import { useSelector, useDispatch } from 'react-redux'; // ^8.1.0
 import { useState, useCallback } from 'react'; // ^18.2.0
+import { AxiosError } from 'axios';
 
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
+import { 
+  getBenchmarksByMetric, 
+  getBenchmarksByRevenueRange, 
+  compareBenchmarks 
+} from '../services/benchmark';
 import { 
   selectBenchmarks,
   selectBenchmarkLoading,
@@ -14,6 +20,8 @@ import {
   clearErrors
 } from '../store/benchmarkSlice';
 import { handleApiError } from '../utils/errorHandlers';
+import { ApiError } from '../utils/errorHandlers';
+import { RevenueRange } from '../config/constants';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -23,7 +31,7 @@ const RETRY_DELAY_BASE = 1000;
 // Types
 interface UseBenchmarksOptions {
   metricId?: string;
-  revenueRange?: string;
+  revenueRange?: RevenueRange;
   retryAttempts?: number;
 }
 
@@ -55,7 +63,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
   /**
    * Generates cache key for benchmark data
    */
-  const generateCacheKey = useCallback((metricId?: string, revenueRange?: string): string => {
+  const generateCacheKey = useCallback((metricId?: string, revenueRange?: RevenueRange): string => {
     return `${metricId || ''}_${revenueRange || ''}`;
   }, []);
 
@@ -74,7 +82,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
    */
   const fetchBenchmarkData = useCallback(async (
     metricId?: string,
-    revenueRange?: string,
+    revenueRange?: RevenueRange,
     retryAttempts: number = MAX_RETRY_ATTEMPTS
   ): Promise<void> => {
     if (!metricId && !revenueRange) {
@@ -102,12 +110,12 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId) as any).unwrap();
+          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
         } else if (revenueRange) {
           await dispatch(fetchBenchmarksByRevenue({ 
             revenueRange, 
             metricIds: [] 
-          }) as any).unwrap();
+          })).unwrap();
         }
 
         // Update cache
@@ -122,7 +130,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
-          const formattedError = handleApiError(error);
+          const formattedError = handleApiError(error as AxiosError<ApiError>);
           setLocalError(formattedError.message);
           activeRequests.delete(cacheKey);
           return;
@@ -149,7 +157,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
         metricId,
         companyValue,
         revenueRange: options.revenueRange || ''
-      }) as any).unwrap();
+      })).unwrap();
 
       return {
         percentile: result.percentile,
@@ -158,7 +166,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       };
 
     } catch (error) {
-      const formattedError = handleApiError(error);
+      const formattedError = handleApiError(error as AxiosError<ApiError>);
       setLocalError(formattedError.message);
       return null;
     }
