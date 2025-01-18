@@ -1,8 +1,8 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton';
-import { Card } from '../../components/common/Card';
+import { useAuth } from '../hooks/useAuth';
+import { GoogleLoginButton } from '../components/auth/GoogleLoginButton';
+import { Card } from '../components/common/Card';
 import { useInteractions } from '@react-aria/interactions';
 import analytics from '@segment/analytics-next';
 
@@ -12,7 +12,7 @@ import analytics from '@segment/analytics-next';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, login, clearError } = useAuth();
+  const { isAuthenticated, error, clearError } = useAuth();
   const { focusWithin } = useInteractions();
 
   // Initialize analytics
@@ -99,8 +99,7 @@ const Login: React.FC = () => {
         )}
       </Card>
 
-      <style>
-        {`
+      <style jsx>{`
         .loginContainer {
           display: flex;
           flex-direction: column;
@@ -167,8 +166,7 @@ const Login: React.FC = () => {
             font-size: var(--font-size-sm);
           }
         }
-        `}
-      </style>
+      `}</style>
     </div>
   );
 };
