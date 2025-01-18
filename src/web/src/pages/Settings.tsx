@@ -7,8 +7,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
-import { Analytics } from '@segment/analytics-next';
-import { Layout } from '../components/layout/Layout';
+import { analytics } from '@analytics/react';
+import Layout from '../components/layout/Layout';
 import { UserSettings } from '../components/user/UserSettings';
 import { useAuth } from '../hooks/useAuth';
 
@@ -53,7 +53,7 @@ const Settings: React.FC = React.memo(() => {
 
   // Track page view
   useEffect(() => {
-    Analytics.track('page_view', {
+    analytics.track('page_view', {
       page: 'settings',
       userId: user?.id,
       timestamp: new Date().toISOString()
@@ -84,7 +84,7 @@ const Settings: React.FC = React.memo(() => {
   // Handle settings errors
   const handleError = useCallback((error: Error) => {
     setError(error.message);
-    Analytics.track('settings_error', {
+    analytics.track('settings_error', {
       error: error.message,
       userId: user?.id,
       timestamp: new Date().toISOString()
