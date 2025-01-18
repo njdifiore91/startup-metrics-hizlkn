@@ -156,7 +156,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   });
 
   // Handle navigation item click
-  const handleNavClick = useCallback(async (path: string) => {
+  const handleNavClick = useCallback(async (path: string, item: NavItem) => {
     try {
       // Validate session before navigation
       const isSessionValid = await validateSession();
@@ -167,6 +167,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       // Track navigation event
       analytics.track('navigation_click', {
         path,
+        itemId: item.id,
         timestamp: new Date().toISOString()
       });
 
@@ -206,7 +207,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       <React.Fragment key={item.id}>
         <StyledListItem
           active={isActive}
-          onClick={() => item.children ? toggleExpand(item.id) : handleNavClick(item.path)}
+          onClick={() => item.children ? toggleExpand(item.id) : handleNavClick(item.path, item)}
           aria-label={item.ariaLabel}
           aria-expanded={item.children ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}
@@ -241,7 +242,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1 as number)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1 as const)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
