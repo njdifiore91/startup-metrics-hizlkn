@@ -5,11 +5,6 @@ import { useState, useCallback } from 'react'; // ^18.2.0
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { 
-  getBenchmarksByMetric, 
-  getBenchmarksByRevenueRange, 
-  compareBenchmarks 
-} from '../services/benchmark';
-import { 
   selectBenchmarks,
   selectBenchmarkLoading,
   selectBenchmarkErrors,
@@ -19,7 +14,6 @@ import {
   clearErrors
 } from '../store/benchmarkSlice';
 import { handleApiError } from '../utils/errorHandlers';
-import { REVENUE_RANGES } from '../config/constants';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -29,7 +23,7 @@ const RETRY_DELAY_BASE = 1000;
 // Types
 interface UseBenchmarksOptions {
   metricId?: string;
-  revenueRange?: typeof REVENUE_RANGES.ranges[number];
+  revenueRange?: string;
   retryAttempts?: number;
 }
 
@@ -80,7 +74,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
    */
   const fetchBenchmarkData = useCallback(async (
     metricId?: string,
-    revenueRange?: typeof REVENUE_RANGES.ranges[number],
+    revenueRange?: string,
     retryAttempts: number = MAX_RETRY_ATTEMPTS
   ): Promise<void> => {
     if (!metricId && !revenueRange) {
@@ -108,12 +102,12 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
+          await dispatch(fetchBenchmarksByMetric(metricId) as any).unwrap();
         } else if (revenueRange) {
           await dispatch(fetchBenchmarksByRevenue({ 
-            revenueRange: revenueRange as typeof REVENUE_RANGES.ranges[number], 
+            revenueRange, 
             metricIds: [] 
-          })).unwrap();
+          }) as any).unwrap();
         }
 
         // Update cache
@@ -128,7 +122,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
-          const formattedError = handleApiError(error as any);
+          const formattedError = handleApiError(error);
           setLocalError(formattedError.message);
           activeRequests.delete(cacheKey);
           return;
@@ -154,8 +148,8 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       const result = await dispatch(compareBenchmarkData({
         metricId,
         companyValue,
-        revenueRange: (options.revenueRange || '0-1M') as typeof REVENUE_RANGES.ranges[number]
-      })).unwrap();
+        revenueRange: options.revenueRange || ''
+      }) as any).unwrap();
 
       return {
         percentile: result.percentile,
@@ -164,7 +158,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       };
 
     } catch (error) {
-      const formattedError = handleApiError(error as any);
+      const formattedError = handleApiError(error);
       setLocalError(formattedError.message);
       return null;
     }
