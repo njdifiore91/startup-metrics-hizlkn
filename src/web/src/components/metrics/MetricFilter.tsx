@@ -7,8 +7,8 @@ import Select from '../common/Select';
 import { MetricCategory } from '../../interfaces/IMetric';
 import { 
   fetchMetricsByCategory, 
-  selectMetricError, 
-  selectMetricLoading 
+  selectMetricsError, 
+  selectMetricsLoading 
 } from '../../store/metricsSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
 
@@ -41,8 +41,8 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
 }) => {
   // Redux hooks
   const dispatch = useDispatch();
-  const isLoading = useSelector(selectMetricLoading);
-  const error = useSelector(selectMetricError);
+  const isLoading = useSelector(selectMetricsLoading);
+  const error = useSelector(selectMetricsError);
 
   // Debounce category changes to prevent rapid API calls
   const [debouncedChange] = useDebounce(onCategoryChange, 300);
@@ -58,7 +58,7 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
   const handleCategoryChange = useCallback(async (value: string | number) => {
     try {
       const category = value as MetricCategory;
-      await dispatch(fetchMetricsByCategory(category));
+      await dispatch(fetchMetricsByCategory(category) as any);
       debouncedChange(category);
     } catch (error) {
       console.error('Failed to fetch metrics for category:', error);
@@ -94,9 +94,9 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
           options={categoryOptions}
           value={initialCategory || ''}
           onChange={handleCategoryChange}
-          disabled={disabled || isLoading}
-          error={error?.fetchMetricsByCategory || undefined}
-          loading={isLoading}
+          disabled={!!disabled || !!isLoading}
+          error={error?.['fetchMetricsByCategory']}
+          loading={!!isLoading}
           placeholder="Select a category"
           required
           aria-describedby={error ? 'metric-filter-error' : undefined}
@@ -109,14 +109,13 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
             className={styles['filter-error']}
             role="alert"
           >
-            {error.fetchMetricsByCategory}
+            {error['fetchMetricsByCategory']}
           </div>
         )}
 
-        {/* Screen reader announcements for state changes */}
         <div aria-live="polite" className="sr-only">
-          {isLoading && 'Loading metric categories...'}
-          {error && `Error: ${error.fetchMetricsByCategory}`}
+          {isLoading ? 'Loading metric categories...' : null}
+          {error ? `Error: ${error['fetchMetricsByCategory']}` : null}
         </div>
       </div>
     </ErrorBoundary>
