@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@5.0.0
 import { Chart as ChartJS, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
-import { chartColors } from '../../config/chart';
+import { CHART_COLORS } from '../../config/chart';
 import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers';
 
 // Default chart height in pixels
@@ -52,11 +52,11 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
         label: ariaLabel || 'Metric trend',
         data: data.map(point => point.y),
         fill: false,
-        borderColor: chartColors.primary,
-        backgroundColor: chartColors.background,
+        borderColor: CHART_COLORS.primary,
+        backgroundColor: CHART_COLORS.background,
         borderWidth: 2,
-        pointBackgroundColor: chartColors.accent,
-        pointHoverBackgroundColor: chartColors.secondary,
+        pointBackgroundColor: CHART_COLORS.accent,
+        pointHoverBackgroundColor: CHART_COLORS.secondary,
         pointHoverRadius: 6,
         pointHitRadius: 8,
         tension: 0.4,
@@ -68,9 +68,20 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
 
   // Memoized chart options with accessibility enhancements
   const getEnhancedOptions = useCallback(() => {
-    const baseOptions = generateChartOptions('line', options, {
-      announceOnRender: true,
-      description: ariaLabel
+    const baseOptions = generateChartOptions('line', {
+      ...options,
+      plugins: {
+        ...options.plugins,
+        tooltip: {
+          ...options.plugins?.tooltip,
+          callbacks: {
+            label: (context: any) => {
+              const value = context.raw as number;
+              return formatMetricValue(value, metricType, { style: 'decimal' });
+            }
+          }
+        }
+      }
     });
 
     return {
@@ -79,30 +90,21 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
         ...baseOptions.layout,
         rtl: isRTL,
       },
-      plugins: {
-        ...baseOptions.plugins,
-        tooltip: {
-          ...baseOptions.plugins?.tooltip,
-          callbacks: {
-            label: (context: any) => {
-              const value = context.raw as number;
-              return formatMetricValue(value, metricType, { locale });
-            }
-          }
-        }
-      },
       scales: {
         ...baseOptions.scales,
         y: {
           ...baseOptions.scales?.y,
-          position: isRTL ? 'right' as const : 'left' as const,
+          position: isRTL ? 'right' : 'left',
           ticks: {
-            callback: (value: number) => formatMetricValue(value, metricType, { locale })
+            ...baseOptions.scales?.y?.ticks,
+            callback: function(value: number) {
+              return formatMetricValue(value, metricType, { style: 'decimal' });
+            }
           }
         }
       }
     };
-  }, [options, ariaLabel, isRTL, metricType, locale]);
+  }, [options, isRTL, metricType]);
 
   // Cleanup chart instance on unmount
   useEffect(() => {
@@ -127,6 +129,7 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
         aria-label={ariaLabel || 'Line chart'}
       >
         <Line
+          ref={chartRef}
           data={getChartData()}
           options={getEnhancedOptions()}
           fallbackContent={
