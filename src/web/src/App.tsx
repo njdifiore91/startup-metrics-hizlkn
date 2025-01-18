@@ -9,7 +9,6 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Provider } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Analytics } from '@analytics/google-analytics';
-import { store } from './store';
 
 // Components
 import Layout from './components/layout/Layout';
@@ -32,6 +31,13 @@ const ROUTES = {
   COMPANY_METRICS: '/company-metrics',
   REPORTS: '/reports',
   SETTINGS: '/settings'
+} as const;
+
+// Error messages
+const ERROR_MESSAGES = {
+  ROUTE_ERROR: 'An error occurred while loading this page',
+  AUTH_ERROR: 'Authentication failed',
+  NETWORK_ERROR: 'Network connection lost'
 } as const;
 
 // Analytics configuration
