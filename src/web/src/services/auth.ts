@@ -10,7 +10,7 @@ import CryptoJS from 'crypto-js'; // v4.1.1
 
 // Internal imports
 import { authConfig } from '../config/auth';
-import { api } from './services/api';
+import { api } from './api';
 import type { IUser } from '../interfaces/IUser';
 
 /**
