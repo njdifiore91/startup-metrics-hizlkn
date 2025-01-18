@@ -1,10 +1,14 @@
 // External imports with versions
 import { useSelector, useDispatch } from 'react-redux'; // ^8.1.0
 import { useState, useCallback } from 'react'; // ^18.2.0
-import { AppDispatch } from '../store/store';
 
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
+import { 
+  getBenchmarksByMetric, 
+  getBenchmarksByRevenueRange, 
+  compareBenchmarks 
+} from '../services/benchmark';
 import { 
   selectBenchmarks,
   selectBenchmarkLoading,
@@ -14,6 +18,7 @@ import {
   compareBenchmarkData,
   clearErrors
 } from '../store/benchmarkSlice';
+import { handleApiError } from '../utils/errorHandlers';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -44,7 +49,7 @@ const benchmarkCache = new Map<string, { data: IBenchmark[]; timestamp: number }
  * @version 1.0.0
  */
 export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
-  const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useDispatch();
   const benchmarks = useSelector(selectBenchmarks);
   const loading = useSelector(selectBenchmarkLoading);
   const errors = useSelector(selectBenchmarkErrors);
@@ -102,12 +107,12 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId));
+          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
         } else if (revenueRange) {
           await dispatch(fetchBenchmarksByRevenue({ 
-            revenueRange: revenueRange as "0-1M" | "1M-5M" | "5M-20M" | "20M-50M" | "50M+", 
+            revenueRange, 
             metricIds: [] 
-          }));
+          })).unwrap();
         }
 
         // Update cache
@@ -122,7 +127,8 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
-          setLocalError('Failed to fetch benchmark data');
+          const formattedError = handleApiError(error);
+          setLocalError(formattedError.message);
           activeRequests.delete(cacheKey);
           return;
         }
@@ -147,7 +153,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       const result = await dispatch(compareBenchmarkData({
         metricId,
         companyValue,
-        revenueRange: options.revenueRange as "0-1M" | "1M-5M" | "5M-20M" | "20M-50M" | "50M+" || "0-1M"
+        revenueRange: options.revenueRange || ''
       })).unwrap();
 
       return {
@@ -157,7 +163,8 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       };
 
     } catch (error) {
-      setLocalError('Failed to compare benchmark data');
+      const formattedError = handleApiError(error);
+      setLocalError(formattedError.message);
       return null;
     }
   }, [dispatch, options.revenueRange]);
