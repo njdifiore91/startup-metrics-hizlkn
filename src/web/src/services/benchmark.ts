@@ -1,5 +1,5 @@
 // External imports - versions specified as per requirements
-import axios, { CancelTokenSource } from 'axios'; // ^1.4.0
+import axios, { AxiosResponse, CancelTokenSource } from 'axios'; // ^1.4.0
 import { debounce, memoize } from 'lodash'; // ^4.17.21
 import NodeCache from 'node-cache'; // ^5.1.2
 
@@ -7,12 +7,12 @@ import NodeCache from 'node-cache'; // ^5.1.2
 import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
 import { apiConfig } from '../config/api';
 import { handleApiError } from '../utils/errorHandlers';
-import { REVENUE_RANGES } from '../config/constants';
+import { API_CONFIG, REVENUE_RANGES } from '../config/constants';
 
 // Types and Interfaces
 interface BenchmarkFilter {
   metricIds?: string[];
-  revenueRange?: typeof REVENUE_RANGES.ranges[number];
+  revenueRange?: string;
   startDate?: Date;
   endDate?: Date;
   categories?: string[];
@@ -136,7 +136,7 @@ export const getBenchmarksByMetric = async (
     benchmarkCache.set(cacheKey, benchmarks);
     return benchmarks;
   } catch (error) {
-    throw handleApiError(error as any);
+    throw handleApiError(error);
   }
 };
 
@@ -144,7 +144,7 @@ export const getBenchmarksByMetric = async (
  * Fetches benchmarks by revenue range with pagination support
  */
 export const getBenchmarksByRevenueRange = async (
-  revenueRange: typeof REVENUE_RANGES.ranges[number],
+  revenueRange: string,
   metricIds: string[],
   pagination: PaginationOptions
 ): Promise<PaginatedBenchmarks> => {
@@ -167,7 +167,7 @@ export const getBenchmarksByRevenueRange = async (
 
     return response.data;
   } catch (error) {
-    throw handleApiError(error as any);
+    throw handleApiError(error);
   }
 };
 
@@ -194,7 +194,7 @@ export const compareBenchmarks = async (
 
     return response.data;
   } catch (error) {
-    throw handleApiError(error as any);
+    throw handleApiError(error);
   }
 };
 
