@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input, InputProps } from '../common/Input';
+import { Input } from '../common/Input';
 import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
 
@@ -83,7 +83,7 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
@@ -136,16 +136,11 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
           value: formData.value,
           metricId: formData.metricId,
           metadata: formData.metadata,
-          timestamp: new Date().toISOString(),
-          isActive: true,
-          userId: '', // Will be set by backend
-          metric: null, // Will be populated by backend
-          lastModified: new Date().toISOString(),
-          createdAt: new Date().toISOString()
+          timestamp: new Date().toISOString()
         });
       }
       onSubmitSuccess();
-    } catch (error) {
+    } catch (error: any) {
       // Handle validation errors
       if (error.response?.data?.errors) {
         error.response.data.errors.forEach((err: any) => {
@@ -181,7 +176,10 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         type="number"
         {...register('value', {
           required: 'Value is required',
-          min: 0
+          min: {
+            value: 0,
+            message: 'Value must be positive'
+          }
         })}
         error={errors.value?.message}
         disabled={isSubmitting}
