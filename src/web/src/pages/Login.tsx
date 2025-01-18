@@ -1,9 +1,9 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { GoogleLoginButton } from '../components/auth/GoogleLoginButton';
-import { Card } from '../components/common/Card';
-import { useInteractions } from '@react-aria/interactions';
+import { useAuth } from '../../hooks/useAuth';
+import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton';
+import { Card } from '../../components/common/Card';
+import { useInteractionModality } from '@react-aria/interactions';
 import analytics from '@segment/analytics-next';
 
 /**
@@ -12,29 +12,31 @@ import analytics from '@segment/analytics-next';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, login, clearError } = useAuth();
-  const { focusWithin } = useInteractions();
+  const { isAuthenticated, error } = useAuth();
+  const { focusWithin } = useInteractionModality();
 
   // Initialize analytics
-  const analyticsInstance = analytics.getInstance();
+  const analyticsClient = analytics.load({
+    writeKey: process.env.VITE_SEGMENT_WRITE_KEY || ''
+  });
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
-    analyticsInstance.track('Login Success', {
+    analyticsClient.track('Login Success', {
       method: 'Google OAuth',
       timestamp: new Date().toISOString()
     });
     navigate('/dashboard');
-  }, [navigate, analyticsInstance]);
+  }, [navigate, analyticsClient]);
 
   // Handle authentication errors
   const handleLoginError = useCallback((error: { code: string; message: string }) => {
-    analyticsInstance.track('Login Error', {
+    analyticsClient.track('Login Error', {
       error_code: error.code,
       error_message: error.message,
       timestamp: new Date().toISOString()
     });
-  }, [analyticsInstance]);
+  }, [analyticsClient]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -42,15 +44,6 @@ const Login: React.FC = () => {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
-
-  // Clear error state on unmount
-  useEffect(() => {
-    return () => {
-      if (error) {
-        clearError();
-      }
-    };
-  }, [error, clearError]);
 
   return (
     <div 
@@ -99,7 +92,7 @@ const Login: React.FC = () => {
         )}
       </Card>
 
-      <style jsx>{`
+      <style>{`
         .loginContainer {
           display: flex;
           flex-direction: column;
