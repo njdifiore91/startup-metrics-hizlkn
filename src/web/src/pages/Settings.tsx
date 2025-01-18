@@ -4,11 +4,11 @@
  * @version 1.0.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { Analytics } from '@analytics/react';
-import Layout from '../components/layout/Layout';
+import { Layout } from '../components/layout/Layout';
 import { UserSettings } from '../components/user/UserSettings';
 import { useAuth } from '../hooks/useAuth';
 
@@ -81,6 +81,16 @@ const Settings: React.FC = React.memo(() => {
     return () => clearInterval(interval);
   }, [validateSession, t]);
 
+  // Handle settings errors
+  const handleError = useCallback((error: Error) => {
+    setError(error.message);
+    Analytics.track('settings_error', {
+      error: error.message,
+      userId: user?.id,
+      timestamp: new Date().toISOString()
+    });
+  }, [user]);
+
   // Redirect to login if session is invalid
   if (!isSessionValid) {
     return <Navigate to="/login" replace />;
@@ -140,7 +150,6 @@ const Settings: React.FC = React.memo(() => {
         {/* Settings Content */}
         <UserSettings 
           className="settings-content"
-          onError={setError}
         />
       </div>
     </Layout>
