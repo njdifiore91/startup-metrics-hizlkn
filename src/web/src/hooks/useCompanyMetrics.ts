@@ -4,7 +4,7 @@ import sanitizeHtml from 'sanitize-html'; // v2.11.0
 
 // Internal imports
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { useDispatch, useSelector } from 'react-redux';
+import { useAppDispatch, useAppSelector } from '../store';
 import {
   selectAllMetrics,
   selectMetricById,
@@ -28,13 +28,13 @@ const metricDataSchema = yup.object().shape({
  * @returns Object containing metrics state and operations
  */
 export const useCompanyMetrics = () => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Selectors
-  const metrics = useSelector(selectAllMetrics);
-  const loading = useSelector((state) => selectLoadingState(state, 'fetchAll'));
-  const error = useSelector(selectError);
+  const metrics = useAppSelector(selectAllMetrics);
+  const loading = useAppSelector((state) => selectLoadingState(state, 'fetchAll'));
+  const error = useAppSelector(selectError);
 
   // Cleanup function for request cancellation
   useEffect(() => {
@@ -56,7 +56,7 @@ export const useCompanyMetrics = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      await dispatch(fetchCompanyMetrics()).unwrap();
+      await dispatch(fetchCompanyMetrics());
     } catch (error) {
       console.error('Error fetching metrics:', error);
     }
@@ -77,12 +77,11 @@ export const useCompanyMetrics = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      const metric = await dispatch(selectMetricById({ id })).unwrap();
-      return metric;
+      return useAppSelector((state) => selectMetricById(state, id));
     } catch (error) {
       console.error('Error fetching metric:', error);
     }
-  }, [dispatch]);
+  }, []);
 
   /**
    * Creates a new company metric with validation and sanitization
@@ -95,13 +94,13 @@ export const useCompanyMetrics = () => {
       // Sanitize input data
       const sanitizedData = {
         ...metricData,
-        metadata: sanitizeHtml(JSON.stringify(metricData.metadata), {
+        metadata: metricData.metadata ? JSON.parse(sanitizeHtml(JSON.stringify(metricData.metadata), {
           allowedTags: [],
           allowedAttributes: {}
-        })
+        })) : {}
       };
 
-      await dispatch(createCompanyMetric(sanitizedData)).unwrap();
+      await dispatch(createCompanyMetric(sanitizedData));
     } catch (error) {
       console.error('Error creating metric:', error);
       throw error;
@@ -129,14 +128,13 @@ export const useCompanyMetrics = () => {
       // Sanitize input data
       const sanitizedData = {
         ...metricData,
-        metadata: metricData.metadata ? 
-          sanitizeHtml(JSON.stringify(metricData.metadata), {
-            allowedTags: [],
-            allowedAttributes: {}
-          }) : undefined
+        metadata: metricData.metadata ? JSON.parse(sanitizeHtml(JSON.stringify(metricData.metadata), {
+          allowedTags: [],
+          allowedAttributes: {}
+        })) : undefined
       };
 
-      await dispatch(updateCompanyMetric({ id, data: sanitizedData })).unwrap();
+      await dispatch(updateCompanyMetric({ id, data: sanitizedData }));
     } catch (error) {
       console.error('Error updating metric:', error);
       throw error;
@@ -152,7 +150,7 @@ export const useCompanyMetrics = () => {
         throw new Error('Metric ID is required');
       }
 
-      await dispatch(deleteCompanyMetric(id)).unwrap();
+      await dispatch(deleteCompanyMetric(id));
     } catch (error) {
       console.error('Error deleting metric:', error);
       throw error;
