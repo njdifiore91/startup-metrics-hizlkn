@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import styled from '@emotion/styled';
-import { Drawer, IconButton, useTheme, useMediaQuery } from '@mui/material';
+import { Drawer, IconButton, useTheme, useMediaQuery, Theme } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { Navigation } from './Navigation';
 import { useAuth } from '../../hooks/useAuth';
@@ -16,6 +16,9 @@ import { UI_CONSTANTS } from '../../config/constants';
 const DRAWER_WIDTH = parseInt(UI_CONSTANTS.SIDEBAR_WIDTH);
 const COLLAPSED_WIDTH = 64;
 const TRANSITION_DURATION = 225;
+const KEYBOARD_SHORTCUTS = {
+  TOGGLE: 'mod+b'
+} as const;
 
 // Interfaces
 interface SidebarProps {
@@ -27,7 +30,7 @@ interface SidebarProps {
 }
 
 // Styled Components
-const StyledDrawer = styled(Drawer)<{ open: boolean; theme: any }>`
+const StyledDrawer = styled(Drawer)<{ open: boolean; theme: Theme }>`
   width: ${props => props.open ? DRAWER_WIDTH : COLLAPSED_WIDTH}px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -53,7 +56,7 @@ const DrawerHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: ${props => props.theme.spacing(0, 1)};
+  padding: ${props => props.theme.spacing(1)};
   min-height: ${UI_CONSTANTS.HEADER_HEIGHT};
   position: sticky;
   top: 0;
@@ -63,7 +66,7 @@ const DrawerHeader = styled.div`
 `;
 
 const ToggleButton = styled(IconButton)`
-  margin: ${props => props.theme.spacing(0, 0.5)};
+  margin: ${props => props.theme.spacing(0.5)};
   color: ${props => props.theme.palette.primary.contrastText};
   
   &:focus-visible {
