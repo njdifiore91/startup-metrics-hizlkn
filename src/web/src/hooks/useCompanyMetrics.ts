@@ -4,16 +4,18 @@ import sanitizeHtml from 'sanitize-html'; // v2.11.0
 
 // Internal imports
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { useAppDispatch, useAppSelector } from '../store';
+import { RootState, AppDispatch } from '../store';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   selectAllMetrics,
   selectMetricById,
   selectLoadingState,
   selectError,
   fetchCompanyMetrics,
+  fetchCompanyMetricById,
   createCompanyMetric,
   updateCompanyMetric,
-  deleteCompanyMetric
+  deleteCompanyMetric as deleteMetric
 } from '../store/companyMetricsSlice';
 
 // Validation schema for metric data
@@ -28,13 +30,13 @@ const metricDataSchema = yup.object().shape({
  * @returns Object containing metrics state and operations
  */
 export const useCompanyMetrics = () => {
-  const dispatch = useAppDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Selectors
-  const metrics = useAppSelector(selectAllMetrics);
-  const loading = useAppSelector((state) => selectLoadingState(state, 'fetchAll'));
-  const error = useAppSelector(selectError);
+  const metrics = useSelector(selectAllMetrics);
+  const loading = useSelector((state: RootState) => selectLoadingState(state, 'fetchAll'));
+  const error = useSelector(selectError);
 
   // Cleanup function for request cancellation
   useEffect(() => {
@@ -56,7 +58,7 @@ export const useCompanyMetrics = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      await dispatch(fetchCompanyMetrics());
+      await dispatch(fetchCompanyMetrics()).unwrap();
     } catch (error) {
       console.error('Error fetching metrics:', error);
     }
@@ -77,11 +79,11 @@ export const useCompanyMetrics = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      return useAppSelector((state) => selectMetricById(state, id));
+      await dispatch(fetchCompanyMetricById(id)).unwrap();
     } catch (error) {
       console.error('Error fetching metric:', error);
     }
-  }, []);
+  }, [dispatch]);
 
   /**
    * Creates a new company metric with validation and sanitization
@@ -94,13 +96,13 @@ export const useCompanyMetrics = () => {
       // Sanitize input data
       const sanitizedData = {
         ...metricData,
-        metadata: metricData.metadata ? JSON.parse(sanitizeHtml(JSON.stringify(metricData.metadata), {
+        metadata: sanitizeHtml(JSON.stringify(metricData.metadata), {
           allowedTags: [],
           allowedAttributes: {}
-        })) : {}
+        })
       };
 
-      await dispatch(createCompanyMetric(sanitizedData));
+      await dispatch(createCompanyMetric(sanitizedData)).unwrap();
     } catch (error) {
       console.error('Error creating metric:', error);
       throw error;
@@ -128,13 +130,14 @@ export const useCompanyMetrics = () => {
       // Sanitize input data
       const sanitizedData = {
         ...metricData,
-        metadata: metricData.metadata ? JSON.parse(sanitizeHtml(JSON.stringify(metricData.metadata), {
-          allowedTags: [],
-          allowedAttributes: {}
-        })) : undefined
+        metadata: metricData.metadata ? 
+          sanitizeHtml(JSON.stringify(metricData.metadata), {
+            allowedTags: [],
+            allowedAttributes: {}
+          }) : undefined
       };
 
-      await dispatch(updateCompanyMetric({ id, data: sanitizedData }));
+      await dispatch(updateCompanyMetric({ id, data: sanitizedData })).unwrap();
     } catch (error) {
       console.error('Error updating metric:', error);
       throw error;
@@ -150,7 +153,7 @@ export const useCompanyMetrics = () => {
         throw new Error('Metric ID is required');
       }
 
-      await dispatch(deleteCompanyMetric(id));
+      await dispatch(deleteMetric(id)).unwrap();
     } catch (error) {
       console.error('Error deleting metric:', error);
       throw error;
