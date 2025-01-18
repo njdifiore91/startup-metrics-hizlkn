@@ -1,6 +1,5 @@
 import { memoize } from 'lodash';
 import { 
-  IMetric, 
   ValidationRule, 
   MetricValueType, 
 } from '../interfaces/IMetric';
