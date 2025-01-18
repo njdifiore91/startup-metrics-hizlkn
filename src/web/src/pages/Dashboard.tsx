@@ -72,22 +72,22 @@ const Dashboard: React.FC = () => {
   // Custom Hooks
   const { 
     metrics, 
-    loading: metricsLoading, 
     error: metricsError,
     getMetricsByCategory 
   } = useMetrics();
 
   const {
-    loading: benchmarksLoading,
+    benchmarks,
     error: benchmarksError,
-    fetchBenchmarkData
+    fetchBenchmarkData,
+    compareBenchmark
   } = useBenchmarks({
     revenueRange: state.revenueRange
   });
 
   // Memoized filtered metrics
   const filteredMetrics = useMemo(() => {
-    return (metrics as IMetric[]).filter((metric: IMetric) => metric.category === state.selectedCategory);
+    return metrics.filter(metric => metric.category === state.selectedCategory);
   }, [metrics, state.selectedCategory]);
 
   // Handlers
@@ -107,7 +107,7 @@ const Dashboard: React.FC = () => {
         lastUpdated: { ...prev.lastUpdated, [metric.id]: Date.now() }
       }));
 
-      analytics?.track?.('Metric Selected', {
+      analytics.track('Metric Selected', {
         metricId: metric.id,
         category: metric.category,
         revenueRange: state.revenueRange
@@ -141,7 +141,7 @@ const Dashboard: React.FC = () => {
         selectedMetric: null
       }));
 
-      analytics?.track?.('Category Changed', {
+      analytics.track('Category Changed', {
         category,
         revenueRange: state.revenueRange
       });
@@ -179,7 +179,7 @@ const Dashboard: React.FC = () => {
     const startTime = performance.now();
     return () => {
       const duration = performance.now() - startTime;
-      analytics?.track?.('Dashboard Performance', {
+      analytics.track('Dashboard Performance', {
         loadTime: duration,
         metricsCount: filteredMetrics.length
       });
@@ -215,11 +215,10 @@ const Dashboard: React.FC = () => {
           </FilterSection>
 
           <MetricsGrid role="grid" aria-label="Metrics grid">
-            {filteredMetrics.map((metric: IMetric) => (
+            {filteredMetrics.map(metric => (
               <MetricCard
                 key={metric.id}
                 metric={metric}
-                value={metric.value}
                 selected={state.selectedMetric?.id === metric.id}
                 onClick={() => handleMetricSelect(metric)}
                 testId={`metric-card-${metric.id}`}
