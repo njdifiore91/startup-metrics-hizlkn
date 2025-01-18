@@ -1,8 +1,8 @@
 import React, { useEffect, useCallback, useRef } from 'react';
-import classNames from 'classnames'; // ^2.3.2
-import { useSwipeable } from 'react-swipeable'; // ^7.0.0
+import classNames from 'classnames';
+import { useSwipeable } from 'react-swipeable';
 import { ToastType, ToastPosition } from '../../hooks/useToast';
-import animations from '../../styles/animations.css';
+import { animations } from '../../styles/animations.css';
 import ErrorBoundary from './ErrorBoundary';
 
 // Props interfaces
@@ -78,8 +78,8 @@ const Toast: React.FC<ToastProps> = React.memo(({
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => !rtl && onClose(id),
     onSwipedRight: () => rtl && onClose(id),
-    preventDefaultTouchmoveEvent: true,
-    trackMouse: true
+    trackMouse: true,
+    touchEventOptions: { passive: false }
   });
 
   // Compute toast classes
@@ -92,8 +92,8 @@ const Toast: React.FC<ToastProps> = React.memo(({
       'toast--light': theme === 'light',
       'toast--dark': theme === 'dark'
     },
-    animations['fade-in'],
-    animations['slide-in'],
+    animations.fadeIn,
+    animations.slideIn,
     className
   );
 
