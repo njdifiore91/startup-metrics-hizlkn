@@ -1,6 +1,7 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
+import { analytics } from '@segment/analytics-next';
 import Layout from '../components/layout/Layout';
 import Button from '../components/common/Button';
 
@@ -11,54 +12,63 @@ const NotFoundContainer = styled.div`
   align-items: center;
   justify-content: center;
   min-height: calc(100vh - 200px);
-  padding: ${({ theme }) => theme.spacing.xl};
+  padding: 2rem;
   text-align: center;
   background-color: var(--color-background);
   transition: all var(--transition-fast);
 
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    padding: ${({ theme }) => theme.spacing.lg};
+  @media (max-width: 768px) {
+    padding: 1.5rem;
   }
 `;
 
 const ErrorCode = styled.h1`
-  font-size: ${({ theme }) => theme.typography.h1};
+  font-size: 3rem;
   font-weight: var(--font-weight-bold);
   color: var(--color-primary);
-  margin-bottom: ${({ theme }) => theme.spacing.md};
+  margin-bottom: 1rem;
   font-family: var(--font-family-primary);
   animation: fadeIn 0.5s ease-in;
 
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: ${({ theme }) => theme.typography.h2};
+  @media (max-width: 768px) {
+    font-size: 2.5rem;
   }
 `;
 
 const ErrorMessage = styled.p`
-  font-size: ${({ theme }) => theme.typography.h3};
+  font-size: 1.5rem;
   color: var(--color-text);
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  margin-bottom: 2rem;
   font-family: var(--font-family-primary);
   max-width: 600px;
   line-height: 1.5;
 
-  @media (max-width: ${({ theme }) => theme.breakpoints.mobile}) {
-    font-size: ${({ theme }) => theme.typography.body1};
+  @media (max-width: 768px) {
+    font-size: 1.125rem;
   }
 `;
 
 /**
- * Enhanced 404 Not Found page component with accessibility features
+ * Enhanced 404 Not Found page component with analytics and accessibility features
  */
 const NotFound: React.FC = React.memo(() => {
   const navigate = useNavigate();
 
-  // Handle navigation
+  // Handle navigation with error tracking
   const handleBackToDashboard = useCallback(async () => {
     try {
+      analytics.track('404_recovery_attempt', {
+        action: 'navigate_to_dashboard',
+        timestamp: new Date().toISOString()
+      });
+
       navigate('/dashboard');
     } catch (error) {
       console.error('Navigation failed:', error);
+      analytics.track('404_recovery_failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      });
     }
   }, [navigate]);
 
