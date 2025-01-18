@@ -1,5 +1,6 @@
 import React from 'react';
 import * as Sentry from '@sentry/react';
+import { handleApiError } from '../../utils/errorHandlers';
 import { Card } from './Card';
 
 interface ErrorBoundaryProps {
@@ -47,13 +48,19 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Track error with Sentry
-    Sentry.withScope((scope: Sentry.Scope) => {
+    Sentry.withScope((scope) => {
       scope.setExtras({
         errorInfo,
         retryCount: this.state.retryCount,
         lastError: this.state.lastError
       });
       Sentry.captureException(error);
+    });
+
+    // Format error for consistent handling
+    const formattedError = handleApiError(error as any, {
+      showToast: false,
+      logError: true
     });
 
     // Update state with error details
