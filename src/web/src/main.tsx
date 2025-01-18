@@ -10,6 +10,7 @@ import App from './App';
 import { store } from './store';
 import { theme } from './config/theme';
 import { handleApiError } from './utils/errorHandlers';
+import { showToast, ToastType, ToastPosition } from './hooks/useToast';
 
 // Initialize performance monitoring
 const initializeMonitoring = () => {
@@ -27,12 +28,11 @@ const initializeMonitoring = () => {
     ],
   });
 
-  // Initialize Segment Analytics
-  const analytics = new Analytics();
-  analytics.load({
-    writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
+  // Initialize Segment Analytics with proper settings
+  const analytics = new Analytics({
+    writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
     trackApplicationLifecycle: true,
-    recordScreenViews: true,
+    recordScreenViews: true
   });
 };
 
@@ -86,6 +86,9 @@ const initializeApp = () => {
 
 // Cleanup function
 const cleanupApp = () => {
+  // Flush any pending analytics
+  Analytics.flush();
+
   // Clear any application caches
   store.dispatch({ type: 'RESET_STATE' });
 
@@ -98,6 +101,12 @@ const handleError = (error: Error) => {
   console.error('Application Error:', error);
   
   Sentry.captureException(error);
+  
+  showToast(
+    'An unexpected error occurred. Please try again.',
+    ToastType.ERROR,
+    ToastPosition.TOP_RIGHT
+  );
 };
 
 // Get root element
