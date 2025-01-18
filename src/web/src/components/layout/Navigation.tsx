@@ -27,7 +27,6 @@ import {
   ChevronRight
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
-import { analytics } from '@analytics/react';
 import { UI_CONSTANTS } from '../../config/constants';
 
 // Interfaces
@@ -77,13 +76,13 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.palette?.primary?.light || '#1e88e5'};
+    background: ${props => props.theme.palette?.primary?.light || '#42a5f5'};
     border-radius: 3px;
   }
 `;
 
 const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: ${props => props.theme.spacing(2)};
+  padding: ${props => props.theme.spacing?.(2) || '16px'};
   color: ${props => props.active ? props.theme.palette?.secondary?.main || '#f50057' : 'inherit'};
   
   &:hover {
@@ -164,13 +163,6 @@ export const Navigation: React.FC<NavigationProps> = ({
         throw new Error('Session expired');
       }
 
-      // Track navigation event
-      analytics.track('navigation_click', {
-        path,
-        itemId: item.id,
-        timestamp: new Date().toISOString()
-      });
-
       // Handle mobile menu
       if (isMobile) {
         setExpandedItems([]);
@@ -242,7 +234,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1 as any)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
