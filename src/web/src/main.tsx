@@ -10,7 +10,7 @@ import App from './App';
 import { store } from './store';
 import { theme } from './config/theme';
 import { handleApiError } from './utils/errorHandlers';
-import { showToast, ToastType, ToastPosition } from './hooks/useToast';
+import { useToast } from './hooks/useToast';
 
 // Initialize performance monitoring
 const initializeMonitoring = () => {
@@ -28,16 +28,17 @@ const initializeMonitoring = () => {
     ],
   });
 
-  // Initialize Segment Analytics with proper settings
-  const analytics = new Analytics({
-    writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
+  // Initialize Segment Analytics
+  const analytics = Analytics.init({
+    writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
     trackApplicationLifecycle: true,
-    recordScreenViews: true
+    recordScreenViews: true,
   });
 };
 
 // Error fallback component
 const ErrorFallback = ({ error }: { error: Error }) => {
+  const toast = useToast();
   const formattedError = handleApiError(error as any, {
     showToast: false,
     logError: true,
@@ -86,9 +87,6 @@ const initializeApp = () => {
 
 // Cleanup function
 const cleanupApp = () => {
-  // Flush any pending analytics
-  Analytics.flush();
-
   // Clear any application caches
   store.dispatch({ type: 'RESET_STATE' });
 
@@ -102,10 +100,11 @@ const handleError = (error: Error) => {
   
   Sentry.captureException(error);
   
-  showToast(
+  const toast = useToast();
+  toast.showToast(
     'An unexpected error occurred. Please try again.',
-    ToastType.ERROR,
-    ToastPosition.TOP_RIGHT
+    'error',
+    'top-right'
   );
 };
 
