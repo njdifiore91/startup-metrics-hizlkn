@@ -140,7 +140,7 @@ const createApiInstance = (): AxiosInstance => {
         });
       }
 
-      // Return AxiosResponse format
+      // Return AxiosResponse with enhanced metadata
       return {
         ...response,
         data: {
@@ -156,7 +156,7 @@ const createApiInstance = (): AxiosInstance => {
     },
     async (error: AxiosError) => {
       // Handle cache responses
-      if ((error as any).isCache) {
+      if (error.isCache) {
         return {
           status: 200,
           statusText: 'OK',
