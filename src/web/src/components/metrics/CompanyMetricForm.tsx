@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input } from '../common/Input';
+import { Input, InputProps } from '../common/Input';
 import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
 
@@ -83,7 +83,7 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
@@ -92,7 +92,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
   onCancel,
   isSubmitting
 }) => {
-  // Initialize form with react-hook-form
   const {
     register,
     handleSubmit,
@@ -107,10 +106,8 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
     }
   });
 
-  // Get company metrics operations
   const { createMetric, updateMetric } = useCompanyMetrics();
 
-  // Reset form when initialData changes
   useEffect(() => {
     if (initialData) {
       reset({
@@ -121,27 +118,42 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
     }
   }, [initialData, reset]);
 
-  // Form submission handler
   const onSubmit = useCallback(async (formData: FormValues) => {
     try {
       if (initialData) {
-        // Update existing metric
         await updateMetric(initialData.id, {
           value: formData.value,
           metadata: formData.metadata
         });
       } else {
-        // Create new metric
+        const now = new Date().toISOString();
         await createMetric({
           value: formData.value,
           metricId: formData.metricId,
-          metadata: formData.metadata,
-          timestamp: new Date().toISOString()
+          metadata: formData.metadata || {},
+          timestamp: now,
+          createdAt: now,
+          lastModified: now,
+          isActive: true,
+          userId: 'current-user', // This should be retrieved from auth context
+          metric: initialData?.metric || {
+            id: formData.metricId,
+            name: '',
+            description: '',
+            category: 'financial',
+            valueType: 'number',
+            validationRules: {},
+            isActive: true,
+            displayOrder: 0,
+            tags: [],
+            metadata: {},
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
         });
       }
       onSubmitSuccess();
     } catch (error: any) {
-      // Handle validation errors
       if (error.response?.data?.errors) {
         error.response.data.errors.forEach((err: any) => {
           setError(err.field as keyof FormValues, {
@@ -153,7 +165,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
     }
   }, [initialData, createMetric, updateMetric, onSubmitSuccess, setError]);
 
-  // Handle form cancellation
   const handleCancel = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     onCancel();
@@ -176,10 +187,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         type="number"
         {...register('value', {
           required: 'Value is required',
-          min: {
-            value: 0,
-            message: 'Value must be positive'
-          }
+          min: 0
         })}
         error={errors.value?.message}
         disabled={isSubmitting}
