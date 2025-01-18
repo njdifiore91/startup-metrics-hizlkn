@@ -27,6 +27,7 @@ import {
   ChevronRight
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
+import { analytics } from '@analytics/react';
 import { UI_CONSTANTS } from '../../config/constants';
 
 // Interfaces
@@ -155,13 +156,19 @@ export const Navigation: React.FC<NavigationProps> = ({
   });
 
   // Handle navigation item click
-  const handleNavClick = useCallback(async (path: string, item: NavItem) => {
+  const handleNavClick = useCallback(async (path: string) => {
     try {
       // Validate session before navigation
       const isSessionValid = await validateSession();
       if (!isSessionValid) {
         throw new Error('Session expired');
       }
+
+      // Track navigation event
+      analytics.track('navigation_click', {
+        path,
+        timestamp: new Date().toISOString()
+      });
 
       // Handle mobile menu
       if (isMobile) {
@@ -199,7 +206,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       <React.Fragment key={item.id}>
         <StyledListItem
           active={isActive}
-          onClick={() => item.children ? toggleExpand(item.id) : handleNavClick(item.path, item)}
+          onClick={() => item.children ? toggleExpand(item.id) : handleNavClick(item.path)}
           aria-label={item.ariaLabel}
           aria-expanded={item.children ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}
@@ -234,7 +241,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1 as number)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
