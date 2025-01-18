@@ -77,13 +77,13 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.palette?.primary?.light || '#42a5f5'};
+    background: ${props => props.theme.palette?.primary?.light || '#1e88e5'};
     border-radius: 3px;
   }
 `;
 
 const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: 16px;
+  padding: ${props => props.theme.spacing(2)};
   color: ${props => props.active ? props.theme.palette?.secondary?.main || '#f50057' : 'inherit'};
   
   &:hover {
@@ -242,7 +242,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1 as any)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
