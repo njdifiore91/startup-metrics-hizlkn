@@ -12,11 +12,13 @@ import analytics from '@segment/analytics-next';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, login, clearError } = useAuth();
+  const { isAuthenticated, error, clearError } = useAuth();
   const { focusWithin } = useInteractions();
 
   // Initialize analytics
-  const analyticsInstance = analytics.getInstance();
+  const analyticsInstance = analytics.load({
+    writeKey: process.env.VITE_SEGMENT_WRITE_KEY || ''
+  });
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
