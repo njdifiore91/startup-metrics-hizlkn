@@ -7,14 +7,15 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
-import Button, { ButtonProps } from '../common/Button';
+import Button from '../common/Button';
+import type { IUser } from '../../interfaces/IUser';
 
 /**
  * Props for the GoogleLoginButton component
  */
 export interface GoogleLoginButtonProps {
   className?: string;
-  onSuccess?: (response: { token: string; user: User }) => void;
+  onSuccess?: (response: { token: string; user: IUser }) => void;
   onError?: (error: { code: string; message: string }) => void;
   disabled?: boolean;
   testId?: string;
@@ -40,15 +41,20 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
       if (disabled || isLoading) return;
 
       try {
-        await login();
+        const response = await login();
+        if (onSuccess) {
+          onSuccess(response);
+        }
       } catch (error: any) {
-        onError?.({
-          code: error.code || 'AUTH_ERROR',
-          message: error.message || 'Authentication failed'
-        });
+        if (onError) {
+          onError({
+            code: error.code || 'AUTH_ERROR',
+            message: error.message || 'Authentication failed'
+          });
+        }
       }
     }, 300, { leading: true, trailing: false }),
-    [login, disabled, isLoading, onError]
+    [login, disabled, isLoading, onSuccess, onError]
   );
 
   // Clean up debounce on unmount
@@ -60,27 +66,25 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
 
   // Error effect handler
   useEffect(() => {
-    if (error) {
-      onError?.({
+    if (error && onError) {
+      onError({
         code: error.code,
         message: error.message
       });
     }
   }, [error, onError]);
 
-  // Button props configuration
-  const buttonProps: ButtonProps = {
-    type: 'button',
-    disabled: disabled || isLoading,
-    onClick: handleGoogleLogin,
-    className: `google-login-button ${className || ''}`,
-    ariaLabel: 'Sign in with Google',
-    role: 'button',
-    tabIndex: disabled ? -1 : 0
-  };
-
   return (
-    <Button {...buttonProps} ref={buttonRef}>
+    <Button
+      type="button"
+      disabled={disabled || isLoading}
+      onClick={handleGoogleLogin}
+      className={`google-login-button ${className || ''}`}
+      ariaLabel="Sign in with Google"
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      data-testid={testId}
+    >
       <div className="google-button-content">
         <GoogleIcon className="google-icon" />
         <span className="google-button-text">
