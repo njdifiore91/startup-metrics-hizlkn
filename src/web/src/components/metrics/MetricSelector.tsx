@@ -55,13 +55,11 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
     metrics,
     loading,
     error,
-    getMetricsByCategory,
-    validateMetricValue
+    getMetricsByCategory
   } = useMetrics();
 
   // Local state for filtered metrics
   const [filteredMetrics, setFilteredMetrics] = useState<IMetric[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
   // Transform metrics to select options with memoization
@@ -85,25 +83,25 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
 
   // Debounced search handler
   const handleSearch = useMemo(() => 
-    debounce((term: string) => {
-      const filtered = metrics.filter(metric => 
+    debounce((term: string, metricsData: IMetric[]) => {
+      const filtered = metricsData.filter(metric => 
         metric.category === category &&
         (metric.name.toLowerCase().includes(term.toLowerCase()) ||
          metric.description.toLowerCase().includes(term.toLowerCase()) ||
-         metric.tags.some(tag => tag.toLowerCase().includes(term.toLowerCase())))
+         metric.tags.some((tag: string) => tag.toLowerCase().includes(term.toLowerCase())))
       );
       setFilteredMetrics(filtered);
     }, 300),
-    [metrics, category]
+    [category]
   );
 
-  // Handle metric selection with type coercion
-  const handleMetricSelect = useCallback((value: string | number) => {
-    const selectedMetric = metrics.find(m => m.id === value.toString());
+  // Handle metric selection
+  const handleMetricSelect = useCallback((value: string) => {
+    const selectedMetric = filteredMetrics.find(m => m.id === value);
     if (selectedMetric) {
-      onMetricSelect(value.toString(), selectedMetric);
+      onMetricSelect(value, selectedMetric);
     }
-  }, [metrics, onMetricSelect]);
+  }, [filteredMetrics, onMetricSelect]);
 
   // Fetch metrics on category change
   useEffect(() => {
@@ -148,7 +146,7 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(({
         label="Select Metric"
         placeholder="Choose a metric..."
         disabled={disabled || loading[`category_${category}`]}
-        error={error[`category_${category}`] || undefined}
+        error={error[`category_${category}`]}
         loading={loading[`category_${category}`]}
         required
         className={className}
