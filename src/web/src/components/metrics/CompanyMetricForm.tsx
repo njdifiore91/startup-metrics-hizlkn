@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input, InputProps } from '../common/Input';
+import { Input } from '../common/Input';
 import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
 
@@ -83,7 +83,7 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
@@ -136,15 +136,32 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
           value: formData.value,
           metricId: formData.metricId,
           metadata: formData.metadata,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          lastModified: new Date().toISOString(),
+          isActive: true,
+          userId: 'current-user', // This should be retrieved from auth context
+          metric: {
+            id: formData.metricId,
+            name: '',
+            description: '',
+            category: 'financial',
+            valueType: 'number',
+            validationRules: {},
+            isActive: true,
+            displayOrder: 0,
+            tags: [],
+            metadata: {},
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
         });
       }
       onSubmitSuccess();
-    } catch (err) {
-      const error = err as { response?: { data?: { errors?: Array<{ field: string; message: string }> } } };
+    } catch (error) {
       // Handle validation errors
       if (error.response?.data?.errors) {
-        error.response.data.errors.forEach((err) => {
+        error.response.data.errors.forEach((err: any) => {
           setError(err.field as keyof FormValues, {
             type: 'manual',
             message: err.message
@@ -177,13 +194,17 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         type="number"
         {...register('value', {
           required: 'Value is required',
-          min: 0
+          min: {
+            value: 0,
+            message: 'Value must be positive'
+          }
         })}
         error={errors.value?.message}
         disabled={isSubmitting}
         aria-describedby={errors.value ? 'value-error' : undefined}
         inputMode="decimal"
         step={0.01}
+        min={0}
       />
 
       {!initialData && (
