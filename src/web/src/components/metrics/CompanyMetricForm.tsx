@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input } from '../common/Input';
+import { Input, InputProps } from '../common/Input';
 import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
 
@@ -83,7 +83,7 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
@@ -140,10 +140,11 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
         });
       }
       onSubmitSuccess();
-    } catch (error) {
+    } catch (err) {
+      const error = err as { response?: { data?: { errors?: Array<{ field: string; message: string }> } } };
       // Handle validation errors
       if (error.response?.data?.errors) {
-        error.response.data.errors.forEach((err: any) => {
+        error.response.data.errors.forEach((err) => {
           setError(err.field as keyof FormValues, {
             type: 'manual',
             message: err.message
