@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useRef } from 'react'; // v18.2.0
 import * as yup from 'yup'; // v1.0.0
 import sanitizeHtml from 'sanitize-html'; // v2.11.0
+import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 
 // Internal imports
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { useAppDispatch, useAppSelector } from '../store';
+import { RootState, AppDispatch } from '../store';
 import {
   selectAllMetrics,
-  selectLoading,
+  selectMetricById,
+  selectLoadingState,
   selectError,
   fetchCompanyMetrics,
   createCompanyMetric,
   updateCompanyMetric,
   deleteCompanyMetric as deleteMetric
 } from '../store/companyMetricsSlice';
+
+// Custom typed hooks
+export const useAppDispatch = () => useDispatch<AppDispatch>();
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
 
 // Validation schema for metric data
 const metricDataSchema = yup.object().shape({
@@ -32,7 +38,7 @@ export const useCompanyMetrics = () => {
 
   // Selectors
   const metrics = useAppSelector(selectAllMetrics);
-  const loading = useAppSelector((state) => selectLoading(state, 'fetchAll')?.isLoading || false);
+  const loading = useAppSelector(state => selectLoadingState(state, 'fetchAll')?.isLoading || false);
   const error = useAppSelector(selectError);
 
   // Cleanup function for request cancellation
