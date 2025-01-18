@@ -1,5 +1,5 @@
-import { ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
-import { chartColors } from '../config/chart';
+import { Chart, ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
+import { CHART_COLORS } from '../config/chart';
 import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
 import memoize from 'lodash/memoize';
 
@@ -43,7 +43,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
       enabled: true,
       mode: 'index',
       intersect: false,
-      backgroundColor: chartColors.primary,
+      backgroundColor: CHART_COLORS.primary,
       titleFont: {
         family: 'Inter',
         size: 14
@@ -100,8 +100,8 @@ export const prepareBenchmarkData = memoize((
   const datasets: IChartDataset[] = [{
     label: 'Benchmark Percentiles',
     data: percentiles.map(p => benchmarkData[p]),
-    backgroundColor: chartColors.secondary + '40',
-    borderColor: chartColors.secondary,
+    backgroundColor: CHART_COLORS.secondary + '40',
+    borderColor: CHART_COLORS.secondary,
     fill: true,
     'aria-label': `Benchmark percentiles for ${benchmarkData.metric.name}`,
     role: 'graphics-symbol'
@@ -120,34 +120,22 @@ export const prepareBenchmarkData = memoize((
 
 /**
  * Generates enhanced chart options with accessibility features
- * @param chartType - Type of chart to configure
  * @param customOptions - Additional chart options
  * @param accessibilityConfig - Accessibility-specific configuration
  * @returns Enhanced Chart.js configuration
  */
 export const generateChartOptions = (
-  chartType: ChartType,
   customOptions: Partial<ChartOptions> = {},
   accessibilityConfig: { announceOnRender?: boolean; description?: string } = {}
 ): ChartOptions => {
   const baseOptions: ChartOptions = {
     ...DEFAULT_CHART_OPTIONS,
-    plugins: {
-      ...DEFAULT_CHART_OPTIONS.plugins,
-      accessibility: {
-        enabled: true,
-        announceOnRender: accessibilityConfig.announceOnRender ?? true,
-        description: accessibilityConfig.description
-      }
-    },
     scales: {
       y: {
         beginAtZero: true,
         grid: {
-          color: chartColors.secondary + '20',
-          border: {
-            display: false
-          }
+          color: CHART_COLORS.secondary + '20',
+          drawBorder: false
         },
         ticks: {
           font: {
@@ -203,7 +191,7 @@ export const formatMetricValue = (
     metricType === 'percentage' ? value / 100 : value
   );
 
-  if (metricType === 'percentage' && !options.style && 'suffix' in formatter) {
+  if (metricType === 'percentage' && !options.style) {
     formattedValue = `${formattedValue}${formatter.suffix}`;
   }
 
