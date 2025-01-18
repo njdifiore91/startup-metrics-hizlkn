@@ -7,8 +7,8 @@ import Select from '../common/Select';
 import { MetricCategory } from '../../interfaces/IMetric';
 import { 
   fetchMetricsByCategory, 
-  selectMetricError, 
-  selectMetricLoading 
+  selectMetricsError, 
+  selectMetricsLoading 
 } from '../../store/metricsSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
 
@@ -39,10 +39,10 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
   initialCategory,
   disabled = false
 }) => {
-  // Redux hooks
-  const dispatch = useDispatch();
-  const isLoading = useSelector(selectMetricLoading);
-  const error = useSelector(selectMetricError);
+  // Redux hooks with proper typing
+  const dispatch = useDispatch<any>();
+  const isLoading = useSelector(selectMetricsLoading);
+  const error = useSelector(selectMetricsError);
 
   // Debounce category changes to prevent rapid API calls
   const [debouncedChange] = useDebounce(onCategoryChange, 300);
@@ -76,107 +76,58 @@ const MetricFilter: React.FC<MetricFilterProps> = React.memo(({
 
   return (
     <ErrorBoundary>
-      <div 
-        className={containerClasses}
-        role="region"
-        aria-label="Metric category filter"
-      >
-        <label 
-          htmlFor="metric-category"
-          className={styles['filter-label']}
+      <React.Fragment>
+        <div 
+          className={containerClasses}
+          role="region"
+          aria-label="Metric category filter"
         >
-          Filter by Category
-        </label>
-
-        <Select
-          id="metric-category"
-          name="metric-category"
-          options={categoryOptions}
-          value={initialCategory || ''}
-          onChange={handleCategoryChange}
-          disabled={disabled || isLoading}
-          error={error?.fetchMetricsByCategory || undefined}
-          loading={isLoading}
-          placeholder="Select a category"
-          required
-          aria-describedby={error ? 'metric-filter-error' : undefined}
-          data-testid="metric-category-select"
-        />
-
-        {error && (
-          <div 
-            id="metric-filter-error"
-            className={styles['filter-error']}
-            role="alert"
+          <label 
+            htmlFor="metric-category"
+            className={styles['filter-label']}
           >
-            {error.fetchMetricsByCategory}
-          </div>
-        )}
+            Filter by Category
+          </label>
 
-        {/* Screen reader announcements for state changes */}
-        <div aria-live="polite" className="sr-only">
-          {isLoading && 'Loading metric categories...'}
-          {error && `Error: ${error.fetchMetricsByCategory}`}
+          <Select
+            id="metric-category"
+            name="metric-category"
+            options={categoryOptions}
+            value={initialCategory || ''}
+            onChange={handleCategoryChange}
+            disabled={Boolean(disabled || isLoading)}
+            error={error?.message}
+            loading={Boolean(isLoading)}
+            placeholder="Select a category"
+            required
+            aria-describedby={error ? 'metric-filter-error' : undefined}
+            data-testid="metric-category-select"
+          />
+
+          {error && (
+            <div 
+              id="metric-filter-error"
+              className={styles['filter-error']}
+              role="alert"
+            >
+              {error.message}
+            </div>
+          )}
+
+          {/* Screen reader announcements for state changes */}
+          <div aria-live="polite" className="sr-only">
+            <React.Fragment>
+              {isLoading && 'Loading metric categories...'}
+              {error && `Error: ${error.message}`}
+            </React.Fragment>
+          </div>
         </div>
-      </div>
+      </React.Fragment>
     </ErrorBoundary>
   );
 });
 
 // Display name for debugging
 MetricFilter.displayName = 'MetricFilter';
-
-// CSS Module
-const cssModule = `
-.filter-container {
-  margin: var(--spacing-md) 0;
-  width: 100%;
-  max-width: 300px;
-  position: relative;
-}
-
-.filter-label {
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  margin-bottom: var(--spacing-xs);
-  font-weight: var(--font-weight-medium);
-}
-
-.filter-loading {
-  opacity: 0.7;
-  pointer-events: none;
-}
-
-.filter-error {
-  color: var(--color-error);
-  font-size: var(--font-size-sm);
-  margin-top: var(--spacing-xs);
-}
-
-/* Screen reader only class */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .filter-container {
-    transition: none;
-  }
-}
-
-@media (max-width: var(--breakpoint-mobile)) {
-  .filter-container {
-    max-width: 100%;
-  }
-}
-`;
 
 export default MetricFilter;
