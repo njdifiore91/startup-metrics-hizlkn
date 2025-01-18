@@ -1,21 +1,30 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useAnnounce } from '@react-aria/i18n'; // v3.0.0
+import { useAria } from '@react-aria/i18n'; // v3.0.0
 import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
-import { useProgress } from '@progress/hooks'; // v1.0.0
 
 // Internal imports
 import ReportGenerator from '../components/reports/ReportGenerator';
 import ExportButton from '../components/reports/ExportButton';
-import useMetrics from '../hooks/useMetrics';
-import useBenchmarks from '../hooks/useBenchmarks';
+import { useMetrics } from '../hooks/useMetrics';
+import { useBenchmarks } from '../hooks/useBenchmarks';
 import { showToast } from '../hooks/useToast';
 
 // Types and interfaces
 import { IMetric } from '../interfaces/IMetric';
+import { IBenchmark } from '../interfaces/IBenchmark';
 import { ExportFormat } from '../services/export';
 
 // Constants
 const MAX_METRICS_PER_REPORT = 10;
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000,
+  maxDelay: 5000
+};
+const CACHE_CONFIG = {
+  ttl: 300000, // 5 minutes
+  maxSize: 100
+};
 
 // Interface for component state
 interface ReportPageState {
@@ -41,10 +50,9 @@ const Reports: React.FC = () => {
   });
 
   // Custom hooks
-  const { getMetricsByCategory } = useMetrics();
-  const { benchmarks, fetchBenchmarkData } = useBenchmarks();
-  const announce = useAnnounce();
-  const { startProgress, updateProgress, completeProgress } = useProgress();
+  const { getMetricsByCategory, validateMetricValue } = useMetrics();
+  const { benchmarks, fetchBenchmarkData, compareBenchmark } = useBenchmarks();
+  const { announce } = useAria();
 
   // Refs for cleanup and abort control
   const abortController = useRef<AbortController>();
@@ -55,7 +63,7 @@ const Reports: React.FC = () => {
     const initializeReports = async () => {
       try {
         setState(prev => ({ ...prev, loadingStates: { ...prev.loadingStates, init: true } }));
-        const metrics = await getMetricsByCategory('financial');
+        await getMetricsByCategory('financial');
         setState(prev => ({ 
           ...prev, 
           loadingStates: { ...prev.loadingStates, init: false }
@@ -99,7 +107,7 @@ const Reports: React.FC = () => {
       // Fetch benchmark data for selected metrics
       await Promise.all(
         metrics.map(metric => 
-          fetchBenchmarkData(metric.id, state.selectedRevenueRange as "0-1M" | "1M-5M" | "5M-20M" | "20M-50M" | "50M+" | undefined)
+          fetchBenchmarkData(metric.id, state.selectedRevenueRange)
         )
       );
 
@@ -118,6 +126,72 @@ const Reports: React.FC = () => {
   }, [state.selectedRevenueRange, fetchBenchmarkData, announce]);
 
   // Export handler
+  const handleExportStart = useCallback(async (format: ExportFormat) => {
+    if (!state.selectedMetrics.length || !benchmarks.length) {
+      handleError(new Error('Please select metrics and ensure benchmark data is available'));
+      return;
+    }
+
+    try {
+      // Initialize progress tracking
+      setState(prev => ({
+        ...prev,
+        exportFormat: format,
+        exportProgress: 0,
+        loadingStates: { ...prev.loadingStates, export: true }
+      }));
+
+      abortController.current = new AbortController();
+
+      // Track progress
+      progressTimer.current = setInterval(() => {
+        setState(prev => ({
+          ...prev,
+          exportProgress: Math.min(prev.exportProgress + 10, 90)
+        }));
+      }, 500);
+
+      announce('Starting report export', 'polite');
+
+      // Generate report
+      const reportData = {
+        metrics: state.selectedMetrics,
+        benchmarks,
+        revenueRange: state.selectedRevenueRange,
+        format
+      };
+
+      await ReportGenerator.generateReport(reportData, {
+        onProgress: (progress: number) => {
+          setState(prev => ({ ...prev, exportProgress: progress }));
+          announce(`Export progress: ${progress}%`, 'polite');
+        },
+        signal: abortController.current.signal
+      });
+
+      // Cleanup and complete
+      if (progressTimer.current) {
+        clearInterval(progressTimer.current);
+      }
+      setState(prev => ({
+        ...prev,
+        exportProgress: 100,
+        loadingStates: { ...prev.loadingStates, export: false }
+      }));
+
+      announce('Report export completed successfully', 'polite');
+      showToast('Report exported successfully', 'success', 'top-right');
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        announce('Export cancelled', 'polite');
+        return;
+      }
+      handleError(error);
+    }
+  }, [state.selectedMetrics, benchmarks, state.selectedRevenueRange, announce]);
+
+  // Cancel export handler
   const handleExportCancel = useCallback(() => {
     abortController.current?.abort();
     if (progressTimer.current) {
@@ -132,7 +206,7 @@ const Reports: React.FC = () => {
 
   return (
     <ErrorBoundary
-      FallbackComponent={({ error }) => (
+      fallback={({ error }) => (
         <div role="alert" className="error-container">
           <h2>Error Loading Reports</h2>
           <p>{error.message}</p>
@@ -153,7 +227,7 @@ const Reports: React.FC = () => {
             benchmarks={benchmarks}
             revenueRange={state.selectedRevenueRange}
             onMetricSelect={handleMetricSelection}
-            onRevenueRangeChange={(range) => 
+            onRevenueRangeChange={(range: string) => 
               setState(prev => ({ ...prev, selectedRevenueRange: range }))
             }
             disabled={state.loadingStates.export}
