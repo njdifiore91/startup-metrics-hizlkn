@@ -142,12 +142,12 @@ export const Input = React.memo(({
     }
   }, [fieldError]);
 
-  const registerProps = formContext ? { ...formContext.register(name, { required }) } : {};
+  // Handle form registration if form context exists
+  const registerProps = formContext ? formContext.register(name, { required }) : {};
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange?.(e);
-    if (formContext) {
-      registerProps?.onChange?.(e);
+    if (onChange) {
+      onChange(e);
     }
   };
 
