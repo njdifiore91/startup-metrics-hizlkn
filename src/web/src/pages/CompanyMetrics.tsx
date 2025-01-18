@@ -3,8 +3,9 @@ import styled from '@emotion/styled';
 
 // Internal imports
 import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import MetricComparison from '../components/metrics/MetricComparison';
-import ErrorBoundary from '../components/common/ErrorBoundary';
+import { MetricComparison } from '../components/metrics/MetricComparison';
+import { useCompanyMetrics } from '../store/companyMetricsSlice';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { ToastType, useToast } from '../hooks/useToast';
@@ -67,12 +68,12 @@ const CompanyMetrics: React.FC = () => {
   } = useCompanyMetrics();
 
   // Local state
-  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch metrics on mount
   useEffect(() => {
-    fetchMetrics().catch(() => {
+    fetchMetrics().catch((error) => {
       showToast('Failed to load metrics', ToastType.ERROR);
     });
   }, [fetchMetrics, showToast]);
@@ -97,12 +98,10 @@ const CompanyMetrics: React.FC = () => {
         await createMetric(metricData);
         showToast('Metric created successfully', ToastType.SUCCESS);
       }
-      setSelectedMetric(null);
+      setSelectedMetric(undefined);
     } catch (error) {
-      showToast(
-        error.message || 'Failed to save metric',
-        ToastType.ERROR
-      );
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save metric';
+      showToast(errorMessage, ToastType.ERROR);
     } finally {
       setIsSubmitting(false);
     }
@@ -119,7 +118,7 @@ const CompanyMetrics: React.FC = () => {
    * Handles form cancellation
    */
   const handleCancel = useCallback(() => {
-    setSelectedMetric(null);
+    setSelectedMetric(undefined);
   }, []);
 
   /**
@@ -148,7 +147,7 @@ const CompanyMetrics: React.FC = () => {
             <Card elevation="medium">
               <CompanyMetricForm
                 initialData={selectedMetric}
-                onSubmitSuccess={handleMetricSubmit}
+                onSubmitSuccess={() => handleMetricSubmit(selectedMetric!)}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}
               />
@@ -211,7 +210,7 @@ const CompanyMetrics: React.FC = () => {
             className="error-message"
             aria-live="polite"
           >
-            <span>{error.toString()}</span>
+            {error}
           </div>
         )}
       </StyledPage>
