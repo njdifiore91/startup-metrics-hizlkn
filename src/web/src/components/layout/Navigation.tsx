@@ -83,7 +83,7 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
 `;
 
 const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: ${props => props.theme.spacing?.(2) || '16px'};
+  padding: 16px;
   color: ${props => props.active ? props.theme.palette?.secondary?.main || '#f50057' : 'inherit'};
   
   &:hover {
@@ -242,7 +242,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1 as any)}>
+        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
           {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
         </div>
       )}
