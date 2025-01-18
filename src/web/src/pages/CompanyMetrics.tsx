@@ -3,9 +3,9 @@ import styled from '@emotion/styled';
 
 // Internal imports
 import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import MetricComparison from '../components/metrics/MetricComparison';
-import { fetchCompanyMetrics, createCompanyMetric, updateCompanyMetric } from '../store/companyMetricsSlice';
-import ErrorBoundary from '../components/common/ErrorBoundary';
+import { MetricComparison } from '../components/metrics/MetricComparison';
+import { useCompanyMetrics } from '../hooks/useCompanyMetrics';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { ToastType, useToast } from '../hooks/useToast';
@@ -58,31 +58,25 @@ const StyledLoadingOverlay = styled.div`
 const CompanyMetrics: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
-  const [metrics, setMetrics] = useState<ICompanyMetric[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    metrics,
+    loading,
+    error,
+    fetchMetrics,
+    createMetric,
+    updateMetric
+  } = useCompanyMetrics();
 
   // Local state
-  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | undefined>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch metrics on mount
   useEffect(() => {
-    const loadMetrics = async () => {
-      try {
-        setLoading(true);
-        const response = await fetchCompanyMetrics();
-        setMetrics(response.payload);
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load metrics';
-        showToast(errorMessage, ToastType.ERROR);
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadMetrics();
-  }, [showToast]);
+    fetchMetrics().catch((error) => {
+      showToast('Failed to load metrics', ToastType.ERROR);
+    });
+  }, [fetchMetrics, showToast]);
 
   // Memoized sorted metrics
   const sortedMetrics = useMemo(() => {
@@ -94,24 +88,26 @@ const CompanyMetrics: React.FC = () => {
   /**
    * Handles metric submission with enhanced validation and error handling
    */
-  const handleMetricSubmit = useCallback(async (metricData: ICompanyMetric) => {
+  const handleMetricSubmit = useCallback(() => {
     setIsSubmitting(true);
     try {
       if (selectedMetric) {
-        await updateCompanyMetric({ id: selectedMetric.id, data: metricData });
+        updateMetric(selectedMetric.id, selectedMetric);
         showToast('Metric updated successfully', ToastType.SUCCESS);
       } else {
-        await createCompanyMetric(metricData);
+        createMetric(selectedMetric as ICompanyMetric);
         showToast('Metric created successfully', ToastType.SUCCESS);
       }
-      setSelectedMetric(null);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save metric';
-      showToast(errorMessage, ToastType.ERROR);
+      setSelectedMetric(undefined);
+    } catch (error: any) {
+      showToast(
+        error.message || 'Failed to save metric',
+        ToastType.ERROR
+      );
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedMetric, showToast]);
+  }, [selectedMetric, createMetric, updateMetric, showToast]);
 
   /**
    * Handles metric selection for editing
@@ -124,7 +120,7 @@ const CompanyMetrics: React.FC = () => {
    * Handles form cancellation
    */
   const handleCancel = useCallback(() => {
-    setSelectedMetric(null);
+    setSelectedMetric(undefined);
   }, []);
 
   /**
