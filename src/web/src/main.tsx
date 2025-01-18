@@ -29,13 +29,11 @@ const initializeMonitoring = () => {
   });
 
   // Initialize Segment Analytics
-  const analytics = Analytics.init({
+  const analytics = new Analytics({
     writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
     trackApplicationLifecycle: true,
     recordScreenViews: true,
   });
-
-  return analytics;
 };
 
 // Error fallback component
@@ -88,9 +86,6 @@ const initializeApp = () => {
 
 // Cleanup function
 const cleanupApp = () => {
-  // Flush any pending analytics
-  Analytics.flush();
-
   // Clear any application caches
   store.dispatch({ type: 'RESET_STATE' });
 
