@@ -7,8 +7,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
-import { analytics } from '@analytics/react';
-import Layout from '../components/layout/Layout';
+import { Layout } from '../components/layout/Layout';
 import { UserSettings } from '../components/user/UserSettings';
 import { useAuth } from '../hooks/useAuth';
 
@@ -51,15 +50,6 @@ const Settings: React.FC = React.memo(() => {
   const [error, setError] = useState<string | null>(null);
   const [isSessionValid, setIsSessionValid] = useState(true);
 
-  // Track page view
-  useEffect(() => {
-    analytics.track('page_view', {
-      page: 'settings',
-      userId: user?.id,
-      timestamp: new Date().toISOString()
-    });
-  }, [user]);
-
   // Validate session on mount and periodically
   useEffect(() => {
     const checkSession = async () => {
@@ -80,16 +70,6 @@ const Settings: React.FC = React.memo(() => {
 
     return () => clearInterval(interval);
   }, [validateSession, t]);
-
-  // Handle settings errors
-  const handleError = useCallback((error: Error) => {
-    setError(error.message);
-    analytics.track('settings_error', {
-      error: error.message,
-      userId: user?.id,
-      timestamp: new Date().toISOString()
-    });
-  }, [user]);
 
   // Redirect to login if session is invalid
   if (!isSessionValid) {
@@ -150,7 +130,6 @@ const Settings: React.FC = React.memo(() => {
         {/* Settings Content */}
         <UserSettings 
           className="settings-content"
-          onError={handleError}
         />
       </div>
     </Layout>
