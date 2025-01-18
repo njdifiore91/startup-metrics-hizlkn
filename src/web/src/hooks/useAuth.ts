@@ -38,6 +38,7 @@ interface UseAuthReturn {
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   validateSession: () => Promise<boolean>;
+  updateUserSettings: (settings: Partial<IUser>) => Promise<void>;
 }
 
 /**
@@ -172,6 +173,25 @@ export const useAuth = (): UseAuthReturn => {
     }
   }, [dispatch, authService]);
 
+  /**
+   * Updates user settings and preferences
+   */
+  const updateUserSettings = useCallback(async (settings: Partial<IUser>): Promise<void> => {
+    try {
+      dispatch(authActions.setLoading(true));
+      const updatedUser = await authService.updateUserSettings(settings);
+      dispatch(authActions.setUser(updatedUser));
+    } catch (error: any) {
+      dispatch(authActions.setError({
+        code: 'UPDATE_SETTINGS_ERROR',
+        message: error.message || 'Failed to update user settings',
+        details: error.details || {}
+      }));
+    } finally {
+      dispatch(authActions.setLoading(false));
+    }
+  }, [dispatch, authService]);
+
   // Set up automatic token refresh
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -218,6 +238,7 @@ export const useAuth = (): UseAuthReturn => {
     login,
     logout,
     refreshToken,
-    validateSession
+    validateSession,
+    updateUserSettings
   };
 };
