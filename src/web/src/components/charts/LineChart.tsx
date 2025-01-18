@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@5.0.0
-import { Chart as ChartJS, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
-import { CHART_COLORS } from '../../config/chart';
+import { Chart as ChartJS, ChartOptions, ScaleOptions } from 'chart.js/auto'; // chart.js@4.0.0
+import { chartColors } from '../../config/chart';
 import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers';
 
 // Default chart height in pixels
@@ -42,7 +42,7 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
   onError
 }) => {
   // Chart instance reference for cleanup
-  const chartRef = useRef<ChartJS | null>(null);
+  const chartRef = useRef<ChartJS<'line'>>(null);
 
   // Memoized chart data preparation
   const getChartData = useCallback(() => {
@@ -52,11 +52,11 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
         label: ariaLabel || 'Metric trend',
         data: data.map(point => point.y),
         fill: false,
-        borderColor: CHART_COLORS.primary,
-        backgroundColor: CHART_COLORS.background,
+        borderColor: chartColors.primary,
+        backgroundColor: chartColors.background,
         borderWidth: 2,
-        pointBackgroundColor: CHART_COLORS.accent,
-        pointHoverBackgroundColor: CHART_COLORS.secondary,
+        pointBackgroundColor: chartColors.accent,
+        pointHoverBackgroundColor: chartColors.secondary,
         pointHoverRadius: 6,
         pointHitRadius: 8,
         tension: 0.4,
@@ -68,43 +68,42 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
 
   // Memoized chart options with accessibility enhancements
   const getEnhancedOptions = useCallback(() => {
-    const baseOptions = generateChartOptions('line', {
+    const baseOptions = generateChartOptions({
       ...options,
-      plugins: {
-        ...options.plugins,
-        tooltip: {
-          ...options.plugins?.tooltip,
-          callbacks: {
-            label: (context: any) => {
-              const value = context.raw as number;
-              return formatMetricValue(value, metricType, { style: 'decimal' });
-            }
-          }
-        }
-      }
+      announceOnRender: true,
+      description: ariaLabel
     });
 
-    return {
+    const enhancedOptions: ChartOptions<'line'> = {
       ...baseOptions,
       layout: {
         ...baseOptions.layout,
-        rtl: isRTL,
+        padding: baseOptions.layout?.padding
+      },
+      plugins: {
+        ...baseOptions.plugins,
+        tooltip: {
+          ...baseOptions.plugins?.tooltip,
+          callbacks: {
+            label: (context: any) => {
+              const value = context.raw as number;
+              return formatMetricValue(value, metricType, { locale });
+            }
+          }
+        }
       },
       scales: {
-        ...baseOptions.scales,
         y: {
-          ...baseOptions.scales?.y,
-          position: isRTL ? 'right' : 'left',
+          position: isRTL ? 'right' as const : 'left' as const,
           ticks: {
-            ...baseOptions.scales?.y?.ticks,
-            callback: function(value: number) {
-              return formatMetricValue(value, metricType, { style: 'decimal' });
-            }
+            callback: (value: number) => formatMetricValue(value, metricType, { locale })
           }
         }
       }
     };
-  }, [options, isRTL, metricType]);
+
+    return enhancedOptions;
+  }, [options, ariaLabel, isRTL, metricType, locale]);
 
   // Cleanup chart instance on unmount
   useEffect(() => {
