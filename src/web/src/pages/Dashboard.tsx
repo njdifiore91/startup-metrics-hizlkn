@@ -6,7 +6,7 @@ import { useMetrics } from '../hooks/useMetrics';
 import { useBenchmarks } from '../hooks/useBenchmarks';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
-import { analytics } from '@segment/analytics-next';
+import { Analytics } from '@segment/analytics-next';
 import { METRIC_TYPES, REVENUE_RANGES } from '../config/constants';
 
 // Styled Components
@@ -72,22 +72,22 @@ const Dashboard: React.FC = () => {
   // Custom Hooks
   const { 
     metrics, 
+    loading: metricsLoading, 
     error: metricsError,
     getMetricsByCategory 
   } = useMetrics();
 
   const {
-    benchmarks,
+    loading: benchmarksLoading,
     error: benchmarksError,
-    fetchBenchmarkData,
-    compareBenchmark
+    fetchBenchmarkData
   } = useBenchmarks({
     revenueRange: state.revenueRange
   });
 
   // Memoized filtered metrics
   const filteredMetrics = useMemo(() => {
-    return metrics.filter(metric => metric.category === state.selectedCategory);
+    return (metrics as IMetric[]).filter((metric: IMetric) => metric.category === state.selectedCategory);
   }, [metrics, state.selectedCategory]);
 
   // Handlers
@@ -107,6 +107,7 @@ const Dashboard: React.FC = () => {
         lastUpdated: { ...prev.lastUpdated, [metric.id]: Date.now() }
       }));
 
+      const analytics = new Analytics();
       analytics.track('Metric Selected', {
         metricId: metric.id,
         category: metric.category,
@@ -141,6 +142,7 @@ const Dashboard: React.FC = () => {
         selectedMetric: null
       }));
 
+      const analytics = new Analytics();
       analytics.track('Category Changed', {
         category,
         revenueRange: state.revenueRange
@@ -179,6 +181,7 @@ const Dashboard: React.FC = () => {
     const startTime = performance.now();
     return () => {
       const duration = performance.now() - startTime;
+      const analytics = new Analytics();
       analytics.track('Dashboard Performance', {
         loadTime: duration,
         metricsCount: filteredMetrics.length
@@ -215,10 +218,11 @@ const Dashboard: React.FC = () => {
           </FilterSection>
 
           <MetricsGrid role="grid" aria-label="Metrics grid">
-            {filteredMetrics.map(metric => (
+            {filteredMetrics.map((metric: IMetric) => (
               <MetricCard
                 key={metric.id}
                 metric={metric}
+                value={metric.value || 0}
                 selected={state.selectedMetric?.id === metric.id}
                 onClick={() => handleMetricSelect(metric)}
                 testId={`metric-card-${metric.id}`}
@@ -234,7 +238,7 @@ const Dashboard: React.FC = () => {
 
           {(metricsError || benchmarksError) && (
             <div role="alert" className="error-container">
-              <span>{metricsError || benchmarksError}</span>
+              {metricsError?.toString() || benchmarksError?.toString()}
             </div>
           )}
         </DashboardContainer>
