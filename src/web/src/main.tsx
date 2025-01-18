@@ -9,8 +9,7 @@ import { Analytics } from '@segment/analytics-next';
 import App from './App';
 import { store } from './store';
 import { theme } from './config/theme';
-import { formatErrorMessage } from './utils/errorHandlers';
-import { showToast, ToastType, ToastPosition } from './hooks/useToast';
+import { handleApiError } from './utils/errorHandlers';
 
 // Initialize performance monitoring
 const initializeMonitoring = () => {
@@ -29,7 +28,8 @@ const initializeMonitoring = () => {
   });
 
   // Initialize Segment Analytics
-  Analytics.init({
+  const analytics = new Analytics();
+  analytics.load({
     writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
     trackApplicationLifecycle: true,
     recordScreenViews: true,
@@ -38,7 +38,10 @@ const initializeMonitoring = () => {
 
 // Error fallback component
 const ErrorFallback = ({ error }: { error: Error }) => {
-  const formattedError = formatErrorMessage(error);
+  const formattedError = handleApiError(error as any, {
+    showToast: false,
+    logError: true,
+  });
 
   return (
     <div role="alert" aria-live="assertive" style={{
@@ -49,7 +52,7 @@ const ErrorFallback = ({ error }: { error: Error }) => {
       backgroundColor: 'var(--color-background)',
     }}>
       <h2 style={{ color: 'var(--color-error)' }}>Application Error</h2>
-      <pre style={{ margin: 'var(--spacing-md) 0' }}>{formattedError}</pre>
+      <pre style={{ margin: 'var(--spacing-md) 0' }}>{formattedError.message}</pre>
       <button
         onClick={() => window.location.reload()}
         style={{
@@ -83,14 +86,18 @@ const initializeApp = () => {
 
 // Cleanup function
 const cleanupApp = () => {
-  // Flush any pending analytics
-  Analytics.flush();
-
   // Clear any application caches
   store.dispatch({ type: 'RESET_STATE' });
 
   // Remove event listeners
   window.removeEventListener('unload', cleanupApp);
+};
+
+// Error handler
+const handleError = (error: Error) => {
+  console.error('Application Error:', error);
+  
+  Sentry.captureException(error);
 };
 
 // Get root element
@@ -108,6 +115,7 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
+      onError={handleError}
       onReset={() => window.location.reload()}
     >
       <Provider store={store}>
