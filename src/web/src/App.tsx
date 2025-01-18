@@ -8,7 +8,6 @@ import React, { Suspense, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
-// @ts-ignore
 import { Analytics } from '@analytics/google-analytics';
 
 // Components
@@ -32,13 +31,6 @@ const ROUTES = {
   COMPANY_METRICS: '/company-metrics',
   REPORTS: '/reports',
   SETTINGS: '/settings'
-} as const;
-
-// Error messages
-const ERROR_MESSAGES = {
-  ROUTE_ERROR: 'An error occurred while loading this page',
-  AUTH_ERROR: 'Authentication failed',
-  NETWORK_ERROR: 'Network connection lost'
 } as const;
 
 // Analytics configuration
@@ -117,71 +109,69 @@ const App: React.FC = () => {
       onError={handleError}
       onReset={() => window.location.reload()}
     >
-      <Provider store={store}>
-        <BrowserRouter>
-          <RouteTracker />
-          <Layout>
-            <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                {/* Public Routes */}
-                <Route path={ROUTES.LOGIN} element={<Login />} />
+      <BrowserRouter>
+        <RouteTracker />
+        <Layout>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path={ROUTES.LOGIN} element={<Login />} />
 
-                {/* Protected Routes */}
-                <Route
-                  path={ROUTES.DASHBOARD}
-                  element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.BENCHMARKS}
-                  element={
-                    <ProtectedRoute>
-                      <Benchmarks />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.COMPANY_METRICS}
-                  element={
-                    <ProtectedRoute>
-                      <CompanyMetrics />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.REPORTS}
-                  element={
-                    <ProtectedRoute>
-                      <Reports />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.SETTINGS}
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <Settings />
-                    </ProtectedRoute>
-                  }
-                />
+              {/* Protected Routes */}
+              <Route
+                path={ROUTES.DASHBOARD}
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.BENCHMARKS}
+                element={
+                  <ProtectedRoute>
+                    <Benchmarks />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.COMPANY_METRICS}
+                element={
+                  <ProtectedRoute>
+                    <CompanyMetrics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.REPORTS}
+                element={
+                  <ProtectedRoute>
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path={ROUTES.SETTINGS}
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Settings />
+                  </ProtectedRoute>
+                }
+              />
 
-                {/* Redirects */}
-                <Route
-                  path="/"
-                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
-                />
-                <Route
-                  path="*"
-                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
-                />
-              </Routes>
-            </Suspense>
-          </Layout>
-        </BrowserRouter>
-      </Provider>
+              {/* Redirects */}
+              <Route
+                path="/"
+                element={<Navigate to={ROUTES.DASHBOARD} replace />}
+              />
+              <Route
+                path="*"
+                element={<Navigate to={ROUTES.DASHBOARD} replace />}
+              />
+            </Routes>
+          </Suspense>
+        </Layout>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 };
