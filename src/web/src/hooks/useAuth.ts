@@ -141,9 +141,8 @@ export const useAuth = (): UseAuthReturn => {
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
       dispatch(authActions.setLoading(true));
-      const newToken = await authService.refreshAuthToken();
+      await authService.refreshAuthToken();
       dispatch(authActions.refreshTokens());
-      // Don't return the token, just update the state
     } catch (error: any) {
       dispatch(authActions.setError({
         code: 'TOKEN_REFRESH_ERROR',
