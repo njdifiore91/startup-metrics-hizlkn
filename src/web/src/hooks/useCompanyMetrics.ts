@@ -7,12 +7,14 @@ import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   selectAllMetrics,
-  selectLoading,
+  selectMetricById,
+  selectLoadingState,
   selectError,
   fetchCompanyMetrics,
+  fetchCompanyMetricById,
   createCompanyMetric,
   updateCompanyMetric,
-  deleteMetric
+  deleteCompanyMetric
 } from '../store/companyMetricsSlice';
 
 // Validation schema for metric data
@@ -32,7 +34,7 @@ export const useCompanyMetrics = () => {
 
   // Selectors
   const metrics = useAppSelector(selectAllMetrics);
-  const loading = useAppSelector((state) => selectLoading(state, 'fetchAll')?.isLoading || false);
+  const loading = useAppSelector((state) => selectLoadingState(state, 'fetchAll')?.isLoading || false);
   const error = useAppSelector(selectError);
 
   // Cleanup function for request cancellation
@@ -58,6 +60,27 @@ export const useCompanyMetrics = () => {
       await dispatch(fetchCompanyMetrics()).unwrap();
     } catch (error) {
       console.error('Error fetching metrics:', error);
+    }
+  }, [dispatch]);
+
+  /**
+   * Fetches a specific company metric by ID with validation
+   */
+  const fetchMetricById = useCallback(async (id: string) => {
+    try {
+      if (!id) {
+        throw new Error('Metric ID is required');
+      }
+
+      // Cancel any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      await dispatch(fetchCompanyMetricById(id)).unwrap();
+    } catch (error) {
+      console.error('Error fetching metric:', error);
     }
   }, [dispatch]);
 
@@ -129,7 +152,7 @@ export const useCompanyMetrics = () => {
         throw new Error('Metric ID is required');
       }
 
-      await dispatch(deleteMetric(id)).unwrap();
+      await dispatch(deleteCompanyMetric(id)).unwrap();
     } catch (error) {
       console.error('Error deleting metric:', error);
       throw error;
@@ -144,6 +167,7 @@ export const useCompanyMetrics = () => {
 
     // Operations
     fetchMetrics,
+    fetchMetricById,
     createMetric,
     updateMetric,
     deleteMetric: deleteMetricById
