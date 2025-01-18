@@ -6,13 +6,12 @@
 
 // External imports
 import { debounce } from 'lodash'; // v4.17.21
-import { AxiosError } from 'axios';
 
 // Internal imports
 import { api } from './api';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { handleApiError } from '../utils/errorHandlers';
-import { validateMetricValue, validateCompanyMetric } from '../utils/validators';
+import { validateMetricData, validateCompanyMetric } from '../utils/validators';
 
 // Constants
 const API_ENDPOINTS = {
@@ -23,11 +22,6 @@ const API_ENDPOINTS = {
 const CACHE_CONFIG = {
   TTL: 300000, // 5 minutes
   PREFIX: 'company_metrics'
-};
-
-const RETRY_CONFIG = {
-  MAX_RETRIES: 3,
-  DELAY: 1000
 };
 
 /**
@@ -63,7 +57,7 @@ class CompanyMetricsService {
       this.setCachedData(cacheKey, metrics);
       return metrics;
     } catch (error) {
-      throw handleApiError(error as AxiosError);
+      throw handleApiError(error as Error);
     }
   }
 
@@ -96,7 +90,7 @@ class CompanyMetricsService {
       this.setCachedData(cacheKey, metric);
       return metric;
     } catch (error) {
-      throw handleApiError(error as AxiosError);
+      throw handleApiError(error as Error);
     }
   }
 
@@ -107,11 +101,7 @@ class CompanyMetricsService {
    */
   public async createCompanyMetric(metricData: Omit<ICompanyMetric, 'id'>): Promise<ICompanyMetric> {
     try {
-      const validation = validateMetricValue(
-        metricData.value,
-        metricData.metric.validationRules,
-        metricData.metric.valueType
-      );
+      const validation = validateMetricData(metricData);
       if (!validation.isValid) {
         throw new Error(`Invalid metric data: ${validation.errors[0].message}`);
       }
@@ -122,7 +112,7 @@ class CompanyMetricsService {
       this.invalidateCache();
       return createdMetric;
     } catch (error) {
-      throw handleApiError(error as AxiosError);
+      throw handleApiError(error as Error);
     }
   }
 
@@ -141,15 +131,9 @@ class CompanyMetricsService {
         throw new Error('Metric ID is required');
       }
 
-      if (metricData.value !== undefined && metricData.metric) {
-        const validation = validateMetricValue(
-          metricData.value,
-          metricData.metric.validationRules,
-          metricData.metric.valueType
-        );
-        if (!validation.isValid) {
-          throw new Error(`Invalid metric data: ${validation.errors[0].message}`);
-        }
+      const validation = validateMetricData(metricData);
+      if (!validation.isValid) {
+        throw new Error(`Invalid metric data: ${validation.errors[0].message}`);
       }
 
       const response = await api.put<ICompanyMetric>(
@@ -161,7 +145,7 @@ class CompanyMetricsService {
       this.invalidateCache();
       return updatedMetric;
     } catch (error) {
-      throw handleApiError(error as AxiosError);
+      throw handleApiError(error as Error);
     }
   }
 
@@ -179,7 +163,7 @@ class CompanyMetricsService {
       await api.delete(API_ENDPOINTS.BY_ID(id));
       this.invalidateCache();
     } catch (error) {
-      throw handleApiError(error as AxiosError);
+      throw handleApiError(error as Error);
     }
   }
 
