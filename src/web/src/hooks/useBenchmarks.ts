@@ -1,10 +1,14 @@
 // External imports with versions
 import { useSelector, useDispatch } from 'react-redux'; // ^8.1.0
 import { useState, useCallback } from 'react'; // ^18.2.0
-import { AnyAction } from '@reduxjs/toolkit';
 
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
+import { 
+  getBenchmarksByMetric, 
+  getBenchmarksByRevenueRange, 
+  compareBenchmarks 
+} from '../services/benchmark';
 import { 
   selectBenchmarks,
   selectBenchmarkLoading,
@@ -15,6 +19,7 @@ import {
   clearErrors
 } from '../store/benchmarkSlice';
 import { handleApiError } from '../utils/errorHandlers';
+import { REVENUE_RANGES } from '../config/constants';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -24,7 +29,7 @@ const RETRY_DELAY_BASE = 1000;
 // Types
 interface UseBenchmarksOptions {
   metricId?: string;
-  revenueRange?: string;
+  revenueRange?: typeof REVENUE_RANGES.ranges[number];
   retryAttempts?: number;
 }
 
@@ -75,7 +80,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
    */
   const fetchBenchmarkData = useCallback(async (
     metricId?: string,
-    revenueRange?: string,
+    revenueRange?: typeof REVENUE_RANGES.ranges[number],
     retryAttempts: number = MAX_RETRY_ATTEMPTS
   ): Promise<void> => {
     if (!metricId && !revenueRange) {
@@ -103,12 +108,12 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     while (attempt < retryAttempts) {
       try {
         if (metricId) {
-          await (dispatch(fetchBenchmarksByMetric(metricId)) as unknown as Promise<AnyAction>);
+          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
         } else if (revenueRange) {
-          await (dispatch(fetchBenchmarksByRevenue({ 
-            revenueRange, 
+          await dispatch(fetchBenchmarksByRevenue({ 
+            revenueRange: revenueRange as typeof REVENUE_RANGES.ranges[number], 
             metricIds: [] 
-          })) as unknown as Promise<AnyAction>);
+          })).unwrap();
         }
 
         // Update cache
@@ -120,7 +125,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
         activeRequests.delete(cacheKey);
         return;
 
-      } catch (error: any) {
+      } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
           const formattedError = handleApiError(error);
@@ -146,11 +151,11 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     }
 
     try {
-      const result = await (dispatch(compareBenchmarkData({
+      const result = await dispatch(compareBenchmarkData({
         metricId,
         companyValue,
-        revenueRange: options.revenueRange || ''
-      })) as unknown as Promise<AnyAction>);
+        revenueRange: (options.revenueRange || '0-1M') as typeof REVENUE_RANGES.ranges[number]
+      })).unwrap();
 
       return {
         percentile: result.percentile,
@@ -158,7 +163,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
         trend: result.trend
       };
 
-    } catch (error: any) {
+    } catch (error) {
       const formattedError = handleApiError(error);
       setLocalError(formattedError.message);
       return null;
