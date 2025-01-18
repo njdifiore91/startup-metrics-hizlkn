@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, useRef } from 'react';
 import classNames from 'classnames'; // ^2.3.2
 import { useSwipeable } from 'react-swipeable'; // ^7.0.0
 import { ToastType, ToastPosition } from '../../hooks/useToast';
-import { animations } from '../../styles/animations.css';
+import '../../styles/animations.css';
 import ErrorBoundary from './ErrorBoundary';
 
 // Props interfaces
@@ -78,6 +78,7 @@ const Toast: React.FC<ToastProps> = React.memo(({
   const swipeHandlers = useSwipeable({
     onSwipedLeft: () => !rtl && onClose(id),
     onSwipedRight: () => rtl && onClose(id),
+    preventDefaultTouchmoveEvent: true,
     trackMouse: true
   });
 
