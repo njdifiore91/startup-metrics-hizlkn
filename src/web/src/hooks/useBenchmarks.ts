@@ -128,7 +128,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       } catch (error) {
         attempt++;
         if (attempt === retryAttempts) {
-          const formattedError = handleApiError(error);
+          const formattedError = handleApiError(error as any);
           setLocalError(formattedError.message);
           activeRequests.delete(cacheKey);
           return;
@@ -164,7 +164,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
       };
 
     } catch (error) {
-      const formattedError = handleApiError(error);
+      const formattedError = handleApiError(error as any);
       setLocalError(formattedError.message);
       return null;
     }
