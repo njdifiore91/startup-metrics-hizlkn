@@ -143,7 +143,6 @@ export const useAuth = (): UseAuthReturn => {
       dispatch(authActions.setLoading(true));
       const newToken = await authService.refreshAuthToken();
       dispatch(authActions.refreshTokens());
-      return newToken;
     } catch (error: any) {
       dispatch(authActions.setError({
         code: 'TOKEN_REFRESH_ERROR',
