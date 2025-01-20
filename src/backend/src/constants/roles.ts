@@ -16,62 +16,69 @@ export type Permission = 'read' | 'create' | 'update' | 'full';
 export type PermissionSet = ReadonlyArray<Permission>;
 
 /**
- * Type definition for the complete permission set of a role
+ * Type definition for role-specific permissions
  */
-export type RolePermissions = Record<string, PermissionSet>;
+type UserPermissions = {
+  readonly [K in Feature]?: PermissionSet;
+};
 
 /**
- * Immutable enum defining the available user roles in the system
+ * Type definition for all role permissions
+ */
+type RolePermissionsType = {
+  readonly [K in UserRole]: UserPermissions;
+};
+
+/**
+ * Available features in the system
+ */
+export const FEATURES = {
+  benchmarkData: 'benchmarkData',
+  companyData: 'companyData',
+  profile: 'profile',
+  reports: 'reports',
+  users: 'users'
+} as const;
+
+export type Feature = typeof FEATURES[keyof typeof FEATURES];
+
+/**
+ * User roles and their associated permissions
  */
 export const USER_ROLES = {
-    USER: 'user',
-    ANALYST: 'analyst',
-    ADMIN: 'admin',
-    SYSTEM: 'system'
+  USER: 'USER',
+  ANALYST: 'ANALYST',
+  ADMIN: 'ADMIN'
+} as const;
+
+/**
+ * User roles and their associated permissions
+ */
+export const ROLE_PERMISSIONS: RolePermissionsType = {
+  [USER_ROLES.USER]: {
+    [FEATURES.benchmarkData]: ['read'] as const,
+    [FEATURES.companyData]: ['read', 'update'] as const,
+    [FEATURES.profile]: ['read', 'update'] as const
+  },
+  [USER_ROLES.ANALYST]: {
+    [FEATURES.benchmarkData]: ['read', 'create'] as const,
+    [FEATURES.companyData]: ['read', 'create', 'update'] as const,
+    [FEATURES.profile]: ['read', 'update'] as const,
+    [FEATURES.reports]: ['read', 'create'] as const
+  },
+  [USER_ROLES.ADMIN]: {
+    [FEATURES.benchmarkData]: ['full'] as const,
+    [FEATURES.companyData]: ['full'] as const,
+    [FEATURES.profile]: ['full'] as const,
+    [FEATURES.reports]: ['full'] as const,
+    [FEATURES.users]: ['full'] as const
+  }
 } as const;
 
 /**
  * Type for the user role enum values
  */
 export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
-
-/**
- * Comprehensive permission matrix defining access rights for each role.
- * Permissions are frozen to prevent runtime modifications.
- */
-export const ROLE_PERMISSIONS: Record<UserRole, Record<string, PermissionSet>> = Object.freeze({
-    [USER_ROLES.USER]: Object.freeze({
-        metrics: Object.freeze(['read']),
-        companyData: Object.freeze(['create', 'read', 'update']),
-        benchmarkData: Object.freeze(['read']),
-        adminPanel: Object.freeze([]),
-        userManagement: Object.freeze([])
-    }),
-
-    [USER_ROLES.ANALYST]: Object.freeze({
-        metrics: Object.freeze(['read']),
-        companyData: Object.freeze(['read']),
-        benchmarkData: Object.freeze(['read']),
-        adminPanel: Object.freeze([]),
-        userManagement: Object.freeze([])
-    }),
-
-    [USER_ROLES.ADMIN]: Object.freeze({
-        metrics: Object.freeze(['read']),
-        companyData: Object.freeze(['read']),
-        benchmarkData: Object.freeze(['create', 'read', 'update']),
-        adminPanel: Object.freeze(['full']),
-        userManagement: Object.freeze(['full'])
-    }),
-
-    [USER_ROLES.SYSTEM]: Object.freeze({
-        metrics: Object.freeze(['full']),
-        companyData: Object.freeze(['full']),
-        benchmarkData: Object.freeze(['full']),
-        adminPanel: Object.freeze(['full']),
-        userManagement: Object.freeze(['full'])
-    })
-});
 
 /**
  * Helper function to check if a role has a specific permission for a feature
@@ -82,10 +89,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Record<string, PermissionSet>> =
  */
 export const hasPermission = (
     role: UserRole,
-    feature: string,
+    feature: Feature,
     permission: Permission
 ): boolean => {
     const permissions = ROLE_PERMISSIONS[role][feature];
+    if (!permissions) return false;
     return permissions.includes('full') || permissions.includes(permission);
 };
 
@@ -97,9 +105,11 @@ export const hasPermission = (
  */
 export const hasFullAccess = (
     role: UserRole,
-    feature: string
+    feature: Feature
 ): boolean => {
-    return ROLE_PERMISSIONS[role][feature].includes('full');
+    const permissions = ROLE_PERMISSIONS[role][feature];
+    if (!permissions) return false;
+    return permissions.includes('full');
 };
 
 /**
@@ -109,8 +119,8 @@ export const hasFullAccess = (
  */
 export const getAccessibleFeatures = (
     role: UserRole
-): string[] => {
+): Feature[] => {
     return Object.entries(ROLE_PERMISSIONS[role])
-        .filter(([_, permissions]) => permissions.length > 0)
-        .map(([feature]) => feature);
+        .filter(([_, permissions]) => permissions && permissions.length > 0)
+        .map(([feature]) => feature as Feature);
 };

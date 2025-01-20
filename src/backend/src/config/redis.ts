@@ -36,8 +36,9 @@ const REDIS_DEFAULTS = {
 
 // Redis base configuration
 export const redisConfig: RedisOptions = {
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-  password: process.env.REDIS_PASSWORD,
+  host: process.env.REDIS_URL ? new URL(process.env.REDIS_URL).hostname : 'localhost',
+  port: process.env.REDIS_URL ? parseInt(new URL(process.env.REDIS_URL).port) || 6379 : 6379,
+  password: process.env.REDIS_PASSWORD || 'startup_metrics_redis',
   connectTimeout: 10000,
   lazyConnect: true,
   enableReadyCheck: true,

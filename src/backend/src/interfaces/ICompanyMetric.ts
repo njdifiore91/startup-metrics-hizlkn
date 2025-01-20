@@ -17,6 +17,8 @@ import { IUser } from './IUser';
  * @property {string} userId - Reference to the owning user's ID
  * @property {string} metricId - Reference to the metric definition ID
  * @property {number} value - The actual metric value
+ * @property {string} valueIV - Initialization vector for value encryption
+ * @property {string} valueTag - Authentication tag for value encryption
  * @property {Date} timestamp - When the metric value was recorded
  * @property {boolean} isActive - Soft deletion flag
  * @property {Date} createdAt - Record creation timestamp
@@ -48,6 +50,18 @@ export interface ICompanyMetric {
      * Must conform to the validation rules defined in the referenced IMetric
      */
     readonly value: number;
+
+    /**
+     * Initialization vector for value encryption
+     * Used in AES-GCM encryption of the metric value
+     */
+    readonly valueIV?: string;
+
+    /**
+     * Authentication tag for value encryption
+     * Used to verify integrity of encrypted metric value
+     */
+    readonly valueTag?: string;
 
     /**
      * Timestamp when this metric value was recorded

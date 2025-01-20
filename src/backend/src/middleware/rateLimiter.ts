@@ -8,6 +8,7 @@ import { logger } from '../utils/logger';
 import { createRedisClient } from '../config/redis';
 import { AppError } from '../utils/errorHandler';
 import { BUSINESS_ERRORS } from '../constants/errorCodes';
+import rateLimit from 'express-rate-limit';
 
 // Constants for rate limiting
 const RATE_LIMIT_PREFIX = 'ratelimit:';
@@ -66,89 +67,85 @@ export const createRateLimiter = (options: RateLimitOptions = {}) => {
   const keyPrefix = options.keyPrefix || RATE_LIMIT_PREFIX;
   const defaultTier = options.defaultTier || 'free';
 
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = req.user?.id || req.ip;
-      const userTier = req.user?.tier || defaultTier;
-      const limits = getRateLimit(userTier);
+  return function rateLimiterMiddleware(req: Request, res: Response, next: NextFunction) {
+    const userId = req.user?.id || req.ip;
+    const userTier = req.user?.tier || defaultTier;
+    const limits = getRateLimit(userTier);
 
-      // Generate Redis keys for both windows
-      const hourlyKey = `${keyPrefix}${userId}:hourly`;
-      const burstKey = `${keyPrefix}${userId}:burst`;
+    // Generate Redis keys for both windows
+    const hourlyKey = `${keyPrefix}${userId}:hourly`;
+    const burstKey = `${keyPrefix}${userId}:burst`;
 
-      // Execute Redis commands in a transaction
-      const results = await redis
-        .multi()
-        .incr(hourlyKey)
-        .expire(hourlyKey, limits.window)
-        .incr(burstKey)
-        .expire(burstKey, limits.burstWindow)
-        .exec();
+    // Execute Redis commands in a transaction
+    redis
+      .multi()
+      .incr(hourlyKey)
+      .expire(hourlyKey, limits.window)
+      .incr(burstKey)
+      .expire(burstKey, limits.burstWindow)
+      .exec()
+      .then((results) => {
+        if (!results) {
+          return next(new Error('Redis transaction failed'));
+        }
 
-      if (!results) {
-        throw new Error('Redis transaction failed');
-      }
+        const hourlyCount = results[0][1] as number;
+        const burstCount = results[2][1] as number;
 
-      const hourlyCount = results[0][1] as number;
-      const burstCount = results[2][1] as number;
-
-      // Set rate limit headers
-      res.set({
-        'X-RateLimit-Limit': limits.limit.toString(),
-        'X-RateLimit-Remaining': Math.max(0, limits.limit - hourlyCount).toString(),
-        'X-RateLimit-Reset': Math.floor(Date.now() / 1000 + limits.window).toString(),
-        'X-RateLimit-Burst-Limit': limits.burstLimit.toString(),
-        'X-RateLimit-Burst-Remaining': Math.max(0, limits.burstLimit - burstCount).toString(),
-        'X-RateLimit-Burst-Reset': Math.floor(Date.now() / 1000 + limits.burstWindow).toString()
-      });
-
-      // Check if limits are exceeded
-      if (hourlyCount > limits.limit || burstCount > limits.burstLimit) {
-        logger.warn('Rate limit exceeded', {
-          userId,
-          userTier,
-          hourlyCount,
-          burstCount,
-          limits
+        // Set rate limit headers
+        res.set({
+          'X-RateLimit-Limit': limits.limit.toString(),
+          'X-RateLimit-Remaining': Math.max(0, limits.limit - hourlyCount).toString(),
+          'X-RateLimit-Reset': Math.floor(Date.now() / 1000 + limits.window).toString(),
+          'X-RateLimit-Burst-Limit': limits.burstLimit.toString(),
+          'X-RateLimit-Burst-Remaining': Math.max(0, limits.burstLimit - burstCount).toString(),
+          'X-RateLimit-Burst-Reset': Math.floor(Date.now() / 1000 + limits.burstWindow).toString()
         });
 
-        throw new AppError(
-          BUSINESS_ERRORS.RATE_LIMIT_EXCEEDED,
-          'Rate limit exceeded',
-          {
-            hourlyLimit: limits.limit,
-            burstLimit: limits.burstLimit,
-            resetIn: limits.window
-          }
-        );
-      }
+        // Check if limits are exceeded
+        if (hourlyCount > limits.limit || burstCount > limits.burstLimit) {
+          logger.warn('Rate limit exceeded', {
+            userId,
+            userTier,
+            hourlyCount,
+            burstCount,
+            limits
+          });
 
-      // Log warning when approaching limits
-      if (
-        hourlyCount > limits.limit * limits.warnThreshold ||
-        burstCount > limits.burstLimit * limits.warnThreshold
-      ) {
-        logger.warn('Rate limit threshold warning', {
-          userId,
-          userTier,
-          hourlyCount,
-          burstCount,
-          limits
-        });
-      }
+          return next(new AppError(
+            BUSINESS_ERRORS.RATE_LIMIT_EXCEEDED.code,
+            'Rate limit exceeded',
+            {
+              hourlyLimit: limits.limit,
+              burstLimit: limits.burstLimit,
+              resetIn: limits.window
+            }
+          ));
+        }
 
-      next();
-    } catch (error) {
-      if (error instanceof AppError) {
-        next(error);
-      } else {
+        // Log warning when approaching limits
+        if (
+          hourlyCount > limits.limit * limits.warnThreshold ||
+          burstCount > limits.burstLimit * limits.warnThreshold
+        ) {
+          logger.warn('Rate limit threshold warning', {
+            userId,
+            userTier,
+            hourlyCount,
+            burstCount,
+            limits
+          });
+        }
+
+        next();
+      })
+      .catch((error) => {
         logger.error('Rate limiter error', { error });
         next(new AppError(
-          BUSINESS_ERRORS.RATE_LIMIT_EXCEEDED,
+          BUSINESS_ERRORS.RATE_LIMIT_EXCEEDED.code,
           'Rate limiting temporarily unavailable'
         ));
-      }
-    }
+      });
   };
 };
 
@@ -166,8 +163,29 @@ const getRateLimit = (userTier: string): RateLimitConfig => {
   return config;
 };
 
-// Export pre-configured middleware for common use
-export const rateLimiter = createRateLimiter();
+// Create a memory-based rate limiter as fallback
+const createMemoryRateLimiter = (options: { max: number; windowMs: number }) => {
+  return rateLimit({
+    windowMs: options.windowMs,
+    max: options.max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: BUSINESS_ERRORS.RATE_LIMIT_EXCEEDED.message,
+    skip: (req) => process.env.NODE_ENV === 'development'
+  });
+};
+
+export const rateLimiter = (options: { max: number; windowMs: number }) => {
+  try {
+    const redis = createRedisClient();
+    // Test Redis connection
+    return createRateLimiter({ redis });
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.warn('Redis not available, falling back to memory-based rate limiter', { error: err });
+    return createMemoryRateLimiter(options);
+  }
+};
 
 // Export types for consumers
 export type { RateLimitConfig, RateLimitOptions };

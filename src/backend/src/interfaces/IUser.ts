@@ -16,6 +16,7 @@ import { USER_ROLES } from '../constants/roles';
  * @property {string} email - User's email address (unique)
  * @property {string} name - User's full name
  * @property {USER_ROLES} role - User's role for RBAC (from USER_ROLES enum)
+ * @property {string} tier - User's subscription tier (free, pro, enterprise)
  * @property {string} googleId - Google OAuth unique identifier
  * @property {Date} createdAt - Timestamp of user creation
  * @property {Date} lastLoginAt - Timestamp of user's last login
@@ -30,6 +31,7 @@ export interface IUser {
     readonly email: string;
     readonly name: string;
     readonly role: typeof USER_ROLES[keyof typeof USER_ROLES];
+    readonly tier: 'free' | 'pro' | 'enterprise';
     readonly googleId: string;
     readonly createdAt: Date;
     readonly lastLoginAt: Date;
