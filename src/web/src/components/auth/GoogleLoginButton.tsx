@@ -4,22 +4,22 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useRef } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
 import Button, { ButtonProps } from '../common/Button';
+import { IUser } from '@/interfaces/IUser';
 
 /**
  * Props for the GoogleLoginButton component
  */
 export interface GoogleLoginButtonProps {
   className?: string;
-  onSuccess?: (response: { token: string; user: User }) => void;
+  onSuccess?: (response: { token: string; user: IUser }) => void;
   onError?: (error: { code: string; message: string }) => void;
   disabled?: boolean;
   testId?: string;
 }
-
 /**
  * Google Login Button Component
  * Implements Google's branding guidelines and accessibility standards
@@ -29,26 +29,33 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
   onSuccess,
   onError,
   disabled = false,
-  testId = 'google-login-button'
+  testId = 'google-login-button',
 }) => {
   const { login, isLoading, error } = useAuth();
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Debounced login handler to prevent multiple rapid clicks
   const handleGoogleLogin = useCallback(
-    debounce(async () => {
-      if (disabled || isLoading) return;
+    debounce(
+      async () => {
+        if (disabled || isLoading) return;
 
-      try {
-        const response = await login();
-        onSuccess?.(response);
-      } catch (error: any) {
-        onError?.({
-          code: error.code || 'AUTH_ERROR',
-          message: error.message || 'Authentication failed'
-        });
-      }
-    }, 300, { leading: true, trailing: false }),
+        try {
+          const response = await login();
+          onSuccess?.({
+            token: response.token,
+            user: response.user,
+          });
+        } catch (error: any) {
+          onError?.({
+            code: error.code || 'AUTH_ERROR',
+            message: error.message || 'Authentication failed',
+          });
+        }
+      },
+      300,
+      { leading: true, trailing: false }
+    ),
     [login, disabled, isLoading, onSuccess, onError]
   );
 
@@ -64,25 +71,31 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
     if (error) {
       onError?.({
         code: error.code,
-        message: error.message
+        message: error.message,
       });
     }
   }, [error, onError]);
 
   // Button props configuration
-  const buttonProps: ButtonProps = {
+  const buttonProps: Omit<ButtonProps, 'children'> = {
     type: 'button',
     disabled: disabled || isLoading,
     onClick: handleGoogleLogin,
     className: `google-login-button ${className || ''}`,
-    'aria-label': 'Sign in with Google',
+    ariaLabel: 'Sign in with Google',
     'data-testid': testId,
     role: 'button',
-    tabIndex: disabled ? -1 : 0
+    tabIndex: disabled ? -1 : 0,
   };
 
+  // Enhanced Button component with ref support
+  const EnhancedButton = forwardRef<HTMLButtonElement, ButtonProps>((props) => (
+    <Button {...props} />
+  ));
+  EnhancedButton.displayName = 'EnhancedButton';
+
   return (
-    <Button {...buttonProps} ref={buttonRef}>
+    <EnhancedButton {...buttonProps} ref={buttonRef}>
       <div className="google-button-content">
         <GoogleIcon className="google-icon" />
         <span className="google-button-text">
@@ -90,7 +103,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
         </span>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .google-login-button {
           display: flex;
           align-items: center;
@@ -106,8 +119,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
           font-family: var(--font-family-primary);
           font-size: 14px;
           font-weight: 500;
-          box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3),
-                      0 1px 3px 1px rgba(60,64,67,0.15);
+          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
           transition: all 0.2s ease-in-out;
           position: relative;
           overflow: hidden;
@@ -115,13 +127,12 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
 
         .google-login-button:hover:not(:disabled) {
           background-color: #f8f9fa;
-          box-shadow: 0 1px 3px 0 rgba(60,64,67,0.3),
-                      0 4px 8px 3px rgba(60,64,67,0.15);
+          box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
         }
 
         .google-login-button:active:not(:disabled) {
           background-color: #f1f3f4;
-          box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);
+          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3);
         }
 
         .google-login-button:disabled {
@@ -152,7 +163,7 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
           }
         }
       `}</style>
-    </Button>
+    </EnhancedButton>
   );
 };
 
