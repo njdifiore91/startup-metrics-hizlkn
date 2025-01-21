@@ -91,6 +91,25 @@ const handleMetricError = (error: unknown) => {
 };
 
 // Async thunks
+export const fetchCompanyMetricById = createAsyncThunk(
+  'companyMetrics/fetchById',
+  async (id: string, { rejectWithValue, getState }) => {
+    try {
+      const state = getState() as { companyMetrics: CompanyMetricsState };
+      const cached = state.companyMetrics.requestCache[`metric-${id}`];
+
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        return cached.data;
+      }
+
+      const metric = await companyMetricsService.getCompanyMetricById(id);
+      return metric;
+    } catch (error) {
+      return rejectWithValue(handleMetricError(error));
+    }
+  }
+);
+
 export const fetchCompanyMetrics = createAsyncThunk(
   'companyMetrics/fetchAll',
   async (_, { rejectWithValue, getState }) => {
