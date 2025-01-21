@@ -16,6 +16,12 @@ const SESSION_VALIDATION_INTERVAL = 60000; // 1 minute
 const MAX_AUTH_ATTEMPTS = 3;
 const AUTH_ATTEMPT_TIMEOUT = 300000; // 5 minutes
 
+export interface AuthResponse {
+  user: IUser;
+  token: string;
+  refreshToken: string;
+  expiresAt: number;
+}
 /**
  * Interface for authentication attempts tracking
  */
@@ -34,9 +40,10 @@ interface UseAuthReturn {
   error: AuthError | null;
   isAuthenticated: boolean;
   sessionStatus: SessionStatus;
-  login: () => Promise<void>;
+  //login: () => Promise<void>;
+  login: () => Promise<AuthResponse>;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
+  refreshToken: () => Promise<string>;
   validateSession: () => Promise<boolean>;
 }
 
@@ -64,7 +71,7 @@ export const useAuth = (): UseAuthReturn => {
   /**
    * Handles Google OAuth login with rate limiting and security measures
    */
-  const login = useCallback(async (): Promise<void> => {
+  const login = useCallback(async (): Promise<AuthResponse> => {
     try {
       // Check for auth attempts rate limiting
       const now = Date.now();
@@ -89,28 +96,38 @@ export const useAuth = (): UseAuthReturn => {
 
       // Perform login
       const response = await authService.loginWithGoogle();
-      
+
       // Update auth state
       dispatch(authActions.setUser(response.user));
-      dispatch(authActions.setTokens({
-        token: response.token,
-        refreshToken: response.refreshToken,
-        expiration: new Date(response.expiresAt)
-      }));
-      
+      dispatch(
+        authActions.setTokens({
+          token: response.token,
+          refreshToken: response.refreshToken,
+          expiration: new Date(response.expiresAt),
+        })
+      );
+
       // Reset auth attempts on successful login
       authAttempts.count = 0;
       authAttempts.locked = false;
-
+      return {
+        user: response.user,
+        token: response.token,
+        refreshToken: response.refreshToken,
+        expiresAt: response.expiresAt,
+      };
     } catch (error: any) {
       authAttempts.count++;
       authAttempts.lastAttempt = Date.now();
 
-      dispatch(authActions.setError({
-        code: error.code || 'AUTH_ERROR',
-        message: error.message || 'Authentication failed',
-        details: error.details || {}
-      }));
+      dispatch(
+        authActions.setError({
+          code: error.code || 'AUTH_ERROR',
+          message: error.message || 'Authentication failed',
+          details: error.details || {},
+        })
+      );
+      throw error.message;
     } finally {
       dispatch(authActions.setLoading(false));
     }
@@ -125,11 +142,13 @@ export const useAuth = (): UseAuthReturn => {
       await authService.logout();
       dispatch(authActions.logout());
     } catch (error: any) {
-      dispatch(authActions.setError({
-        code: 'LOGOUT_ERROR',
-        message: error.message || 'Logout failed',
-        details: error.details || {}
-      }));
+      dispatch(
+        authActions.setError({
+          code: 'LOGOUT_ERROR',
+          message: error.message || 'Logout failed',
+          details: error.details || {},
+        })
+      );
     } finally {
       dispatch(authActions.setLoading(false));
     }
@@ -138,20 +157,23 @@ export const useAuth = (): UseAuthReturn => {
   /**
    * Refreshes authentication token with retry mechanism
    */
-  const refreshToken = useCallback(async (): Promise<void> => {
+  const refreshToken = useCallback(async (): Promise<string> => {
     try {
       dispatch(authActions.setLoading(true));
       const newToken = await authService.refreshAuthToken();
       dispatch(authActions.refreshTokens());
       return newToken;
     } catch (error: any) {
-      dispatch(authActions.setError({
-        code: 'TOKEN_REFRESH_ERROR',
-        message: error.message || 'Token refresh failed',
-        details: error.details || {}
-      }));
+      dispatch(
+        authActions.setError({
+          code: 'TOKEN_REFRESH_ERROR',
+          message: error.message || 'Token refresh failed',
+          details: error.details || {},
+        })
+      );
       // Force logout on token refresh failure
       await logout();
+      return '';
     } finally {
       dispatch(authActions.setLoading(false));
     }
@@ -163,9 +185,9 @@ export const useAuth = (): UseAuthReturn => {
   const validateSession = useCallback(async (): Promise<boolean> => {
     try {
       const isValid = await authService.validateSession();
-      dispatch(authActions.setSessionStatus(
-        isValid ? SessionStatus.ACTIVE : SessionStatus.EXPIRED
-      ));
+      dispatch(
+        authActions.setSessionStatus(isValid ? SessionStatus.ACTIVE : SessionStatus.EXPIRED)
+      );
       return isValid;
     } catch (error) {
       dispatch(authActions.setSessionStatus(SessionStatus.EXPIRED));
@@ -219,6 +241,6 @@ export const useAuth = (): UseAuthReturn => {
     login,
     logout,
     refreshToken,
-    validateSession
+    validateSession,
   };
 };

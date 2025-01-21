@@ -14,16 +14,20 @@ interface ButtonProps {
   ariaPressed?: boolean;
   role?: string;
   tabIndex?: number;
+  'data-testid'?: string;
+}
+
+// Separate interface for styling props
+interface ButtonStyleProps {
+  variant?: ButtonProps['variant'];
+  size?: ButtonProps['size'];
+  disabled?: boolean;
+  className?: string;
 }
 
 // Utility function to generate button classes
-const getButtonClasses = (props: ButtonProps): string => {
-  const {
-    variant = 'primary',
-    size = 'medium',
-    disabled,
-    className
-  } = props;
+const getButtonClasses = (props: ButtonStyleProps): string => {
+  const { variant = 'primary', size = 'medium', disabled, className } = props;
 
   const baseClasses = [
     'button',
@@ -37,7 +41,7 @@ const getButtonClasses = (props: ButtonProps): string => {
     'outline-none',
     'focus:ring-2',
     'focus:ring-offset-2',
-    'focus:ring-primary-light'
+    'focus:ring-primary-light',
   ];
 
   // Variant classes
@@ -45,29 +49,23 @@ const getButtonClasses = (props: ButtonProps): string => {
     primary: 'bg-primary text-white hover:brightness-90',
     secondary: 'bg-secondary text-white hover:brightness-90',
     accent: 'bg-accent text-white hover:brightness-90',
-    text: 'bg-transparent text-text hover:bg-primary-light'
+    text: 'bg-transparent text-text hover:bg-primary-light',
   };
 
   // Size classes
   const sizeClasses = {
     small: 'px-4 py-2 text-sm',
     medium: 'px-6 py-3 text-base',
-    large: 'px-8 py-4 text-lg'
+    large: 'px-8 py-4 text-lg',
   };
 
   // State classes
   const stateClasses = [
     disabled && 'opacity-60 cursor-not-allowed',
-    !disabled && 'cursor-pointer active:transform active:translate-y-px'
+    !disabled && 'cursor-pointer active:transform active:translate-y-px',
   ];
 
-  return [
-    ...baseClasses,
-    variantClasses[variant],
-    sizeClasses[size],
-    ...stateClasses,
-    className
-  ]
+  return [...baseClasses, variantClasses[variant], sizeClasses[size], ...stateClasses, className]
     .filter(Boolean)
     .join(' ');
 };
@@ -84,54 +82,56 @@ const handleKeyboardInteraction = (
 };
 
 // Button Component
-export const Button: React.FC<ButtonProps> = React.memo(({
-  children,
-  variant = 'primary',
-  size = 'medium',
-  disabled = false,
-  type = 'button',
-  className,
-  onClick,
-  ariaLabel,
-  ariaPressed,
-  role = 'button',
-  tabIndex,
-  ...props
-}) => {
-  // Memoize class names for performance
-  const buttonClasses = useMemo(
-    () => getButtonClasses({ variant, size, disabled, className }),
-    [variant, size, disabled, className]
-  );
+export const Button: React.FC<ButtonProps> = React.memo(
+  ({
+    children,
+    variant = 'primary',
+    size = 'medium',
+    disabled = false,
+    type = 'button',
+    className,
+    onClick,
+    ariaLabel,
+    ariaPressed,
+    role = 'button',
+    tabIndex,
+    ...props
+  }) => {
+    // Memoize class names for performance
+    const buttonClasses = useMemo(
+      () => getButtonClasses({ variant, size, disabled, className }),
+      [variant, size, disabled, className]
+    );
 
-  // Memoize click handler
-  const handleClick = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (!disabled && onClick) {
-        onClick(event);
-      }
-    },
-    [disabled, onClick]
-  );
+    // Memoize click handler
+    const handleClick = useCallback(
+      (event: React.MouseEvent<HTMLButtonElement>) => {
+        if (!disabled && onClick) {
+          onClick(event);
+        }
+      },
+      [disabled, onClick]
+    );
 
-  return (
-    <button
-      type={type}
-      className={buttonClasses}
-      disabled={disabled}
-      onClick={handleClick}
-      onKeyDown={(e) => handleKeyboardInteraction(e, onClick)}
-      aria-label={ariaLabel}
-      aria-pressed={ariaPressed}
-      aria-disabled={disabled}
-      role={role}
-      tabIndex={tabIndex ?? (disabled ? -1 : 0)}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-});
+    return (
+      <button
+        type={type}
+        className={buttonClasses}
+        disabled={disabled}
+        onClick={handleClick}
+        onKeyDown={(e) => handleKeyboardInteraction(e, onClick)}
+        aria-label={ariaLabel}
+        aria-pressed={ariaPressed}
+        aria-disabled={disabled}
+        role={role}
+        tabIndex={tabIndex ?? (disabled ? -1 : 0)}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
 
 // Display name for debugging
 Button.displayName = 'Button';

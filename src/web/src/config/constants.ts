@@ -9,6 +9,7 @@ interface IApiConfig {
   API_TIMEOUT: number;
   API_VERSION: string;
   API_ENDPOINTS: Record<string, string>;
+  ERROR_LOGGING_ENABLED: boolean;
 }
 
 interface IMetricType {
@@ -37,8 +38,9 @@ export const API_CONFIG: IApiConfig = {
     BENCHMARKS: '/benchmarks',
     COMPANY_METRICS: '/company-metrics',
     EXPORTS: '/exports',
-    USERS: '/users'
-  }
+    USERS: '/users',
+  },
+  ERROR_LOGGING_ENABLED: process.env.NODE_ENV === 'development',
 } as const;
 
 /**
@@ -48,7 +50,7 @@ export const API_CONFIG: IApiConfig = {
 export const METRIC_TYPES: IMetricType = {
   FINANCIAL: 'financial',
   GROWTH: 'growth',
-  OPERATIONAL: 'operational'
+  OPERATIONAL: 'operational',
 } as const;
 
 /**
@@ -56,7 +58,7 @@ export const METRIC_TYPES: IMetricType = {
  * Used for filtering and categorizing companies by revenue
  */
 export const REVENUE_RANGES = {
-  ranges: ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+']
+  ranges: ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'],
 } as const;
 
 /**
@@ -69,12 +71,12 @@ export const UI_CONSTANTS = {
   BREAKPOINTS: {
     MOBILE: '768px',
     TABLET: '1024px',
-    DESKTOP: '1440px'
+    DESKTOP: '1440px',
   },
   SPACING: {
     DEFAULT_PADDING: '24px',
-    DEFAULT_MARGIN: '16px'
-  }
+    DEFAULT_MARGIN: '16px',
+  },
 } as const;
 
 /**
@@ -84,7 +86,7 @@ export const UI_CONSTANTS = {
 export const AUTH_CONSTANTS = {
   TOKEN_KEY: 'auth_token',
   REFRESH_TOKEN_KEY: 'refresh_token',
-  SESSION_TIMEOUT: 3600000 // 1 hour in milliseconds
+  SESSION_TIMEOUT: 3600000, // 1 hour in milliseconds
 } as const;
 
 /**
@@ -94,20 +96,20 @@ export const AUTH_CONSTANTS = {
 export const CHART_CONSTANTS: IChartConfig = {
   DIMENSIONS: {
     DEFAULT_HEIGHT: '400px',
-    DEFAULT_WIDTH: '100%'
+    DEFAULT_WIDTH: '100%',
   },
   MARGINS: {
     top: 20,
     right: 30,
     bottom: 30,
-    left: 40
+    left: 40,
   },
-  COLORS: ['#151e2d', '#46608C', '#168947', '#DBEAAC']
+  COLORS: ['#151e2d', '#46608C', '#168947', '#DBEAAC'],
 } as const;
 
 // Type exports for consuming components
 export type ApiEndpoints = typeof API_CONFIG.API_ENDPOINTS;
 export type MetricType = keyof typeof METRIC_TYPES;
-export type RevenueRange = typeof REVENUE_RANGES.ranges[number];
+export type RevenueRange = (typeof REVENUE_RANGES.ranges)[number];
 export type Breakpoint = keyof typeof UI_CONSTANTS.BREAKPOINTS;
-export type ChartColor = typeof CHART_CONSTANTS.COLORS[number];
+export type ChartColor = (typeof CHART_CONSTANTS.COLORS)[number];

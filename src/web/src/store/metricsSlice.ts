@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'; // v1.9.5
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
-import { handleApiError } from '../utils/errorHandlers';
+import { ApiError, handleApiError } from '../utils/errorHandlers';
+import { AxiosError, AxiosHeaders } from 'axios';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -29,13 +30,71 @@ const initialState: MetricsState = {
 // Create metrics service instance
 const metricsService = new MetricsService();
 
+// Create default headers
+const createDefaultHeaders = () => {
+  const headers = new AxiosHeaders();
+  headers.set('Content-Type', 'application/json');
+  return headers;
+};
+// Helper function to handle errors using our error utilities
+const handleMetricsError = (error: unknown) => {
+  const headers = createDefaultHeaders();
+  // Create an AxiosError-compatible error object
+  const defaultConfig = {
+    headers,
+    method: 'GET',
+    url: '',
+    baseURL: '',
+    timeout: 0,
+    timeoutErrorMessage: '',
+    transformRequest: [],
+    transformResponse: [],
+    transitional: {
+      silentJSONParsing: true,
+      forcedJSONParsing: true,
+      clarifyTimeoutError: false,
+    },
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
+    maxContentLength: -1,
+    maxBodyLength: -1,
+    env: {
+      FormData: undefined as unknown as typeof FormData,
+    },
+    validateStatus: (status: number) => status >= 200 && status < 300,
+  };
+
+  // Create an AxiosError-compatible error object
+  const axiosError: AxiosError<ApiError> = {
+    isAxiosError: true,
+    name: 'AxiosError',
+    message: error instanceof Error ? error.message : 'An unknown error occurred',
+    toJSON: () => ({}),
+    config: defaultConfig,
+    response: {
+      data: {
+        status: 'error',
+        message: error instanceof Error ? error.message : 'An unknown error occurred',
+        code: 'UNKNOWN_ERROR',
+        details: {},
+        timestamp: new Date().toISOString(),
+      },
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers,
+      config: defaultConfig,
+    },
+  };
+
+  return handleApiError(axiosError);
+};
 // Async thunks
 export const fetchMetrics = createAsyncThunk(
   'metrics/fetchMetrics',
   async (_, { rejectWithValue, getState }) => {
     try {
       const state = getState() as { metrics: MetricsState };
-      
+
       // Check cache validity
       if (
         state.metrics.cacheValid &&
@@ -46,14 +105,14 @@ export const fetchMetrics = createAsyncThunk(
       }
 
       const response = await metricsService.getMetrics();
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
 
       return response.data;
     } catch (error) {
-      const handledError = handleApiError(error);
+      const handledError = handleMetricsError(error);
       return rejectWithValue(handledError.message);
     }
   }
@@ -64,17 +123,17 @@ export const fetchMetricsByCategory = createAsyncThunk(
   async (category: MetricCategory, { rejectWithValue }) => {
     try {
       const response = await metricsService.getMetricsByCategory(category);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
 
       return {
         metrics: response.data,
-        category
+        category,
       };
     } catch (error) {
-      const handledError = handleApiError(error);
+      const handledError = handleMetricsError(error);
       return rejectWithValue(handledError.message);
     }
   }
@@ -100,7 +159,7 @@ const metricsSlice = createSlice({
     },
     clearErrors: (state) => {
       state.error = {};
-    }
+    },
   },
   extraReducers: (builder) => {
     // Handle fetchMetrics
@@ -119,7 +178,7 @@ const metricsSlice = createSlice({
         state.loading['fetchMetrics'] = false;
         state.error['fetchMetrics'] = action.payload as string;
         state.cacheValid = false;
-      })
+      });
 
     // Handle fetchMetricsByCategory
     builder
@@ -137,25 +196,22 @@ const metricsSlice = createSlice({
         state.loading['fetchMetricsByCategory'] = false;
         state.error['fetchMetricsByCategory'] = action.payload as string;
       });
-  }
+  },
 });
 
 // Export actions and reducer
-export const {
-  setSelectedCategory,
-  invalidateCache,
-  clearMetrics,
-  clearErrors
-} = metricsSlice.actions;
+export const { setSelectedCategory, invalidateCache, clearMetrics, clearErrors } =
+  metricsSlice.actions;
 
 // Selectors
 export const selectMetrics = (state: { metrics: MetricsState }) => state.metrics.metrics;
-export const selectSelectedCategory = (state: { metrics: MetricsState }) => state.metrics.selectedCategory;
+export const selectSelectedCategory = (state: { metrics: MetricsState }) =>
+  state.metrics.selectedCategory;
 export const selectMetricsLoading = (state: { metrics: MetricsState }) => state.metrics.loading;
 export const selectMetricsError = (state: { metrics: MetricsState }) => state.metrics.error;
 export const selectMetricsCacheStatus = (state: { metrics: MetricsState }) => ({
   isValid: state.metrics.cacheValid,
-  lastUpdated: state.metrics.lastUpdated
+  lastUpdated: state.metrics.lastUpdated,
 });
 
 export default metricsSlice.reducer;
