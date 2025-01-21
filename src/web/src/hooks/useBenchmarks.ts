@@ -1,24 +1,21 @@
 // External imports with versions
-import { useSelector, useDispatch } from 'react-redux'; // ^8.1.0
+import { useSelector } from 'react-redux'; // ^8.1.0
 import { useState, useCallback } from 'react'; // ^18.2.0
 
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
-import { 
-  getBenchmarksByMetric, 
-  getBenchmarksByRevenueRange, 
-  compareBenchmarks 
-} from '../services/benchmark';
-import { 
+import {
   selectBenchmarks,
   selectBenchmarkLoading,
   selectBenchmarkErrors,
   fetchBenchmarksByMetric,
   fetchBenchmarksByRevenue,
   compareBenchmarkData,
-  clearErrors
+  clearErrors,
 } from '../store/benchmarkSlice';
-import { handleApiError } from '../utils/errorHandlers';
+import { ApiError } from '../utils/errorHandlers';
+import { AxiosError } from 'axios';
+import { useAppDispatch } from '@/store';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -44,12 +41,14 @@ interface BenchmarkComparison {
 // Cache management
 const benchmarkCache = new Map<string, { data: IBenchmark[]; timestamp: number }>();
 
+// Helper function to create properly typed error
+
 /**
  * Custom hook for managing benchmark data with enhanced error handling and caching
  * @version 1.0.0
  */
 export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const benchmarks = useSelector(selectBenchmarks);
   const loading = useSelector(selectBenchmarkLoading);
   const errors = useSelector(selectBenchmarkErrors);
@@ -68,106 +67,127 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
    * Implements exponential backoff for retries
    */
   const getRetryDelay = useCallback((attempt: number): number => {
-    return Math.min(
-      RETRY_DELAY_BASE * Math.pow(2, attempt) + Math.random() * 1000,
-      10000
-    );
+    return Math.min(RETRY_DELAY_BASE * Math.pow(2, attempt) + Math.random() * 1000, 10000);
+  }, []);
+
+  /**
+   * Handles API errors with proper typing
+   */
+  const handleError = useCallback((error: unknown): string => {
+    if ((error as AxiosError<ApiError>).isAxiosError) {
+      const axiosError = error as AxiosError<ApiError>;
+      return axiosError.response?.data?.message || 'An error occurred';
+    }
+    return error instanceof Error ? error.message : 'An unknown error occurred';
   }, []);
 
   /**
    * Fetches benchmark data with retry logic and caching
    */
-  const fetchBenchmarkData = useCallback(async (
-    metricId?: string,
-    revenueRange?: string,
-    retryAttempts: number = MAX_RETRY_ATTEMPTS
-  ): Promise<void> => {
-    if (!metricId && !revenueRange) {
-      setLocalError('Either metricId or revenueRange must be provided');
-      return;
-    }
-
-    const cacheKey = generateCacheKey(metricId, revenueRange);
-    
-    // Check for duplicate requests
-    if (activeRequests.has(cacheKey)) {
-      return;
-    }
-
-    // Check cache
-    const cached = benchmarkCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return;
-    }
-
-    activeRequests.add(cacheKey);
-    setLocalError(null);
-    
-    let attempt = 0;
-    while (attempt < retryAttempts) {
-      try {
-        if (metricId) {
-          await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
-        } else if (revenueRange) {
-          await dispatch(fetchBenchmarksByRevenue({ 
-            revenueRange, 
-            metricIds: [] 
-          })).unwrap();
-        }
-
-        // Update cache
-        benchmarkCache.set(cacheKey, {
-          data: benchmarks,
-          timestamp: Date.now()
-        });
-
-        activeRequests.delete(cacheKey);
+  const fetchBenchmarkData = useCallback(
+    async (
+      metricId?: string,
+      revenueRange?: string,
+      retryAttempts: number = MAX_RETRY_ATTEMPTS
+    ): Promise<void> => {
+      if (!metricId && !revenueRange) {
+        setLocalError('Either metricId or revenueRange must be provided');
         return;
+      }
 
-      } catch (error) {
-        attempt++;
-        if (attempt === retryAttempts) {
-          const formattedError = handleApiError(error);
-          setLocalError(formattedError.message);
+      const cacheKey = generateCacheKey(metricId, revenueRange);
+
+      // Check for duplicate requests
+      if (activeRequests.has(cacheKey)) {
+        return;
+      }
+
+      // Check cache
+      const cached = benchmarkCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        return;
+      }
+
+      activeRequests.add(cacheKey);
+      setLocalError(null);
+
+      let attempt = 0;
+      while (attempt < retryAttempts) {
+        try {
+          if (metricId) {
+            const result = await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
+            benchmarkCache.set(cacheKey, {
+              data: result,
+              timestamp: Date.now(),
+            });
+          } else if (revenueRange) {
+            const result = await dispatch(
+              fetchBenchmarksByRevenue({
+                revenueRange,
+                metricIds: [],
+              })
+            ).unwrap();
+            benchmarkCache.set(cacheKey, {
+              data: result,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Update cache
+          benchmarkCache.set(cacheKey, {
+            data: benchmarks,
+            timestamp: Date.now(),
+          });
+
           activeRequests.delete(cacheKey);
           return;
+        } catch (error) {
+          attempt++;
+          if (attempt === retryAttempts) {
+            const formattedError = handleError(error);
+            setLocalError(formattedError);
+            activeRequests.delete(cacheKey);
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, getRetryDelay(attempt)));
         }
-        await new Promise(resolve => setTimeout(resolve, getRetryDelay(attempt)));
       }
-    }
-  }, [dispatch, benchmarks, generateCacheKey, getRetryDelay]);
+    },
+    [dispatch, benchmarks, generateCacheKey, getRetryDelay]
+  );
 
   /**
    * Compares company metrics against benchmarks
    */
-  const compareBenchmark = useCallback(async (
-    companyValue: number,
-    metricId: string
-  ): Promise<BenchmarkComparison | null> => {
-    if (!metricId || typeof companyValue !== 'number') {
-      setLocalError('Valid metricId and company value are required');
-      return null;
-    }
+  const compareBenchmark = useCallback(
+    async (companyValue: number, metricId: string): Promise<BenchmarkComparison | null> => {
+      if (!metricId || typeof companyValue !== 'number') {
+        setLocalError('Valid metricId and company value are required');
+        return null;
+      }
 
-    try {
-      const result = await dispatch(compareBenchmarkData({
-        metricId,
-        companyValue,
-        revenueRange: options.revenueRange || ''
-      })).unwrap();
+      try {
+        const result = await dispatch(
+          compareBenchmarkData({
+            metricId,
+            companyValue,
+            revenueRange: options.revenueRange || '',
+          })
+        ).unwrap();
 
-      return {
-        percentile: result.percentile,
-        difference: result.difference,
-        trend: result.trend
-      };
-
-    } catch (error) {
-      const formattedError = handleApiError(error);
-      setLocalError(formattedError.message);
-      return null;
-    }
-  }, [dispatch, options.revenueRange]);
+        return {
+          percentile: result.percentile,
+          difference: result.difference,
+          trend: result.trend,
+        };
+      } catch (error) {
+        const formattedError = handleError(error);
+        setLocalError(formattedError);
+        return null;
+      }
+    },
+    [dispatch, options.revenueRange]
+  );
 
   /**
    * Clears benchmark cache and errors
@@ -184,6 +204,6 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     error: localError || errors.fetchByMetric?.message || errors.fetchByRevenue?.message,
     fetchBenchmarkData,
     compareBenchmark,
-    clearBenchmarkCache
+    clearBenchmarkCache,
   };
 };

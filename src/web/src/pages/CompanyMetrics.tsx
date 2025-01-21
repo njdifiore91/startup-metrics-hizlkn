@@ -3,7 +3,7 @@ import styled from '@emotion/styled';
 
 // Internal imports
 import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import { MetricComparison } from '../components/metrics/MetricComparison';
+import MetricComparison from '../components/metrics/MetricComparison';
 import { useCompanyMetrics } from '../hooks/useCompanyMetrics';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
@@ -58,14 +58,7 @@ const StyledLoadingOverlay = styled.div`
 const CompanyMetrics: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
-  const {
-    metrics,
-    loading,
-    error,
-    fetchMetrics,
-    createMetric,
-    updateMetric
-  } = useCompanyMetrics();
+  const { metrics, loading, error, fetchMetrics, createMetric, updateMetric } = useCompanyMetrics();
 
   // Local state
   const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
@@ -80,34 +73,34 @@ const CompanyMetrics: React.FC = () => {
 
   // Memoized sorted metrics
   const sortedMetrics = useMemo(() => {
-    return [...metrics].sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    return [...metrics].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
   }, [metrics]);
 
   /**
    * Handles metric submission with enhanced validation and error handling
    */
-  const handleMetricSubmit = useCallback(async (metricData: ICompanyMetric) => {
-    setIsSubmitting(true);
-    try {
-      if (selectedMetric) {
-        await updateMetric(selectedMetric.id, metricData);
-        showToast('Metric updated successfully', ToastType.SUCCESS);
-      } else {
-        await createMetric(metricData);
-        showToast('Metric created successfully', ToastType.SUCCESS);
+  const handleMetricSubmit = useCallback(
+    async (metricData: ICompanyMetric) => {
+      setIsSubmitting(true);
+      try {
+        if (selectedMetric) {
+          await updateMetric(selectedMetric.id, metricData);
+          showToast('Metric updated successfully', ToastType.SUCCESS);
+        } else {
+          await createMetric(metricData);
+          showToast('Metric created successfully', ToastType.SUCCESS);
+        }
+        setSelectedMetric(null);
+      } catch (error) {
+        showToast(error.message || 'Failed to save metric', ToastType.ERROR);
+      } finally {
+        setIsSubmitting(false);
       }
-      setSelectedMetric(null);
-    } catch (error) {
-      showToast(
-        error.message || 'Failed to save metric',
-        ToastType.ERROR
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [selectedMetric, createMetric, updateMetric, showToast]);
+    },
+    [selectedMetric, createMetric, updateMetric, showToast]
+  );
 
   /**
    * Handles metric selection for editing
@@ -126,14 +119,14 @@ const CompanyMetrics: React.FC = () => {
   /**
    * Handles comparison completion
    */
-  const handleComparisonComplete = useCallback((result: any) => {
-    if (result.percentile) {
-      showToast(
-        `Your metric is in the ${result.percentile}th percentile`,
-        ToastType.INFO
-      );
-    }
-  }, [showToast]);
+  const handleComparisonComplete = useCallback(
+    (result: any) => {
+      if (result.percentile) {
+        showToast(`Your metric is in the ${result.percentile}th percentile`, ToastType.INFO);
+      }
+    },
+    [showToast]
+  );
 
   return (
     <ErrorBoundary>
@@ -171,10 +164,7 @@ const CompanyMetrics: React.FC = () => {
           )}
 
           {/* Metrics List Section */}
-          <section 
-            aria-label="Saved Metrics"
-            className="metrics-list-section"
-          >
+          <section aria-label="Saved Metrics" className="metrics-list-section">
             <StyledMetricList role="list">
               {sortedMetrics.map((metric) => (
                 <Card
@@ -196,10 +186,7 @@ const CompanyMetrics: React.FC = () => {
 
         {/* Loading Overlay */}
         {loading && (
-          <StyledLoadingOverlay 
-            role="status" 
-            aria-label="Loading metrics"
-          >
+          <StyledLoadingOverlay role="status" aria-label="Loading metrics">
             <span className="loading-spinner" />
             <span className="sr-only">Loading...</span>
           </StyledLoadingOverlay>
@@ -207,11 +194,7 @@ const CompanyMetrics: React.FC = () => {
 
         {/* Error Display */}
         {error && (
-          <div 
-            role="alert" 
-            className="error-message"
-            aria-live="polite"
-          >
+          <div role="alert" className="error-message" aria-live="polite">
             {error}
           </div>
         )}

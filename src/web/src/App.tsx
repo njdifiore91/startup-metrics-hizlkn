@@ -8,12 +8,14 @@ import React, { Suspense, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Analytics } from '@analytics/google-analytics';
+//import { Analytics } from '@analytics/google-analytics';
+import Analytics from 'analytics';
 
 // Components
 import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import store from './store';
 
 // Lazy-loaded route components
 const Login = React.lazy(() => import('./pages/Login'));
@@ -30,21 +32,21 @@ const ROUTES = {
   BENCHMARKS: '/benchmarks',
   COMPANY_METRICS: '/company-metrics',
   REPORTS: '/reports',
-  SETTINGS: '/settings'
+  SETTINGS: '/settings',
 } as const;
 
 // Error messages
 const ERROR_MESSAGES = {
   ROUTE_ERROR: 'An error occurred while loading this page',
   AUTH_ERROR: 'Authentication failed',
-  NETWORK_ERROR: 'Network connection lost'
+  NETWORK_ERROR: 'Network connection lost',
 } as const;
 
 // Analytics configuration
 const analytics = Analytics({
   app: 'startup-metrics-platform',
   version: '1.0.0',
-  debug: process.env.NODE_ENV === 'development'
+  debug: process.env.NODE_ENV === 'development',
 });
 
 /**
@@ -58,7 +60,7 @@ const RouteTracker: React.FC = () => {
       url: location.pathname,
       path: location.pathname,
       search: location.search,
-      title: document.title
+      title: document.title,
     });
   }, [location]);
 
@@ -85,7 +87,7 @@ const LoadingFallback: React.FC = () => (
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      height: '100vh'
+      height: '100vh',
     }}
   >
     <LoadingSpinner
@@ -106,7 +108,7 @@ const App: React.FC = () => {
     console.error('Application error:', error);
     analytics.track('error', {
       category: 'application',
-      error: error.message
+      error: error.message,
     });
   }, []);
 
@@ -168,14 +170,8 @@ const App: React.FC = () => {
                 />
 
                 {/* Redirects */}
-                <Route
-                  path="/"
-                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
-                />
-                <Route
-                  path="*"
-                  element={<Navigate to={ROUTES.DASHBOARD} replace />}
-                />
+                <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+                <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
               </Routes>
             </Suspense>
           </Layout>

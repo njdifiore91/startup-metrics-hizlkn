@@ -8,20 +8,20 @@ import { useAppDispatch, useAppSelector } from '../store';
 import {
   selectAllMetrics,
   selectMetricById,
-  selectLoading,
+  selectLoadingState,
   selectError,
   fetchCompanyMetrics,
   fetchCompanyMetricById,
   createCompanyMetric,
   updateCompanyMetric,
-  deleteMetric
+  deleteCompanyMetric,
 } from '../store/companyMetricsSlice';
 
 // Validation schema for metric data
 const metricDataSchema = yup.object().shape({
   value: yup.number().required('Metric value is required'),
   metricId: yup.string().required('Metric ID is required'),
-  timestamp: yup.string().required('Timestamp is required')
+  timestamp: yup.string().required('Timestamp is required'),
 });
 
 /**
@@ -34,7 +34,9 @@ export const useCompanyMetrics = () => {
 
   // Selectors
   const metrics = useAppSelector(selectAllMetrics);
-  const loading = useAppSelector(selectLoading);
+  const loading = useAppSelector((state) =>
+    Object.values(state.companyMetrics.loadingStates).some((state) => state.isLoading)
+  );
   const error = useAppSelector(selectError);
 
   // Cleanup function for request cancellation
@@ -66,98 +68,123 @@ export const useCompanyMetrics = () => {
   /**
    * Fetches a specific company metric by ID with validation
    */
-  const fetchMetricById = useCallback(async (id: string) => {
-    try {
-      if (!id) {
-        throw new Error('Metric ID is required');
-      }
+  const fetchMetricById = useCallback(
+    async (id: string) => {
+      try {
+        if (!id) {
+          throw new Error('Metric ID is required');
+        }
 
-      // Cancel any pending requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      abortControllerRef.current = new AbortController();
+        // Cancel any pending requests
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
 
-      await dispatch(fetchCompanyMetricById(id)).unwrap();
-    } catch (error) {
-      console.error('Error fetching metric:', error);
-    }
-  }, [dispatch]);
+        await dispatch(fetchCompanyMetricById(id)).unwrap();
+      } catch (error) {
+        console.error('Error fetching metric:', error);
+      }
+    },
+    [dispatch]
+  );
 
   /**
    * Creates a new company metric with validation and sanitization
    */
-  const createMetric = useCallback(async (metricData: Omit<ICompanyMetric, 'id'>) => {
-    try {
-      // Validate metric data
-      await metricDataSchema.validate(metricData);
+  const createMetric = useCallback(
+    async (metricData: Omit<ICompanyMetric, 'id'>) => {
+      try {
+        // Safely parse and sanitize metadata
+        const processedMetadata: Record<string, unknown> =
+          typeof metricData.metadata === 'string'
+            ? JSON.parse(
+                sanitizeHtml(metricData.metadata, {
+                  allowedTags: [],
+                  allowedAttributes: {},
+                })
+              )
+            : metricData.metadata || {};
 
-      // Sanitize input data
-      const sanitizedData = {
-        ...metricData,
-        metadata: sanitizeHtml(JSON.stringify(metricData.metadata), {
-          allowedTags: [],
-          allowedAttributes: {}
-        })
-      };
+        // Create sanitized data object with correct types
+        const sanitizedData: Omit<ICompanyMetric, 'id'> = {
+          ...metricData,
+          metadata: processedMetadata,
+        };
 
-      await dispatch(createCompanyMetric(sanitizedData)).unwrap();
-    } catch (error) {
-      console.error('Error creating metric:', error);
-      throw error;
-    }
-  }, [dispatch]);
+        await dispatch(createCompanyMetric(sanitizedData)).unwrap();
+      } catch (error) {
+        console.error('Error creating metric:', error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
 
   /**
    * Updates an existing company metric with validation
    */
-  const updateMetric = useCallback(async (id: string, metricData: Partial<ICompanyMetric>) => {
-    try {
-      if (!id) {
-        throw new Error('Metric ID is required');
+  const updateMetric = useCallback(
+    async (id: string, metricData: Partial<ICompanyMetric>) => {
+      try {
+        if (!id) {
+          throw new Error('Metric ID is required');
+        }
+
+        // Validate update data
+        if (metricData.value !== undefined) {
+          await metricDataSchema.validate({
+            value: metricData.value,
+            metricId: id,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        // Safely parse and sanitize metadata if it exists
+        const processedMetadata: Record<string, unknown> | undefined = metricData.metadata
+          ? typeof metricData.metadata === 'string'
+            ? JSON.parse(
+                sanitizeHtml(metricData.metadata, {
+                  allowedTags: [],
+                  allowedAttributes: {},
+                })
+              )
+            : metricData.metadata
+          : undefined;
+
+        // Create sanitized data object with correct types
+        const sanitizedData: Partial<ICompanyMetric> = {
+          ...metricData,
+          metadata: processedMetadata,
+        };
+
+        await dispatch(updateCompanyMetric({ id, data: sanitizedData })).unwrap();
+      } catch (error) {
+        console.error('Error updating metric:', error);
+        throw error;
       }
-
-      // Validate update data
-      if (metricData.value !== undefined) {
-        await metricDataSchema.validate({ 
-          value: metricData.value,
-          metricId: id,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // Sanitize input data
-      const sanitizedData = {
-        ...metricData,
-        metadata: metricData.metadata ? 
-          sanitizeHtml(JSON.stringify(metricData.metadata), {
-            allowedTags: [],
-            allowedAttributes: {}
-          }) : undefined
-      };
-
-      await dispatch(updateCompanyMetric({ id, data: sanitizedData })).unwrap();
-    } catch (error) {
-      console.error('Error updating metric:', error);
-      throw error;
-    }
-  }, [dispatch]);
+    },
+    [dispatch]
+  );
 
   /**
    * Deletes a company metric with confirmation
    */
-  const deleteMetricById = useCallback(async (id: string) => {
-    try {
-      if (!id) {
-        throw new Error('Metric ID is required');
-      }
+  const deleteMetricById = useCallback(
+    async (id: string) => {
+      try {
+        if (!id) {
+          throw new Error('Metric ID is required');
+        }
 
-      await dispatch(deleteMetric(id)).unwrap();
-    } catch (error) {
-      console.error('Error deleting metric:', error);
-      throw error;
-    }
-  }, [dispatch]);
+        await dispatch(deleteCompanyMetric(id)).unwrap();
+      } catch (error) {
+        console.error('Error deleting metric:', error);
+        throw error;
+      }
+    },
+    [dispatch]
+  );
 
   return {
     // State
@@ -170,6 +197,6 @@ export const useCompanyMetrics = () => {
     fetchMetricById,
     createMetric,
     updateMetric,
-    deleteMetric: deleteMetricById
+    deleteMetric: deleteMetricById,
   };
 };

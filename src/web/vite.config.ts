@@ -1,24 +1,26 @@
 import { defineConfig } from 'vite'; // v4.0.0
 import react from '@vitejs/plugin-react'; // v4.0.0
 import tsconfigPaths from 'vite-tsconfig-paths'; // v4.0.0
-import path from 'path';
+import autoprefixer from 'autoprefixer';
+import cssnano from 'cssnano';
 
 export default defineConfig({
   plugins: [
     react({
       // Enable Fast Refresh for rapid development
-      fastRefresh: true,
+      include: '**/*.{jsx,tsx}',
       jsxRuntime: 'automatic',
       // Configure Babel plugins for enhanced compatibility
       babel: {
         plugins: ['@babel/plugin-transform-runtime'],
-        presets: ['@babel/preset-env']
-      }
+        presets: ['@babel/preset-env'],
+      },
     }),
     // Enable TypeScript path aliases from tsconfig.json
-    tsconfigPaths({
-      extensions: ['.ts', '.tsx', '.js', '.jsx']
-    })
+    tsconfigPaths(),
+    // tsconfigPaths({
+    //   extensions: ['.ts', '.tsx', '.js', '.jsx']
+    // })
   ],
 
   // Development server configuration
@@ -28,7 +30,7 @@ export default defineConfig({
     host: true,
     cors: true,
     hmr: {
-      overlay: true
+      overlay: true,
     },
     // API proxy configuration for development
     proxy: {
@@ -36,9 +38,9 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '')
-      }
-    }
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
 
   // Production build configuration
@@ -52,8 +54,8 @@ export default defineConfig({
     terserOptions: {
       compress: {
         drop_console: true,
-        drop_debugger: true
-      }
+        drop_debugger: true,
+      },
     },
     // Chunk splitting strategy for optimal loading
     rollupOptions: {
@@ -62,17 +64,17 @@ export default defineConfig({
           vendor: ['react', 'react-dom', 'react-router-dom'],
           chart: ['chart.js', 'react-chartjs-2'],
           ui: ['@mui/material', '@mui/icons-material'],
-          utils: ['lodash', 'axios', 'date-fns']
-        }
-      }
-    }
+          utils: ['lodash', 'axios', 'date-fns'],
+        },
+      },
+    },
   },
 
   // Preview server configuration
   preview: {
     port: 3000,
     strictPort: true,
-    host: true
+    host: true,
   },
 
   // Path resolution configuration
@@ -88,8 +90,8 @@ export default defineConfig({
       '@styles': '/src/styles',
       '@assets': '/src/assets',
       '@interfaces': '/src/interfaces',
-      '@config': '/src/config'
-    }
+      '@config': '/src/config',
+    },
   },
 
   // CSS processing configuration
@@ -97,17 +99,22 @@ export default defineConfig({
     modules: {
       localsConvention: 'camelCase',
       scopeBehaviour: 'local',
-      generateScopedName: '[name]__[local]___[hash:base64:5]'
+      generateScopedName: '[name]__[local]___[hash:base64:5]',
     },
     preprocessorOptions: {
       scss: {
         additionalData: '@import "@styles/variables.css";',
-        sourceMap: true
-      }
+        sourceMap: true,
+      },
     },
     postcss: {
-      plugins: ['autoprefixer', 'cssnano']
-    }
+      plugins: [
+        autoprefixer(),
+        cssnano({
+          preset: 'default',
+        }),
+      ],
+    },
   },
 
   // Dependency optimization configuration
@@ -122,11 +129,11 @@ export default defineConfig({
       '@mui/icons-material',
       'lodash',
       'axios',
-      'date-fns'
+      'date-fns',
     ],
     exclude: ['@fsouza/prettierd'],
     esbuildOptions: {
-      target: 'esnext'
-    }
-  }
+      target: 'esnext',
+    },
+  },
 });
