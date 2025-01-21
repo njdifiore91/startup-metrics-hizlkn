@@ -10,6 +10,19 @@ import { validateGoogleAuthRequest } from '../validators/authValidator';
 import { AUTH_ERRORS } from '../constants/errorCodes';
 import { AppError } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
+import { GoogleAuthProvider } from '../services/googleAuthProvider';
+import { createClient } from 'redis';
+
+// Initialize auth service
+const redisClient = createClient({
+  url: process.env.REDIS_URL,
+  password: process.env.REDIS_PASSWORD
+});
+
+const authService = new AuthService(
+  new GoogleAuthProvider(),
+  redisClient
+);
 
 // Security headers configuration
 const SECURITY_HEADERS = {
@@ -53,13 +66,13 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
     }
 
     // Authenticate with Google OAuth
-    const authResult = await AuthService.authenticate(req, res);
+    const authResult = await authService.authenticate(req, res);
 
     // Apply security headers
     applySecurityHeaders(res);
 
     // Set secure cookies with auth tokens
-    res.cookie('refreshToken', authResult.tokens.refreshToken, {
+    res.cookie('refreshToken', authResult.refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'strict',
@@ -83,7 +96,7 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
           name: authResult.user.name,
           role: authResult.user.role
         },
-        accessToken: authResult.tokens.accessToken
+        accessToken: authResult.accessToken
       }
     });
   } catch (error) {
@@ -122,7 +135,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
     }
 
     // Refresh session with token rotation
-    const refreshResult = await AuthService.refreshSession(refreshToken);
+    const refreshResult = await authService.refreshSession(refreshToken);
 
     // Apply security headers
     applySecurityHeaders(res);
@@ -173,7 +186,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   try {
     const refreshToken = req.cookies.refreshToken;
     if (refreshToken) {
-      await AuthService.revokeSession(refreshToken);
+      await authService.revokeSession(refreshToken);
     }
 
     // Clear auth cookies
@@ -228,7 +241,7 @@ export const validateSession = async (req: Request, res: Response): Promise<void
     }
 
     // Validate session with enhanced security checks
-    const user = await AuthService.validateSession(accessToken);
+    const user = await authService.validateSession(accessToken);
 
     // Apply security headers
     applySecurityHeaders(res);

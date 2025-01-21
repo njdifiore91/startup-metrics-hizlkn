@@ -90,7 +90,7 @@ const requestLogger = (req: Request, res: Response, next: NextFunction): void =>
 
     // Intercept response to log completion details
     const originalEnd = res.end;
-    res.end = function(chunk?: any, encoding?: any, callback?: any): Response {
+    res.end = function(chunk: any, encoding?: BufferEncoding, callback?: () => void): any {
       const duration = Date.now() - req[startTime];
       const responseSize = res.get('content-length');
       const statusCode = res.statusCode;
@@ -126,7 +126,7 @@ const requestLogger = (req: Request, res: Response, next: NextFunction): void =>
       res.set('X-Request-ID', correlationId);
       res.set('X-Response-Time', `${duration}ms`);
 
-      // Call original end method
+      // Call original end method and return its result
       return originalEnd.call(this, chunk, encoding, callback);
     };
 
@@ -141,11 +141,12 @@ const requestLogger = (req: Request, res: Response, next: NextFunction): void =>
     next();
   } catch (error) {
     // Log any middleware errors
+    const err = error instanceof Error ? error : new Error(String(error));
     logger.error('Request logger middleware error', {
-      error,
+      error: err,
       requestId: req[requestId]
     });
-    next(error);
+    next(err);
   }
 };
 

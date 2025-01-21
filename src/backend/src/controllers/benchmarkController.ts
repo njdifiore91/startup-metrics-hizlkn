@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'; // ^4.18.2
-import { MonitoringService } from '@monitoring/service'; // ^1.0.0
-import { AuditLogger } from '@company/audit-logger'; // ^2.0.0
+import { MonitoringService } from '../services/monitoringService';
+import { AuditLogger } from '../services/auditLogger';
 import { BenchmarkService } from '../services/benchmarkService';
 import { 
   validateBenchmarkCreate, 
@@ -53,15 +53,19 @@ class BenchmarkController {
 
     try {
       // Validate request parameters
-      const { metricId, revenueRange } = await validateBenchmarkGet({
+      const { error, value } = validateBenchmarkGet.validate({
         metricId: req.params.metricId,
         revenueRange: req.query.revenueRange as string
       });
 
+      if (error) {
+        throw new AppError(VALIDATION_ERRORS.INVALID_REQUEST, error.message);
+      }
+
       // Get benchmark data with caching
       const benchmarkData = await this.benchmarkService.getBenchmarksByMetric(
-        metricId,
-        revenueRange
+        value.metricId,
+        value.revenueRange
       );
 
       // Check response time SLA
@@ -102,11 +106,10 @@ class BenchmarkController {
   ): Promise<void> => {
     const startTime = Date.now();
     const correlationId = req.headers['x-correlation-id'] as string;
-    const userId = req.user?.id;
 
     try {
       // Validate admin role
-      if (req.user?.role !== 'admin') {
+      if (!req.user || req.user.role !== 'ADMIN') {
         throw new AppError(
           AUTH_ERRORS.INSUFFICIENT_PERMISSIONS,
           'Admin access required',
@@ -116,15 +119,19 @@ class BenchmarkController {
       }
 
       // Validate request body
-      const validatedData = await validateBenchmarkCreate(req.body);
+      const { error, value } = validateBenchmarkCreate.validate(req.body);
+
+      if (error) {
+        throw new AppError(VALIDATION_ERRORS.INVALID_REQUEST, error.message);
+      }
 
       // Create benchmark data
-      const createdBenchmark = await this.benchmarkService.createBenchmark(validatedData);
+      const createdBenchmark = await this.benchmarkService.createBenchmark(value);
 
       // Audit log the creation
       await auditLogger.log({
         action: 'CREATE_BENCHMARK',
-        userId,
+        userId: req.user.id,
         resourceId: createdBenchmark.id,
         details: {
           metricId: createdBenchmark.metricId,
@@ -165,11 +172,10 @@ class BenchmarkController {
   ): Promise<void> => {
     const startTime = Date.now();
     const correlationId = req.headers['x-correlation-id'] as string;
-    const userId = req.user?.id;
 
     try {
       // Validate admin role
-      if (req.user?.role !== 'admin') {
+      if (!req.user || req.user.role !== 'ADMIN') {
         throw new AppError(
           AUTH_ERRORS.INSUFFICIENT_PERMISSIONS,
           'Admin access required',
@@ -179,22 +185,25 @@ class BenchmarkController {
       }
 
       // Validate request parameters and body
-      const { id } = req.params;
-      const validatedData = await validateBenchmarkUpdate(req.body);
+      const { error, value } = validateBenchmarkUpdate.validate(req.body);
+
+      if (error) {
+        throw new AppError(VALIDATION_ERRORS.INVALID_REQUEST, error.message);
+      }
 
       // Update benchmark with optimistic locking
       const updatedBenchmark = await this.benchmarkService.updateBenchmark(
-        id,
-        validatedData
+        req.params.id,
+        value
       );
 
       // Audit log the update
       await auditLogger.log({
         action: 'UPDATE_BENCHMARK',
-        userId,
-        resourceId: id,
+        userId: req.user.id,
+        resourceId: req.params.id,
         details: {
-          changes: validatedData,
+          changes: value,
           metricId: updatedBenchmark.metricId,
           revenueRange: updatedBenchmark.revenueRange
         },
@@ -214,6 +223,53 @@ class BenchmarkController {
           correlationId,
           timestamp: new Date().toISOString()
         }
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Deletes a benchmark by ID
+   */
+  public deleteBenchmark = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    const correlationId = req.headers['x-correlation-id'] as string;
+
+    try {
+      await this.benchmarkService.deleteBenchmark(req.params.id);
+
+      // Audit log the deletion
+      await auditLogger.log({
+        action: 'DELETE_BENCHMARK',
+        userId: req.user?.id || '',
+        resourceId: req.params.id,
+        details: {},
+        correlationId
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Gets public benchmark data
+   */
+  public getPublicBenchmarks = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const benchmarks = await this.benchmarkService.getPublicBenchmarks();
+      res.status(200).json({
+        status: 'success',
+        data: benchmarks
       });
     } catch (error) {
       next(error);

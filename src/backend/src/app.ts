@@ -4,35 +4,21 @@
  * @version 1.0.0
  */
 
-import express, { Application, Request, Response, NextFunction } from 'express';
+import express, { Application, Request, Response } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import { Registry, collectDefaultMetrics } from 'prom-client';
-import winston from 'winston';
 
 // Import routers
 import router from './routes';
-import errorHandler from './middleware/errorHandler';
+import { errorHandler } from './middleware/errorHandler';
 import requestLogger from './middleware/requestLogger';
-import rateLimiter from './middleware/rateLimiter';
+import { rateLimiter } from './middleware/rateLimiter';
 
 // Initialize metrics collection
 const metrics = new Registry();
 collectDefaultMetrics({ register: metrics });
-
-// Initialize logger
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'error.log', level: 'error' })
-  ]
-});
 
 /**
  * Configures and returns the Express application instance with enhanced
@@ -42,49 +28,10 @@ const configureApp = (): Application => {
   const app = express();
 
   // Security middleware
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
-        frameSrc: ["'none'"]
-      }
-    },
-    crossOriginEmbedderPolicy: true,
-    crossOriginOpenerPolicy: true,
-    crossOriginResourcePolicy: { policy: 'same-site' },
-    dnsPrefetchControl: { allow: false },
-    expectCt: { enforce: true, maxAge: 30 },
-    frameguard: { action: 'deny' },
-    hidePoweredBy: true,
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-    },
-    ieNoOpen: true,
-    noSniff: true,
-    originAgentCluster: true,
-    permittedCrossDomainPolicies: { permittedPolicies: 'none' },
-    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-    xssFilter: true
-  }));
+  app.use(helmet());
 
   // CORS configuration
-  app.use(cors({
-    origin: process.env.CORS_ORIGIN?.split(',') || 'http://localhost:3000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID'],
-    exposedHeaders: ['X-Total-Count', 'X-Response-Time'],
-    credentials: true,
-    maxAge: 86400
-  }));
+  app.use(cors());
 
   // Request parsing middleware
   app.use(express.json({ limit: '1mb' }));
@@ -96,8 +43,29 @@ const configureApp = (): Application => {
   // Request logging
   app.use(requestLogger);
 
-  // Rate limiting
-  app.use(rateLimiter);
+  // Rate limiting - 100 requests per minute
+  app.use(rateLimiter({ 
+    windowMs: 60 * 1000, // 1 minute
+    max: 100 // limit each IP to 100 requests per windowMs
+  }));
+
+  // Root route
+  app.get('/', (req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'success',
+      message: 'Welcome to Startup Metrics API',
+      version: process.env.npm_package_version,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Basic routes
+  app.get('/ping', (req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'pong',
+      timestamp: new Date().toISOString()
+    });
+  });
 
   // Health check endpoint
   app.get('/health', (req: Request, res: Response) => {
@@ -131,28 +99,6 @@ const configureApp = (): Application => {
       message: 'Resource not found'
     });
   });
-
-  // Graceful shutdown handler
-  const gracefulShutdown = async (server: any) => {
-    logger.info('Received shutdown signal, starting graceful shutdown');
-
-    setTimeout(() => {
-      logger.error('Could not close connections in time, forcefully shutting down');
-      process.exit(1);
-    }, 10000);
-
-    try {
-      await server.close();
-      logger.info('Gracefully shutting down');
-      process.exit(0);
-    } catch (error) {
-      logger.error('Error during shutdown:', error);
-      process.exit(1);
-    }
-  };
-
-  process.on('SIGTERM', () => gracefulShutdown(app));
-  process.on('SIGINT', () => gracefulShutdown(app));
 
   return app;
 };

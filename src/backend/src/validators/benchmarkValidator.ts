@@ -154,19 +154,18 @@ export const getBenchmarkSchema = Joi.object({
  * @param data - The benchmark data to validate
  * @returns Validation result with detailed error messages
  */
-export const validateBenchmarkCreate = async (data: Partial<IBenchmarkData>) => {
-  try {
-    return await createBenchmarkSchema.validateAsync(data, {
-      abortEarly: false,
-      stripUnknown: true
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Benchmark validation failed: ${error.message}`);
-    }
-    throw error;
-  }
-};
+export const validateBenchmarkCreate = Joi.object({
+  metricId: Joi.string().required(),
+  revenueRange: Joi.string().required(),
+  value: Joi.number()
+    .min(METRIC_VALIDATION_RULES.PERCENTAGE.min)
+    .max(METRIC_VALIDATION_RULES.PERCENTAGE.max)
+    .precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
+    .required(),
+  description: Joi.string()
+    .max(METRIC_VALIDATION_RULES.DESCRIPTION.maxLength)
+    .optional()
+});
 
 /**
  * Validates data for benchmark updates.
@@ -174,19 +173,16 @@ export const validateBenchmarkCreate = async (data: Partial<IBenchmarkData>) => 
  * @param data - The benchmark data to validate
  * @returns Validation result with detailed error messages
  */
-export const validateBenchmarkUpdate = async (data: Partial<IBenchmarkData>) => {
-  try {
-    return await updateBenchmarkSchema.validateAsync(data, {
-      abortEarly: false,
-      stripUnknown: true
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Benchmark update validation failed: ${error.message}`);
-    }
-    throw error;
-  }
-};
+export const validateBenchmarkUpdate = Joi.object({
+  value: Joi.number()
+    .min(METRIC_VALIDATION_RULES.PERCENTAGE.min)
+    .max(METRIC_VALIDATION_RULES.PERCENTAGE.max)
+    .precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
+    .required(),
+  description: Joi.string()
+    .max(METRIC_VALIDATION_RULES.DESCRIPTION.maxLength)
+    .optional()
+});
 
 /**
  * Validates parameters for benchmark retrieval.
@@ -194,16 +190,7 @@ export const validateBenchmarkUpdate = async (data: Partial<IBenchmarkData>) => 
  * @param params - The parameters to validate
  * @returns Validation result with detailed error messages
  */
-export const validateBenchmarkGet = async (params: { metricId: string; revenueRange: RevenueRange }) => {
-  try {
-    return await getBenchmarkSchema.validateAsync(params, {
-      abortEarly: false,
-      stripUnknown: true
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Benchmark retrieval validation failed: ${error.message}`);
-    }
-    throw error;
-  }
-};
+export const validateBenchmarkGet = Joi.object({
+  metricId: Joi.string().required(),
+  revenueRange: Joi.string().required()
+});
