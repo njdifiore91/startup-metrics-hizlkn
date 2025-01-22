@@ -82,6 +82,14 @@ export const useAuth = (): UseAuthReturn => {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const sessionStatus = useSelector((state: RootState) => state.auth.sessionStatus);
 
+  console.log('useAuth hook state:', {
+    isLoading,
+    isAuthenticated,
+    sessionStatus,
+    hasUser: !!user,
+    hasError: !!error,
+  });
+
   // Add updateUserSettings function
   const updateUserSettings = useCallback(
     async (params: UpdateUserSettingsParams): Promise<void> => {

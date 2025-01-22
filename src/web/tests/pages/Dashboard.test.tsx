@@ -1,26 +1,31 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { axe } from '@axe-core/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { renderWithProviders } from '@testing-library/react-hooks';
-import Dashboard from '../../src/pages/Dashboard';
-import { useMetrics } from '../../src/hooks/useMetrics';
-import { useBenchmarks } from '../../src/hooks/useBenchmarks';
+import Dashboard from '../../../src/pages/Dashboard';
+import { useMetrics } from '../../../src/hooks/useMetrics';
+import { useBenchmarks } from '../../../src/hooks/useBenchmarks';
+import type { IMetric } from '../../../src/interfaces/IMetric';
+import type { IBenchmark } from '../../../src/interfaces/IBenchmark';
+
+expect.extend(toHaveNoViolations);
 
 // Mock hooks
-jest.mock('../../src/hooks/useMetrics');
-jest.mock('../../src/hooks/useBenchmarks');
+vi.mock('../../../src/hooks/useMetrics');
+vi.mock('../../../src/hooks/useBenchmarks');
 
 // Mock analytics
-jest.mock('@segment/analytics-next', () => ({
+vi.mock('@segment/analytics-next', () => ({
   analytics: {
-    track: jest.fn()
-  }
+    track: vi.fn(),
+  },
 }));
 
 // Mock test data
-const mockMetrics = [
+const mockMetrics: IMetric[] = [
   {
     id: 'arr-growth',
     name: 'ARR Growth',
@@ -37,8 +42,8 @@ const mockMetrics = [
     validationRules: {
       min: 0,
       max: 1000,
-      precision: 2
-    }
+      precision: 2,
+    },
   },
   {
     id: 'ndr',
@@ -56,45 +61,49 @@ const mockMetrics = [
     validationRules: {
       min: 0,
       max: 200,
-      precision: 2
-    }
-  }
+      precision: 2,
+    },
+  },
 ];
 
-const mockBenchmarks = {
+const mockBenchmarks: IBenchmark = {
   metricId: 'arr-growth',
   revenueRange: '$1M-$5M',
   p10: 10,
   p25: 25,
   p50: 50,
   p75: 75,
-  p90: 90
+  p90: 90,
+  id: 'benchmark-1',
+  metric: mockMetrics[0],
+  reportDate: new Date(),
+  sourceId: 'source-1',
 };
 
 describe('Dashboard Component', () => {
   beforeEach(() => {
     // Reset all mocks before each test
-    jest.clearAllMocks();
-    
+    vi.clearAllMocks();
+
     // Setup default mock implementations
-    (useMetrics as jest.Mock).mockReturnValue({
+    (useMetrics as Mock).mockReturnValue({
       metrics: mockMetrics,
       loading: false,
       error: null,
-      getMetricsByCategory: jest.fn()
+      getMetricsByCategory: vi.fn(),
     });
 
-    (useBenchmarks as jest.Mock).mockReturnValue({
+    (useBenchmarks as Mock).mockReturnValue({
       benchmarks: mockBenchmarks,
       loading: false,
       error: null,
-      fetchBenchmarkData: jest.fn(),
-      compareBenchmark: jest.fn()
+      fetchBenchmarkData: vi.fn(),
+      compareBenchmark: vi.fn(),
     });
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   it('should render dashboard with metric cards', async () => {
@@ -115,12 +124,12 @@ describe('Dashboard Component', () => {
   });
 
   it('should handle metric category filtering', async () => {
-    const getMetricsByCategory = jest.fn();
-    (useMetrics as jest.Mock).mockReturnValue({
+    const getMetricsByCategory = vi.fn();
+    (useMetrics as Mock).mockReturnValue({
       metrics: mockMetrics,
       loading: false,
       error: null,
-      getMetricsByCategory
+      getMetricsByCategory,
     });
 
     render(<Dashboard />);
@@ -141,13 +150,13 @@ describe('Dashboard Component', () => {
   });
 
   it('should handle metric selection and comparison view', async () => {
-    const fetchBenchmarkData = jest.fn();
-    (useBenchmarks as jest.Mock).mockReturnValue({
+    const fetchBenchmarkData = vi.fn();
+    (useBenchmarks as Mock).mockReturnValue({
       benchmarks: mockBenchmarks,
       loading: false,
       error: null,
       fetchBenchmarkData,
-      compareBenchmark: jest.fn()
+      compareBenchmark: vi.fn(),
     });
 
     render(<Dashboard />);
@@ -167,11 +176,11 @@ describe('Dashboard Component', () => {
 
   it('should handle API errors gracefully', async () => {
     const error = new Error('Failed to fetch metrics');
-    (useMetrics as jest.Mock).mockReturnValue({
+    (useMetrics as Mock).mockReturnValue({
       metrics: [],
       loading: false,
       error,
-      getMetricsByCategory: jest.fn()
+      getMetricsByCategory: vi.fn(),
     });
 
     render(<Dashboard />);
@@ -220,7 +229,7 @@ describe('Dashboard Component', () => {
     expect(analytics.track).toHaveBeenCalledWith('Metric Selected', {
       metricId: 'arr-growth',
       category: 'financial',
-      revenueRange: expect.any(String)
+      revenueRange: expect.any(String),
     });
   });
 });

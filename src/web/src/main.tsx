@@ -4,7 +4,6 @@ import { Provider } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ThemeProvider } from '@mui/material';
 import * as Sentry from '@sentry/react';
-import { AnalyticsBrowser } from '@segment/analytics-next';
 import { browserTracingIntegration } from '@sentry/browser';
 import { Replay } from '@sentry/replay';
 // import { Analytics } from 'analytics';
@@ -14,13 +13,14 @@ import { store } from './store';
 import { theme } from './config/theme';
 import { handleApiError } from './utils/errorHandlers';
 import { useToast, ToastType, ToastPosition } from './hooks/useToast';
+import './styles/fonts.css';
 
 // Initialize performance monitoring
 const initializeMonitoring = async () => {
   // Initialize Sentry for error tracking
   Sentry.init({
-    dsn: process.env.VITE_SENTRY_DSN,
-    environment: process.env.NODE_ENV,
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
     tracesSampleRate: 1.0,
     integrations: [
       browserTracingIntegration(),
@@ -32,8 +32,9 @@ const initializeMonitoring = async () => {
   });
 
   // Initialize Segment Analytics
+  const { AnalyticsBrowser } = await import('@segment/analytics-next');
   const analytics = await AnalyticsBrowser.load({
-    writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
+    writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
   });
 
   return analytics;
@@ -85,12 +86,12 @@ const ErrorFallback = ({ error }: { error: Error }) => {
 // Initialize the application
 const initializeApp = async () => {
   // Initialize monitoring in production
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.MODE === 'production') {
     initializeMonitoring();
   }
 
   // Enable React dev tools in development
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.MODE === 'development') {
     // @ts-ignore
     window.store = store;
   }

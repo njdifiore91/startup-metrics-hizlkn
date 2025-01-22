@@ -7,13 +7,17 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
-import { GoogleLoginButton, GoogleLoginButtonProps } from '../../src/components/auth/GoogleLoginButton';
-import { useAuth } from '../../src/hooks/useAuth';
+import { vi, beforeEach, afterEach, describe, it, expect } from 'vitest';
+import type { Mock } from 'vitest';
+import {
+  GoogleLoginButton,
+  GoogleLoginButtonProps,
+} from '../../../../src/components/auth/GoogleLoginButton';
+import { useAuth } from '../../../../src/hooks/useAuth';
 
 // Mock useAuth hook
-vi.mock('../../src/hooks/useAuth', () => ({
-  useAuth: vi.fn()
+vi.mock('../../../../src/hooks/useAuth', () => ({
+  useAuth: vi.fn(),
 }));
 
 // Mock success response type
@@ -32,14 +36,14 @@ describe('GoogleLoginButton', () => {
     className: 'custom-class',
     onSuccess: vi.fn(),
     onError: vi.fn(),
-    testId: 'google-login-button'
+    testId: 'google-login-button',
   };
 
   // Mock auth hook implementation
   const mockUseAuth = {
     login: vi.fn(),
     isLoading: false,
-    error: null
+    error: null,
   };
 
   beforeEach(() => {
@@ -54,7 +58,7 @@ describe('GoogleLoginButton', () => {
   describe('Rendering', () => {
     it('renders with correct default styling and content', () => {
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
       const googleIcon = button.querySelector('.google-icon');
       const buttonText = screen.getByText('Sign in with Google');
@@ -67,14 +71,14 @@ describe('GoogleLoginButton', () => {
 
     it('applies custom className correctly', () => {
       render(<GoogleLoginButton {...defaultProps} className="test-class" />);
-      
+
       const button = screen.getByTestId('google-login-button');
       expect(button).toHaveClass('google-login-button', 'test-class');
     });
 
     it('renders in disabled state when specified', () => {
       render(<GoogleLoginButton {...defaultProps} disabled />);
-      
+
       const button = screen.getByTestId('google-login-button');
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute('aria-disabled', 'true');
@@ -83,14 +87,14 @@ describe('GoogleLoginButton', () => {
     it('shows loading state correctly', () => {
       (useAuth as jest.Mock).mockReturnValue({
         ...mockUseAuth,
-        isLoading: true
+        isLoading: true,
       });
 
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const loadingText = screen.getByText('Signing in...');
       const button = screen.getByTestId('google-login-button');
-      
+
       expect(loadingText).toBeInTheDocument();
       expect(button).toBeDisabled();
     });
@@ -99,7 +103,7 @@ describe('GoogleLoginButton', () => {
   describe('Accessibility', () => {
     it('has correct ARIA attributes', () => {
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
       expect(button).toHaveAttribute('role', 'button');
       expect(button).toHaveAttribute('aria-label', 'Sign in with Google');
@@ -108,12 +112,12 @@ describe('GoogleLoginButton', () => {
 
     it('handles keyboard navigation correctly', async () => {
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
       button.focus();
-      
+
       expect(document.activeElement).toBe(button);
-      
+
       fireEvent.keyDown(button, { key: 'Enter' });
       await waitFor(() => {
         expect(mockUseAuth.login).toHaveBeenCalled();
@@ -122,7 +126,7 @@ describe('GoogleLoginButton', () => {
 
     it('removes from tab order when disabled', () => {
       render(<GoogleLoginButton {...defaultProps} disabled />);
-      
+
       const button = screen.getByTestId('google-login-button');
       expect(button).toHaveAttribute('tabIndex', '-1');
     });
@@ -135,14 +139,14 @@ describe('GoogleLoginButton', () => {
         user: {
           id: '123',
           email: 'test@example.com',
-          name: 'Test User'
-        }
+          name: 'Test User',
+        },
       };
 
       mockUseAuth.login.mockResolvedValueOnce(successResponse);
 
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
       await userEvent.click(button);
 
@@ -155,29 +159,29 @@ describe('GoogleLoginButton', () => {
     it('handles login errors correctly', async () => {
       const errorResponse = {
         code: 'AUTH_ERROR',
-        message: 'Authentication failed'
+        message: 'Authentication failed',
       };
 
       mockUseAuth.login.mockRejectedValueOnce(errorResponse);
 
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
       await userEvent.click(button);
 
       await waitFor(() => {
         expect(defaultProps.onError).toHaveBeenCalledWith({
           code: 'AUTH_ERROR',
-          message: 'Authentication failed'
+          message: 'Authentication failed',
         });
       });
     });
 
     it('prevents multiple rapid clicks', async () => {
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
-      
+
       // Simulate multiple rapid clicks
       await userEvent.click(button);
       await userEvent.click(button);
@@ -195,13 +199,13 @@ describe('GoogleLoginButton', () => {
         isLoading,
         login: async () => {
           isLoading = true;
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
           isLoading = false;
-        }
+        },
       }));
 
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
       await userEvent.click(button);
 
@@ -221,15 +225,15 @@ describe('GoogleLoginButton', () => {
         ...mockUseAuth,
         error: {
           code: 'AUTH_ERROR',
-          message: 'Authentication failed'
-        }
+          message: 'Authentication failed',
+        },
       });
 
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       expect(defaultProps.onError).toHaveBeenCalledWith({
         code: 'AUTH_ERROR',
-        message: 'Authentication failed'
+        message: 'Authentication failed',
       });
     });
 
@@ -237,14 +241,14 @@ describe('GoogleLoginButton', () => {
       mockUseAuth.login.mockRejectedValueOnce(new Error('Network Error'));
 
       render(<GoogleLoginButton {...defaultProps} />);
-      
+
       const button = screen.getByTestId('google-login-button');
       await userEvent.click(button);
 
       await waitFor(() => {
         expect(defaultProps.onError).toHaveBeenCalledWith({
           code: 'AUTH_ERROR',
-          message: 'Authentication failed'
+          message: 'Authentication failed',
         });
       });
     });

@@ -6,7 +6,7 @@
 
 import React, { Suspense, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Provider } from 'react-redux';
+import { Provider, useDispatch } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
 //import { Analytics } from '@analytics/google-analytics';
 import Analytics from 'analytics';
@@ -17,6 +17,9 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import store from './store';
 import { useAuth } from './hooks/useAuth';
+import { authService } from './services/auth';
+import { authActions } from './store/authSlice';
+import { SessionStatus } from './store/authSlice';
 
 // Lazy-loaded route components
 const Login = React.lazy(() => import('./pages/Login'));
@@ -102,10 +105,45 @@ const LoadingFallback: React.FC = () => (
 );
 
 /**
- * Root Application Component
+ * Main application content component that handles authentication and routing
  */
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const dispatch = useDispatch();
+
+  console.log('AppContent rendered:', { isAuthenticated, authLoading });
+
+  // Initialize authentication state on app load
+  useEffect(() => {
+    console.log('Starting auth initialization');
+
+    const initializeAuth = async () => {
+      try {
+        console.log('Setting loading state to true');
+        dispatch(authActions.setLoading(true));
+
+        console.log('Validating session');
+        const isValid = await authService.validateSession();
+        console.log('Session validation result:', isValid);
+
+        if (isValid) {
+          console.log('Session is valid, setting active status');
+          dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
+        } else {
+          console.log('Session is invalid, logging out');
+          dispatch(authActions.logout());
+        }
+      } catch (error) {
+        console.error('Auth initialization failed:', error);
+        dispatch(authActions.logout());
+      } finally {
+        console.log('Setting loading state to false');
+        dispatch(authActions.setLoading(false));
+      }
+    };
+
+    initializeAuth();
+  }, [dispatch]);
 
   // Error handler for route loading failures
   const handleError = useCallback((error: Error) => {
@@ -118,51 +156,69 @@ const App: React.FC = () => {
 
   // Show loading state while checking authentication
   if (authLoading) {
+    console.log('Showing loading spinner due to authLoading:', authLoading);
     return <LoadingFallback />;
   }
 
+  console.log('Rendering main app content, auth state:', { isAuthenticated, authLoading });
+
+  return (
+    <BrowserRouter>
+      <RouteTracker />
+      <Layout>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            {/* Public Routes */}
+            <Route path={ROUTES.LOGIN} element={<Login />} />
+
+            {/* Protected Routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
+              <Route path={ROUTES.BENCHMARKS} element={<Benchmarks />} />
+              <Route path={ROUTES.COMPANY_METRICS} element={<CompanyMetrics />} />
+              <Route path={ROUTES.REPORTS} element={<Reports />} />
+              <Route path={ROUTES.SETTINGS} element={<Settings />} />
+            </Route>
+
+            {/* Default Route */}
+            <Route
+              path="/"
+              element={
+                isAuthenticated ? (
+                  <Navigate to={ROUTES.DASHBOARD} replace />
+                ) : (
+                  <Navigate to={ROUTES.LOGIN} replace />
+                )
+              }
+            />
+
+            {/* 404 Route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </Layout>
+    </BrowserRouter>
+  );
+};
+
+/**
+ * Root Application Component
+ */
+const App: React.FC = () => {
   return (
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
-      onError={handleError}
+      onError={(error) => {
+        console.error('Application error:', error);
+        analytics.track('error', {
+          category: 'application',
+          error: error.message,
+        });
+      }}
       onReset={() => window.location.reload()}
     >
       <Provider store={store}>
-        <BrowserRouter>
-          <RouteTracker />
-          <Layout>
-            <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                {/* Public Routes */}
-                <Route path={ROUTES.LOGIN} element={<Login />} />
-
-                {/* Protected Routes */}
-                <Route element={<ProtectedRoute />}>
-                  <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
-                  <Route path={ROUTES.BENCHMARKS} element={<Benchmarks />} />
-                  <Route path={ROUTES.COMPANY_METRICS} element={<CompanyMetrics />} />
-                  <Route path={ROUTES.REPORTS} element={<Reports />} />
-                  <Route path={ROUTES.SETTINGS} element={<Settings />} />
-                </Route>
-
-                {/* Default Route */}
-                <Route
-                  path="/"
-                  element={
-                    isAuthenticated ? (
-                      <Navigate to={ROUTES.DASHBOARD} replace />
-                    ) : (
-                      <Navigate to={ROUTES.LOGIN} replace />
-                    )
-                  }
-                />
-
-                {/* 404 Route */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-          </Layout>
-        </BrowserRouter>
+        <AppContent />
       </Provider>
     </ErrorBoundary>
   );

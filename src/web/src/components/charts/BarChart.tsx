@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { Chart, ChartData, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
-import { useDebounce } from 'use-debounce'; // use-debounce@9.0.0
 import { CHART_COLORS } from '../../config/chart';
 import { generateChartOptions } from '../../utils/chartHelpers';
 
@@ -19,6 +18,28 @@ interface IBarChartProps {
 // Default chart dimensions
 const CHART_DEFAULT_HEIGHT = 300;
 
+// Custom high contrast colors
+const HIGH_CONTRAST_COLORS = {
+  background: '#000000',
+  border: '#FFFFFF',
+  tooltip: '#333333',
+} as const;
+
+// Custom debounce hook
+function useDebounce<T extends (...args: any[]) => void>(callback: T, delay: number): T {
+  const timeoutRef = useRef<NodeJS.Timeout>();
+
+  return useCallback(
+    (...args: Parameters<T>) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => callback(...args), delay);
+    },
+    [callback, delay]
+  ) as T;
+}
+
 // Memoized bar chart component for performance optimization
 const BarChart: React.FC<IBarChartProps> = React.memo(
   ({
@@ -36,7 +57,7 @@ const BarChart: React.FC<IBarChartProps> = React.memo(
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
     // Debounced resize handler for performance
-    const [debouncedResize] = useDebounce(() => {
+    const debouncedResize = useDebounce(() => {
       if (chartRef.current) {
         chartRef.current.resize();
       }
@@ -62,16 +83,15 @@ const BarChart: React.FC<IBarChartProps> = React.memo(
           {
             data: data.map((d) => d.value),
             backgroundColor: highContrastMode
-              ? CHART_COLORS.highContrast.background
+              ? HIGH_CONTRAST_COLORS.background
               : `${CHART_COLORS.primary}CC`,
-            borderColor: highContrastMode ? CHART_COLORS.highContrast.border : CHART_COLORS.primary,
+            borderColor: highContrastMode ? HIGH_CONTRAST_COLORS.border : CHART_COLORS.primary,
             borderWidth: 1,
             borderRadius: 4,
             barThickness: 'flex',
             maxBarThickness: 64,
             minBarLength: 4,
-            'aria-label': `${ariaLabel} data series`,
-            role: 'graphics-symbol',
+            label: `${ariaLabel} data series`,
           },
         ],
       };
@@ -93,7 +113,7 @@ const BarChart: React.FC<IBarChartProps> = React.memo(
           tooltip: {
             enabled: true,
             backgroundColor: highContrastMode
-              ? CHART_COLORS.highContrast.tooltip
+              ? HIGH_CONTRAST_COLORS.tooltip
               : `${CHART_COLORS.primary}E6`,
             titleFont: {
               family: 'Inter',

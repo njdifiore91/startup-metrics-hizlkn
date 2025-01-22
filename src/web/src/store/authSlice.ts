@@ -178,11 +178,15 @@ export const authSlice = createSlice({
       state.isAuthenticated = false;
       state.lastActivity = null;
       state.tokenExpiration = null;
-      state.sessionStatus = SessionStatus.IDLE;
+      state.sessionStatus = SessionStatus.EXPIRED;
 
       // Remove tokens from storage
       localStorage.removeItem(authConfig.tokenStorageKey);
       localStorage.removeItem(authConfig.refreshTokenStorageKey);
+    },
+
+    setAuthenticated: (state, action: PayloadAction<boolean>) => {
+      state.isAuthenticated = action.payload;
     },
   },
 });
