@@ -271,15 +271,39 @@ export class AuthService {
    */
   public async validateSession(): Promise<boolean> {
     try {
+      console.log('validateSession: Getting stored tokens');
       const tokens = this.getStoredTokens();
-      if (!tokens) return false;
+      console.log('validateSession: Stored tokens exist:', !!tokens);
 
-      const response = await api.post(authConfig.authEndpoints.validateToken, {
-        sessionId: tokens.sessionId,
-      });
+      if (!tokens || !tokens.token) {
+        console.log('validateSession: No valid tokens found');
+        return false;
+      }
 
-      return response.data.valid;
+      console.log('validateSession: Making validation request');
+      const response = await api.post(
+        authConfig.authEndpoints.validateToken,
+        { sessionId: tokens.sessionId },
+        {
+          headers: {
+            Authorization: `Bearer ${tokens.token}`,
+          },
+        }
+      );
+      console.log('validateSession: Response received:', response.data);
+
+      if (response.data.valid) {
+        console.log('validateSession: Session is valid, updating user');
+        this.currentUser = response.data.user;
+        return true;
+      }
+
+      console.log('validateSession: Session is invalid, clearing tokens');
+      this.clearTokens();
+      return false;
     } catch (error) {
+      console.error('validateSession: Error occurred:', error);
+      this.clearTokens();
       return false;
     }
   }
