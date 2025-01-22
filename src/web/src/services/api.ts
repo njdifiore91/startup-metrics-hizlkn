@@ -5,13 +5,22 @@
  */
 
 // External imports
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'; // ^1.4.0
+import axios, {
+  AxiosInstance,
+  AxiosRequestConfig,
+  AxiosResponse,
+  AxiosError,
+  InternalAxiosRequestConfig,
+  AxiosResponseHeaders,
+  RawAxiosRequestHeaders,
+} from 'axios'; // ^1.4.0
 import axiosRetry from 'axios-retry'; // ^3.5.0
 
 // Internal imports
 import { apiConfig } from '../config/api';
 import { handleApiError } from '../utils/errorHandlers';
 import { AUTH_CONSTANTS } from '../config/constants';
+import { ApiError } from '../utils/errorHandlers';
 
 /**
  * Enhanced request configuration interface with security options
@@ -33,6 +42,22 @@ export interface IApiResponse<T = any> {
   tracking?: Record<string, any>;
 }
 
+// Add interfaces for enhanced types
+interface EnhancedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  metadata?: {
+    startTime: number;
+    [key: string]: any;
+  };
+}
+
+interface EnhancedAxiosError extends AxiosError {
+  isCache?: boolean;
+  response: AxiosResponse & {
+    data: any;
+    [key: string]: any;
+  };
+}
+
 /**
  * Retry configuration with exponential backoff
  */
@@ -40,12 +65,12 @@ const RETRY_CONFIG = {
   retries: 3,
   retryDelay: axiosRetry.exponentialDelay,
   retryCondition: (error: AxiosError): boolean => {
-    return error.response?.status >= 500 || error.code === 'ECONNABORTED';
+    return (error.response?.status ?? 0) >= 500 || error.code === 'ECONNABORTED';
   },
   shouldResetTimeout: true,
   onRetry: (retryCount: number, error: AxiosError) => {
     console.warn(`Retry attempt ${retryCount} for failed request:`, error.config?.url);
-  }
+  },
 };
 
 /**
@@ -56,7 +81,7 @@ export const HTTP_METHODS = {
   POST: 'post',
   PUT: 'put',
   DELETE: 'delete',
-  PATCH: 'patch'
+  PATCH: 'patch',
 } as const;
 
 /**
@@ -65,7 +90,7 @@ export const HTTP_METHODS = {
 const CACHE_CONFIG = {
   enabled: true,
   maxAge: 300000, // 5 minutes
-  excludePaths: ['/auth', '/user']
+  excludePaths: ['/auth', '/user'],
 };
 
 /**
@@ -81,35 +106,33 @@ const createApiInstance = (): AxiosInstance => {
 
   // Configure request interceptor
   instance.interceptors.request.use(
-    async (config: AxiosRequestConfig) => {
+    async (config: InternalAxiosRequestConfig) => {
       const startTime = performance.now();
-      
+
       // Add auth token if available
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
-        config.headers = {
-          ...config.headers,
-          Authorization: `Bearer ${token}`
-        };
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
       }
 
       // Add performance tracking
-      config.metadata = {
-        ...config.metadata,
-        startTime
+      (config as EnhancedAxiosRequestConfig).metadata = {
+        ...(config as EnhancedAxiosRequestConfig).metadata,
+        startTime,
       };
 
       // Check cache for GET requests
       if (config.method === 'get' && CACHE_CONFIG.enabled) {
         const cacheKey = `${config.url}${JSON.stringify(config.params || {})}`;
         const cached = requestCache.get(cacheKey);
-        
-        if (cached && (Date.now() - cached.timestamp) < CACHE_CONFIG.maxAge) {
+
+        if (cached && Date.now() - cached.timestamp < CACHE_CONFIG.maxAge) {
           return Promise.reject({
             config,
             response: { data: cached.data },
-            isCache: true
-          });
+            isCache: true,
+          } as EnhancedAxiosError);
         }
       }
 
@@ -120,10 +143,11 @@ const createApiInstance = (): AxiosInstance => {
 
   // Configure response interceptor
   instance.interceptors.response.use(
-    (response: AxiosResponse) => {
+    (response: AxiosResponse): AxiosResponse => {
       const endTime = performance.now();
-      const startTime = response.config.metadata?.startTime;
-      
+      const config = response.config as EnhancedAxiosRequestConfig;
+      const startTime = config.metadata?.startTime;
+
       // Calculate request duration
       const duration = startTime ? endTime - startTime : 0;
 
@@ -131,42 +155,51 @@ const createApiInstance = (): AxiosInstance => {
       if (
         response.config.method === 'get' &&
         CACHE_CONFIG.enabled &&
-        !CACHE_CONFIG.excludePaths.some(path => response.config.url?.includes(path))
+        !CACHE_CONFIG.excludePaths.some((path) => response.config.url?.includes(path))
       ) {
         const cacheKey = `${response.config.url}${JSON.stringify(response.config.params || {})}`;
         requestCache.set(cacheKey, {
           data: response.data,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       }
 
       // Format response with metadata
       return {
-        status: 'success',
-        data: response.data,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          duration,
-          headers: response.headers
-        }
+        ...response,
+        data: {
+          status: 'success',
+          data: response.data,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            duration,
+            headers: response.headers,
+          },
+        },
       };
     },
-    async (error: AxiosError) => {
+    async (error: EnhancedAxiosError) => {
       // Handle cache responses
       if (error.isCache) {
         return {
-          status: 'success',
-          data: error.response.data,
-          metadata: {
-            fromCache: true,
-            timestamp: new Date().toISOString()
-          }
-        };
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: error.config,
+          data: {
+            status: 'success',
+            data: error.response.data,
+            metadata: {
+              fromCache: true,
+              timestamp: new Date().toISOString(),
+            },
+          },
+        } as AxiosResponse;
       }
 
       // Handle errors with enhanced error handler
-      const handledError = handleApiError(error);
-      
+      const handledError = handleApiError(error as AxiosError<ApiError>);
+
       // Clear cache for failed requests
       if (error.config?.url) {
         const cacheKey = `${error.config.url}${JSON.stringify(error.config.params || {})}`;
@@ -215,9 +248,15 @@ export const prefetchData = async (url: string, params?: any): Promise<void> => 
     const cacheKey = `${url}${JSON.stringify(params || {})}`;
     requestCache.set(cacheKey, {
       data: response.data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   } catch (error) {
     console.error('Prefetch failed:', error);
   }
 };
+
+/* eslint-disable @typescript-eslint/no-unused-vars */
+export const get = (url: string, config?: AxiosRequestConfig) => api.get(url, config);
+export const post = (url: string, data?: any, config?: AxiosRequestConfig) =>
+  api.post(url, data, config);
+/* eslint-enable @typescript-eslint/no-unused-vars */

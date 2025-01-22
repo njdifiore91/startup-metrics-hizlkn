@@ -3,6 +3,7 @@ import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
 import { ApiError, handleApiError } from '../utils/errorHandlers';
 import { AxiosError, AxiosHeaders } from 'axios';
+import type { RootState } from './index';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes in milliseconds
@@ -36,11 +37,35 @@ const createDefaultHeaders = () => {
   headers.set('Content-Type', 'application/json');
   return headers;
 };
+
+interface ErrorConfig {
+  headers: ReturnType<typeof createDefaultHeaders>;
+  method: string;
+  url: string;
+  baseURL: string;
+  timeout: number;
+  timeoutErrorMessage: string;
+  transformRequest: any[];
+  transformResponse: any[];
+  transitional: {
+    silentJSONParsing: boolean;
+    forcedJSONParsing: boolean;
+    clarifyTimeoutError: boolean;
+  };
+  xsrfCookieName: string;
+  xsrfHeaderName: string;
+  maxContentLength: number;
+  maxBodyLength: number;
+  env: {
+    FormData: typeof FormData | undefined;
+  };
+  validateStatus: (status: number) => boolean;
+}
+
 // Helper function to handle errors using our error utilities
 const handleMetricsError = (error: unknown) => {
   const headers = createDefaultHeaders();
-  // Create an AxiosError-compatible error object
-  const defaultConfig = {
+  const defaultConfig: ErrorConfig = {
     headers,
     method: 'GET',
     url: '',
@@ -59,17 +84,19 @@ const handleMetricsError = (error: unknown) => {
     maxContentLength: -1,
     maxBodyLength: -1,
     env: {
-      FormData: undefined as unknown as typeof FormData,
+      FormData: typeof window !== 'undefined' ? window.FormData : undefined,
     },
     validateStatus: (status: number) => status >= 200 && status < 300,
   };
 
-  // Create an AxiosError-compatible error object
   const axiosError: AxiosError<ApiError> = {
     isAxiosError: true,
     name: 'AxiosError',
     message: error instanceof Error ? error.message : 'An unknown error occurred',
-    toJSON: () => ({}),
+    toJSON: () => ({
+      message: error instanceof Error ? error.message : 'An unknown error occurred',
+      code: 'UNKNOWN_ERROR',
+    }),
     config: defaultConfig,
     response: {
       data: {
@@ -88,56 +115,59 @@ const handleMetricsError = (error: unknown) => {
 
   return handleApiError(axiosError);
 };
+
 // Async thunks
-export const fetchMetrics = createAsyncThunk(
-  'metrics/fetchMetrics',
-  async (_, { rejectWithValue, getState }) => {
-    try {
-      const state = getState() as { metrics: MetricsState };
+export const fetchMetrics = createAsyncThunk<
+  IMetric[] | null,
+  void,
+  { state: RootState; rejectValue: string }
+>('metrics/fetchMetrics', async (_, { rejectWithValue, getState }) => {
+  try {
+    const state = getState();
 
-      // Check cache validity
-      if (
-        state.metrics.cacheValid &&
-        state.metrics.lastUpdated &&
-        Date.now() - state.metrics.lastUpdated < CACHE_DURATION
-      ) {
-        return state.metrics.metrics;
-      }
-
-      const response = await metricsService.getMetrics();
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return response.data;
-    } catch (error) {
-      const handledError = handleMetricsError(error);
-      return rejectWithValue(handledError.message);
+    // Check cache validity
+    if (
+      state.metrics.cacheValid &&
+      state.metrics.lastUpdated &&
+      Date.now() - state.metrics.lastUpdated < CACHE_DURATION
+    ) {
+      return state.metrics.metrics;
     }
-  }
-);
 
-export const fetchMetricsByCategory = createAsyncThunk(
-  'metrics/fetchMetricsByCategory',
-  async (category: MetricCategory, { rejectWithValue }) => {
-    try {
-      const response = await metricsService.getMetricsByCategory(category);
+    const response = await metricsService.getMetrics();
 
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return {
-        metrics: response.data,
-        category,
-      };
-    } catch (error) {
-      const handledError = handleMetricsError(error);
-      return rejectWithValue(handledError.message);
+    if (response.error) {
+      throw new Error(response.error);
     }
+
+    return response.data;
+  } catch (error) {
+    const handledError = handleMetricsError(error);
+    return rejectWithValue(handledError.message);
   }
-);
+});
+
+export const fetchMetricsByCategory = createAsyncThunk<
+  { metrics: IMetric[]; category: MetricCategory },
+  MetricCategory,
+  { rejectValue: string }
+>('metrics/fetchMetricsByCategory', async (category, { rejectWithValue }) => {
+  try {
+    const response = await metricsService.getMetricsByCategory(category);
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
+
+    return {
+      metrics: response.data || [],
+      category,
+    };
+  } catch (error) {
+    const handledError = handleMetricsError(error);
+    return rejectWithValue(handledError.message);
+  }
+});
 
 // Create the metrics slice
 const metricsSlice = createSlice({
@@ -169,14 +199,14 @@ const metricsSlice = createSlice({
         state.error['fetchMetrics'] = null;
       })
       .addCase(fetchMetrics.fulfilled, (state, action) => {
-        state.metrics = action.payload;
+        state.metrics = action.payload || [];
         state.loading['fetchMetrics'] = false;
         state.lastUpdated = Date.now();
         state.cacheValid = true;
       })
       .addCase(fetchMetrics.rejected, (state, action) => {
         state.loading['fetchMetrics'] = false;
-        state.error['fetchMetrics'] = action.payload as string;
+        state.error['fetchMetrics'] = action.payload || 'An unknown error occurred';
         state.cacheValid = false;
       });
 
@@ -194,7 +224,7 @@ const metricsSlice = createSlice({
       })
       .addCase(fetchMetricsByCategory.rejected, (state, action) => {
         state.loading['fetchMetricsByCategory'] = false;
-        state.error['fetchMetricsByCategory'] = action.payload as string;
+        state.error['fetchMetricsByCategory'] = action.payload || 'An unknown error occurred';
       });
   },
 });
@@ -204,12 +234,11 @@ export const { setSelectedCategory, invalidateCache, clearMetrics, clearErrors }
   metricsSlice.actions;
 
 // Selectors
-export const selectMetrics = (state: { metrics: MetricsState }) => state.metrics.metrics;
-export const selectSelectedCategory = (state: { metrics: MetricsState }) =>
-  state.metrics.selectedCategory;
-export const selectMetricsLoading = (state: { metrics: MetricsState }) => state.metrics.loading;
-export const selectMetricsError = (state: { metrics: MetricsState }) => state.metrics.error;
-export const selectMetricsCacheStatus = (state: { metrics: MetricsState }) => ({
+export const selectMetrics = (state: RootState) => state.metrics.metrics;
+export const selectSelectedCategory = (state: RootState) => state.metrics.selectedCategory;
+export const selectMetricsLoading = (state: RootState) => state.metrics.loading;
+export const selectMetricsError = (state: RootState) => state.metrics.error;
+export const selectMetricsCacheStatus = (state: RootState) => ({
   isValid: state.metrics.cacheValid,
   lastUpdated: state.metrics.lastUpdated,
 });

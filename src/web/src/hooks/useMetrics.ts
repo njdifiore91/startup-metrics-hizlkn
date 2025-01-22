@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
+import type { MetricServiceResponse } from '../services/metrics';
 import {
   selectMetrics,
   selectMetricsLoading,
@@ -9,17 +10,28 @@ import {
   fetchMetrics,
   fetchMetricsByCategory,
 } from '../store/metricsSlice';
-import { RootState } from '@/store';
+import { RootState } from '../store';
 
 // Constants
 const CACHE_TTL = 300000; // 5 minutes
 const MAX_RETRIES = 3;
 
+interface UseMetricsReturn {
+  metrics: IMetric[];
+  loading: Record<string, boolean>;
+  error: Record<string, string | null>;
+  getMetricById: (id: string) => Promise<IMetric | null>;
+  getMetricsByCategory: (category: MetricCategory) => Promise<IMetric[]>;
+  saveCompanyMetric: (metricId: string, value: number) => Promise<boolean>;
+  getBenchmarkData: (metricId: string, revenueRange: string) => Promise<any | null>;
+  validateMetricValue: (value: number, metric: IMetric) => boolean;
+}
+
 /**
  * Custom hook for managing metric-related operations with caching and optimizations
  * @version 1.0.0
  */
-export const useMetrics = () => {
+export const useMetrics = (): UseMetricsReturn => {
   // Initialize Redux
   const dispatch = useDispatch();
   const metrics = useSelector((state: RootState) => selectMetrics(state));
@@ -59,8 +71,8 @@ export const useMetrics = () => {
       }
 
       return response.data;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metric';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch metric';
       setError((prev) => ({ ...prev, [id]: errorMessage }));
       return null;
     } finally {
@@ -95,10 +107,10 @@ export const useMetrics = () => {
         throw new Error(response.error);
       }
 
-      return response.data;
-    } catch (err) {
+      return response.data || [];
+    } catch (error) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Failed to fetch metrics by category';
+        error instanceof Error ? error.message : 'Failed to fetch metrics by category';
       setError((prev) => ({ ...prev, [cacheKey]: errorMessage }));
       return [];
     } finally {

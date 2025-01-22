@@ -3,6 +3,8 @@
  * @version 1.0.0
  */
 
+import { MetricValueType } from '@/interfaces/IMetric';
+
 // Interfaces for type safety
 interface IApiConfig {
   API_BASE_URL: string;
@@ -113,3 +115,71 @@ export type MetricType = keyof typeof METRIC_TYPES;
 export type RevenueRange = (typeof REVENUE_RANGES.ranges)[number];
 export type Breakpoint = keyof typeof UI_CONSTANTS.BREAKPOINTS;
 export type ChartColor = (typeof CHART_CONSTANTS.COLORS)[number];
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
+
+export const USER_ROLES = {
+  USER: 'user',
+  ANALYST: 'analyst',
+  ADMIN: 'admin',
+  SYSTEM: 'system',
+} as const;
+
+export const METRIC_VALIDATION_RULES: Record<
+  MetricValueType,
+  {
+    min: number;
+    max: number;
+    required: boolean;
+    format: RegExp;
+    decimalPrecision: number;
+    errorMessage: string;
+    sanitization: 'trim';
+    allowNegative: boolean;
+    currencySymbol?: string;
+  }
+> = {
+  percentage: {
+    min: 0,
+    max: 100,
+    required: true,
+    format: /^\d+(\.\d{1,2})?$/,
+    decimalPrecision: 2,
+    errorMessage: 'Percentage must be between 0 and 100 with up to 2 decimal places',
+    sanitization: 'trim',
+    allowNegative: false,
+  },
+
+  currency: {
+    min: 0,
+    max: 1000000000, // $1B limit
+    required: true,
+    format: /^\d+(\.\d{2})?$/,
+    decimalPrecision: 2,
+    errorMessage: 'Currency must be between 0 and 1B with exactly 2 decimal places',
+    sanitization: 'trim',
+    allowNegative: false,
+    currencySymbol: '$',
+  },
+
+  number: {
+    min: 0,
+    max: 1000000, // 1M limit
+    required: true,
+    format: /^\d+$/,
+    decimalPrecision: 0,
+    errorMessage: 'Number must be between 0 and 1M with no decimal places',
+    sanitization: 'trim',
+    allowNegative: false,
+  },
+
+  ratio: {
+    min: 0,
+    max: 1000,
+    required: true,
+    format: /^\d+(\.\d{1,3})?$/,
+    decimalPrecision: 3,
+    errorMessage: 'Ratio must be between 0 and 1000 with up to 3 decimal places',
+    sanitization: 'trim',
+    allowNegative: false,
+  },
+} as const;

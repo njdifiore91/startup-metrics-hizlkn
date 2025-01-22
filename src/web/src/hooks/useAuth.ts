@@ -4,11 +4,12 @@
  * @version 1.0.0
  */
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AuthService } from '../services/auth';
 import { authActions, SessionStatus, AuthError } from '../store/authSlice';
 import type { IUser } from '../interfaces/IUser';
+import type { RootState } from '../store';
 
 // Constants for security and session management
 const TOKEN_REFRESH_INTERVAL = 300000; // 5 minutes
@@ -31,6 +32,20 @@ interface AuthAttempt {
   locked: boolean;
 }
 
+export interface UpdateUserSettingsParams {
+  userId: string;
+  preferences: {
+    theme: 'light' | 'dark' | 'system';
+    language: string;
+    notifications: {
+      email: boolean;
+      browser: boolean;
+      security: boolean;
+    };
+    twoFactorEnabled: boolean;
+  };
+}
+
 /**
  * Interface for the useAuth hook return value
  */
@@ -45,6 +60,7 @@ interface UseAuthReturn {
   logout: () => Promise<void>;
   refreshToken: () => Promise<string>;
   validateSession: () => Promise<boolean>;
+  updateUserSettings: (params: UpdateUserSettingsParams) => Promise<void>;
 }
 
 /**
@@ -53,20 +69,43 @@ interface UseAuthReturn {
 export const useAuth = (): UseAuthReturn => {
   const dispatch = useDispatch();
   const authService = new AuthService();
-
-  // Select auth state from Redux store
-  const user = useSelector((state: any) => state.auth.user);
-  const isLoading = useSelector((state: any) => state.auth.isLoading);
-  const error = useSelector((state: any) => state.auth.error);
-  const isAuthenticated = useSelector((state: any) => state.auth.isAuthenticated);
-  const sessionStatus = useSelector((state: any) => state.auth.sessionStatus);
-
-  // Track authentication attempts
-  const authAttempts: AuthAttempt = {
+  const authAttemptsRef = useRef<AuthAttempt>({
     count: 0,
     lastAttempt: 0,
     locked: false,
-  };
+  });
+
+  // Select auth state from Redux store with proper typing
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isLoading = useSelector((state: RootState) => state.auth.isLoading);
+  const error = useSelector((state: RootState) => state.auth.error);
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  const sessionStatus = useSelector((state: RootState) => state.auth.sessionStatus);
+
+  // Add updateUserSettings function
+  const updateUserSettings = useCallback(
+    async (params: UpdateUserSettingsParams): Promise<void> => {
+      try {
+        dispatch(authActions.setLoading(true));
+        await authService.updateUserSettings(params);
+        // Update user in state if needed
+        dispatch(authActions.updateUserSettings(params.preferences));
+      } catch (err) {
+        const error = err as Error;
+        dispatch(
+          authActions.setError({
+            code: 'UPDATE_SETTINGS_ERROR',
+            message: error.message || 'Failed to update user settings',
+            details: {},
+          })
+        );
+        throw error;
+      } finally {
+        dispatch(authActions.setLoading(false));
+      }
+    },
+    [dispatch, authService]
+  );
 
   /**
    * Handles Google OAuth login with rate limiting and security measures
@@ -75,16 +114,16 @@ export const useAuth = (): UseAuthReturn => {
     try {
       // Check for auth attempts rate limiting
       const now = Date.now();
-      if (authAttempts.locked) {
-        if (now - authAttempts.lastAttempt < AUTH_ATTEMPT_TIMEOUT) {
+      if (authAttemptsRef.current.locked) {
+        if (now - authAttemptsRef.current.lastAttempt < AUTH_ATTEMPT_TIMEOUT) {
           throw new Error('Account temporarily locked. Please try again later.');
         }
-        authAttempts.locked = false;
-        authAttempts.count = 0;
+        authAttemptsRef.current.locked = false;
+        authAttemptsRef.current.count = 0;
       }
 
-      if (authAttempts.count >= MAX_AUTH_ATTEMPTS) {
-        authAttempts.locked = true;
+      if (authAttemptsRef.current.count >= MAX_AUTH_ATTEMPTS) {
+        authAttemptsRef.current.locked = true;
         throw new Error('Too many login attempts. Please try again later.');
       }
 
@@ -108,26 +147,23 @@ export const useAuth = (): UseAuthReturn => {
       );
 
       // Reset auth attempts on successful login
-      authAttempts.count = 0;
-      authAttempts.locked = false;
-      return {
-        user: response.user,
-        token: response.token,
-        refreshToken: response.refreshToken,
-        expiresAt: response.expiresAt,
-      };
-    } catch (error: any) {
-      authAttempts.count++;
-      authAttempts.lastAttempt = Date.now();
+      authAttemptsRef.current.count = 0;
+      authAttemptsRef.current.locked = false;
 
+      return response;
+    } catch (error) {
+      authAttemptsRef.current.count++;
+      authAttemptsRef.current.lastAttempt = Date.now();
+
+      const authError = error as Error;
       dispatch(
         authActions.setError({
-          code: error.code || 'AUTH_ERROR',
-          message: error.message || 'Authentication failed',
-          details: error.details || {},
+          code: 'AUTH_ERROR',
+          message: authError.message || 'Authentication failed',
+          details: {},
         })
       );
-      throw error.message;
+      throw authError;
     } finally {
       dispatch(authActions.setLoading(false));
     }
@@ -242,5 +278,6 @@ export const useAuth = (): UseAuthReturn => {
     logout,
     refreshToken,
     validateSession,
+    updateUserSettings,
   };
 };

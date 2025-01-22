@@ -2,7 +2,6 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import CryptoJS from 'crypto-js';
 import { IUser } from '../interfaces/IUser';
 import { authConfig } from '../config/auth';
-
 /**
  * Enum for tracking session status
  */
@@ -10,7 +9,21 @@ export enum SessionStatus {
   ACTIVE = 'ACTIVE',
   IDLE = 'IDLE',
   EXPIRED = 'EXPIRED',
-  LOCKED = 'LOCKED'
+  LOCKED = 'LOCKED',
+}
+
+/**
+ * Interface for user preferences
+ */
+export interface UserPreferences {
+  theme: 'light' | 'dark' | 'system';
+  language: string;
+  notifications: {
+    email: boolean;
+    browser: boolean;
+    security: boolean;
+  };
+  twoFactorEnabled: boolean;
 }
 
 /**
@@ -49,7 +62,7 @@ const initialState: AuthState = {
   error: null,
   lastActivity: null,
   tokenExpiration: null,
-  sessionStatus: SessionStatus.IDLE
+  sessionStatus: SessionStatus.IDLE,
 };
 
 /**
@@ -87,18 +100,21 @@ export const authSlice = createSlice({
       state.sessionStatus = action.payload ? SessionStatus.ACTIVE : SessionStatus.IDLE;
     },
 
-    setTokens: (state, action: PayloadAction<{ token: string; refreshToken: string; expiration: Date }>) => {
+    setTokens: (
+      state,
+      action: PayloadAction<{ token: string; refreshToken: string; expiration: Date }>
+    ) => {
       const { token, refreshToken, expiration } = action.payload;
-      
+
       // Encrypt tokens before storing
       const encryptedToken = encryptData(token);
       const encryptedRefreshToken = encryptData(refreshToken);
-      
+
       // Store encrypted tokens in state
       state.token = encryptedToken;
       state.refreshToken = encryptedRefreshToken;
       state.tokenExpiration = expiration;
-      
+
       // Store encrypted tokens in secure storage
       localStorage.setItem(authConfig.tokenStorageKey, encryptedToken);
       localStorage.setItem(authConfig.refreshTokenStorageKey, encryptedRefreshToken);
@@ -106,10 +122,10 @@ export const authSlice = createSlice({
 
     refreshTokens: (state) => {
       if (!state.tokenExpiration) return;
-      
+
       const now = new Date();
       const timeUntilExpiry = state.tokenExpiration.getTime() - now.getTime();
-      
+
       if (timeUntilExpiry <= authConfig.tokenRefreshThreshold * 1000) {
         state.isLoading = true;
         state.error = null;
@@ -119,10 +135,10 @@ export const authSlice = createSlice({
     updateActivity: (state) => {
       const now = new Date();
       state.lastActivity = now;
-      
+
       if (state.tokenExpiration) {
         const timeUntilExpiry = state.tokenExpiration.getTime() - now.getTime();
-        
+
         if (timeUntilExpiry <= 0) {
           state.sessionStatus = SessionStatus.EXPIRED;
         } else if (timeUntilExpiry <= authConfig.tokenRefreshThreshold * 1000) {
@@ -145,6 +161,15 @@ export const authSlice = createSlice({
       state.isLoading = false;
     },
 
+    updateUserSettings: (state, action: PayloadAction<UserPreferences>) => {
+      if (state.user) {
+        state.user = {
+          ...state.user,
+          preferences: action.payload,
+        };
+      }
+    },
+
     logout: (state) => {
       // Clear all authentication state
       state.user = null;
@@ -154,12 +179,12 @@ export const authSlice = createSlice({
       state.lastActivity = null;
       state.tokenExpiration = null;
       state.sessionStatus = SessionStatus.IDLE;
-      
+
       // Remove tokens from storage
       localStorage.removeItem(authConfig.tokenStorageKey);
       localStorage.removeItem(authConfig.refreshTokenStorageKey);
-    }
-  }
+    },
+  },
 });
 
 // Export actions and reducer
@@ -171,10 +196,10 @@ export default authSlice.reducer;
  */
 export const selectNeedsTokenRefresh = (state: { auth: AuthState }): boolean => {
   if (!state.auth.tokenExpiration) return false;
-  
+
   const now = new Date();
   const timeUntilExpiry = state.auth.tokenExpiration.getTime() - now.getTime();
-  
+
   return timeUntilExpiry <= authConfig.tokenRefreshThreshold * 1000;
 };
 

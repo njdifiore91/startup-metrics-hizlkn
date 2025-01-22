@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom'; // v6.0.0
 import { useMetrics } from '../../hooks/useMetrics';
 import { ProfileMenu } from '../user/ProfileMenu';
@@ -13,14 +13,14 @@ interface HeaderProps {
   onThemeChange: (theme: 'light' | 'dark') => void;
 }
 
-export const Header: React.FC<HeaderProps> = React.memo(
+const Header: React.FC<HeaderProps> = memo(
   ({ className = '', testId = 'main-header', onThemeChange }) => {
     const navigate = useNavigate();
     const { loading } = useMetrics();
 
     // Handle logo click navigation
     const handleLogoClick = useCallback(
-      (event: React.MouseEvent | React.KeyboardEvent) => {
+      (event: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => {
         event.preventDefault();
         if (event.type === 'keydown' && (event as React.KeyboardEvent).key !== 'Enter') {
           return;
