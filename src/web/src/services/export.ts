@@ -8,7 +8,7 @@
 import { saveAs } from 'file-saver'; // v2.0.5
 
 // Internal imports
-import { api, get, post } from './api';
+import { post } from './api';
 import { IMetric } from '../interfaces/IMetric';
 import { IBenchmark } from '../interfaces/IBenchmark';
 
@@ -34,7 +34,7 @@ export interface ExportOptions {
  */
 const API_ENDPOINTS = {
   REPORTS: '/api/v1/reports',
-  COMPARISON: '/api/v1/reports/comparison'
+  COMPARISON: '/api/v1/reports/comparison',
 } as const;
 
 /**
@@ -42,7 +42,7 @@ const API_ENDPOINTS = {
  */
 const CONTENT_TYPES = {
   PDF: 'application/pdf',
-  CSV: 'text/csv'
+  CSV: 'text/csv',
 } as const;
 
 /**
@@ -89,7 +89,7 @@ export const exportService = {
       const fileName = options.customFileName
         ? sanitizeFileName(options.customFileName)
         : `benchmark_report_${new Date().toISOString().split('T')[0]}`;
-      
+
       const extension = options.format.toLowerCase();
       const fullFileName = `${fileName}.${extension}`;
 
@@ -105,17 +105,21 @@ export const exportService = {
       const response = await post(API_ENDPOINTS.REPORTS, formData, {
         responseType: 'blob',
         onDownloadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / (progressEvent.total || 1)
+          );
           // Dispatch progress event for UI updates
-          window.dispatchEvent(new CustomEvent('exportProgress', {
-            detail: { progress: percentCompleted }
-          }));
-        }
+          window.dispatchEvent(
+            new CustomEvent('exportProgress', {
+              detail: { progress: percentCompleted },
+            })
+          );
+        },
       });
 
       // Validate response type
-      const blob = new Blob([response.data], { 
-        type: CONTENT_TYPES[options.format] 
+      const blob = new Blob([response.data], {
+        type: CONTENT_TYPES[options.format],
       });
 
       // Validate file size
@@ -134,7 +138,6 @@ export const exportService = {
       setTimeout(() => {
         document.body.removeChild(liveRegion);
       }, 3000);
-
     } catch (error) {
       console.error('Export failed:', error);
       throw new Error('Failed to generate benchmark report. Please try again.');
@@ -151,7 +154,7 @@ export const exportService = {
       const fileName = options.customFileName
         ? sanitizeFileName(options.customFileName)
         : `metric_comparison_${new Date().toISOString().split('T')[0]}`;
-      
+
       const extension = options.format.toLowerCase();
       const fullFileName = `${fileName}.${extension}`;
 
@@ -167,17 +170,21 @@ export const exportService = {
       const response = await post(API_ENDPOINTS.COMPARISON, formData, {
         responseType: 'blob',
         onDownloadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / (progressEvent.total || 1)
+          );
           // Dispatch progress event for UI updates
-          window.dispatchEvent(new CustomEvent('exportProgress', {
-            detail: { progress: percentCompleted }
-          }));
-        }
+          window.dispatchEvent(
+            new CustomEvent('exportProgress', {
+              detail: { progress: percentCompleted },
+            })
+          );
+        },
       });
 
       // Validate response type
-      const blob = new Blob([response.data], { 
-        type: CONTENT_TYPES[options.format] 
+      const blob = new Blob([response.data], {
+        type: CONTENT_TYPES[options.format],
       });
 
       // Validate file size
@@ -196,10 +203,9 @@ export const exportService = {
       setTimeout(() => {
         document.body.removeChild(liveRegion);
       }, 3000);
-
     } catch (error) {
       console.error('Export failed:', error);
       throw new Error('Failed to generate metric comparison. Please try again.');
     }
-  }
+  },
 };

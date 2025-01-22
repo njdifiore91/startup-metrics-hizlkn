@@ -1,10 +1,16 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFocusWithin } from '@react-aria/interactions';
-import analytics from '@segment/analytics-next';
+import { Analytics } from '@segment/analytics-next';
+import { AnalyticsBrowser } from '@segment/analytics-next';
 import { useAuth } from '@/hooks/useAuth';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 import { Card } from '@/components/common/Card';
+
+// Initialize analytics outside component
+const analytics = new Analytics({
+  writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
+});
 
 /**
  * Login page component that implements secure Google OAuth authentication
@@ -12,11 +18,16 @@ import { Card } from '@/components/common/Card';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, login, clearError } = useAuth();
-  const { focusWithinProps } = useFocusWithin();
+  const { isAuthenticated, error } = useAuth();
+  const { focusWithinProps } = useFocusWithin({});
 
   // Initialize analytics
-  const analyticsInstance = analytics.getInstance();
+  // const analyticsInstance = analytics.default.load({
+  //   writeKey: process.env.REACT_APP_SEGMENT_WRITE_KEY || '',
+  // });
+  const analyticsInstance = AnalyticsBrowser.load({
+    writeKey: process.env.REACT_APP_SEGMENT_WRITE_KEY || '',
+  });
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
@@ -46,14 +57,13 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Clear error state on unmount
+  // Remove the clearError usage in useEffect
   useEffect(() => {
     return () => {
-      if (error) {
-        clearError();
-      }
+      // Remove clearError call since it's not available
+      // Just let the error state be cleaned up naturally on unmount
     };
-  }, [error, clearError]);
+  }, [error]);
 
   return (
     <div className="loginContainer" {...focusWithinProps} role="main" aria-labelledby="login-title">

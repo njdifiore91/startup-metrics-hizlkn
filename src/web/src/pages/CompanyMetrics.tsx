@@ -9,6 +9,7 @@ import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { ToastType, useToast } from '../hooks/useToast';
+import { IMetric } from '../interfaces/IMetric';
 
 // Styled components with enterprise-ready styling
 const StyledPage = styled.div`
@@ -55,6 +56,27 @@ const StyledLoadingOverlay = styled.div`
   z-index: var(--z-index-modal);
 `;
 
+// Add interface for comparison result
+interface ComparisonResult {
+  percentile: number;
+  error?: string;
+  confidence?: number;
+}
+
+// Add interface for CompanyMetricForm props
+interface CompanyMetricFormProps {
+  initialData?: ICompanyMetric;
+  onSubmitSuccess: (metricData: ICompanyMetric) => Promise<void>;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+// Add interface for API error
+interface ApiError extends Error {
+  status?: number;
+  code?: string;
+}
+
 const CompanyMetrics: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
@@ -66,8 +88,9 @@ const CompanyMetrics: React.FC = () => {
 
   // Fetch metrics on mount
   useEffect(() => {
-    fetchMetrics().catch((error) => {
-      showToast('Failed to load metrics', ToastType.ERROR);
+    fetchMetrics().catch((error: ApiError) => {
+      const errorMessage = error.message || 'Failed to load metrics';
+      showToast(errorMessage, ToastType.ERROR);
     });
   }, [fetchMetrics, showToast]);
 
@@ -94,7 +117,8 @@ const CompanyMetrics: React.FC = () => {
         }
         setSelectedMetric(null);
       } catch (error) {
-        showToast(error.message || 'Failed to save metric', ToastType.ERROR);
+        const err = error as Error;
+        showToast(err.message || 'Failed to save metric', ToastType.ERROR);
       } finally {
         setIsSubmitting(false);
       }
@@ -120,13 +144,22 @@ const CompanyMetrics: React.FC = () => {
    * Handles comparison completion
    */
   const handleComparisonComplete = useCallback(
-    (result: any) => {
+    (result: ComparisonResult) => {
       if (result.percentile) {
         showToast(`Your metric is in the ${result.percentile}th percentile`, ToastType.INFO);
       }
     },
     [showToast]
   );
+
+  /**
+   * Handles company value changes in comparison
+   */
+  const handleCompanyValueChange = useCallback((value: string) => {
+    // This is just for tracking changes in the comparison component
+    // The actual value update happens through the form
+    console.debug('Company value changed:', value);
+  }, []);
 
   return (
     <ErrorBoundary>
@@ -141,7 +174,7 @@ const CompanyMetrics: React.FC = () => {
           <section aria-label="Metric Input Form">
             <Card elevation="medium">
               <CompanyMetricForm
-                initialData={selectedMetric}
+                initialData={selectedMetric || undefined}
                 onSubmitSuccess={handleMetricSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}
@@ -158,6 +191,7 @@ const CompanyMetrics: React.FC = () => {
                   revenueRange="1M-5M"
                   companyValue={selectedMetric.value}
                   onComparisonComplete={handleComparisonComplete}
+                  onCompanyValueChange={handleCompanyValueChange}
                 />
               </Card>
             </section>
@@ -169,11 +203,11 @@ const CompanyMetrics: React.FC = () => {
               {sortedMetrics.map((metric) => (
                 <Card
                   key={metric.id}
-                  interactive
+                  interactive={true}
                   onClick={() => handleMetricSelect(metric)}
                   elevation="low"
                   role="listitem"
-                  ariaLabel={`${metric.metric.name}: ${metric.value}`}
+                  aria-label={`${metric.metric.name}: ${metric.value}`}
                 >
                   <h3>{metric.metric.name}</h3>
                   <p>Value: {metric.value}</p>

@@ -12,10 +12,11 @@ import {
   fetchBenchmarksByRevenue,
   compareBenchmarkData,
   clearErrors,
+  RevenueRange,
 } from '../store/benchmarkSlice';
 import { ApiError } from '../utils/errorHandlers';
 import { AxiosError } from 'axios';
-import { useAppDispatch } from '@/store';
+import { useAppDispatch } from '../store';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -25,7 +26,7 @@ const RETRY_DELAY_BASE = 1000;
 // Types
 interface UseBenchmarksOptions {
   metricId?: string;
-  revenueRange?: string;
+  revenueRange?: RevenueRange;
   retryAttempts?: number;
 }
 
@@ -59,7 +60,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
   /**
    * Generates cache key for benchmark data
    */
-  const generateCacheKey = useCallback((metricId?: string, revenueRange?: string): string => {
+  const generateCacheKey = useCallback((metricId?: string, revenueRange?: RevenueRange): string => {
     return `${metricId || ''}_${revenueRange || ''}`;
   }, []);
 
@@ -87,7 +88,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
   const fetchBenchmarkData = useCallback(
     async (
       metricId?: string,
-      revenueRange?: string,
+      revenueRange?: RevenueRange,
       retryAttempts: number = MAX_RETRY_ATTEMPTS
     ): Promise<void> => {
       if (!metricId && !revenueRange) {
@@ -171,7 +172,7 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
           compareBenchmarkData({
             metricId,
             companyValue,
-            revenueRange: options.revenueRange || '',
+            revenueRange: options.revenueRange || '0-1M',
           })
         ).unwrap();
 

@@ -5,35 +5,77 @@
  */
 
 // External imports
-import { debounce } from 'lodash'; // v4.17.21
+import { debounce } from 'lodash';
+import { AxiosError } from 'axios';
 
 // Internal imports
 import { api } from './api';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import { handleApiError } from '../utils/errorHandlers';
-import { validateMetricData, validateCompanyMetric } from '../utils/validators';
+import { ApiError, handleApiError } from '../utils/errorHandlers';
+import { IMetric } from '../interfaces/IMetric';
 
 // Constants
 const API_ENDPOINTS = {
   BASE: '/api/v1/company/metrics',
-  BY_ID: (id: string) => `/api/v1/company/metrics/${id}`
-};
+  BY_ID: (id: string) => `/api/v1/company/metrics/${id}`,
+} as const;
 
 const CACHE_CONFIG = {
   TTL: 300000, // 5 minutes
-  PREFIX: 'company_metrics'
-};
+  PREFIX: 'company_metrics',
+} as const;
 
 const RETRY_CONFIG = {
   MAX_RETRIES: 3,
-  DELAY: 1000
+  DELAY: 1000,
+} as const;
+
+interface ValidationError {
+  field: string;
+  message: string;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+}
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+type CacheKey = typeof CACHE_CONFIG.PREFIX | `${typeof CACHE_CONFIG.PREFIX}_${string}`;
+
+type CompanyMetricInput = Omit<ICompanyMetric, 'id' | 'createdAt'> & {
+  createdAt?: string;
+};
+
+/**
+ * Validates metric data before sending to the API
+ */
+const validateMetricData = (data: Partial<CompanyMetricInput>): ValidationResult => {
+  const errors: ValidationError[] = [];
+
+  if (!data.value && data.value !== 0) {
+    errors.push({ field: 'value', message: 'Value is required' });
+  }
+
+  if (typeof data.value === 'number' && (isNaN(data.value) || !isFinite(data.value))) {
+    errors.push({ field: 'value', message: 'Value must be a valid number' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
 };
 
 /**
  * Company metrics service with enhanced error handling and caching
  */
 class CompanyMetricsService {
-  private cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private cache: Map<CacheKey, CacheEntry<ICompanyMetric | ICompanyMetric[]>> = new Map();
 
   /**
    * Retrieves all company metrics for the authenticated user
@@ -41,19 +83,19 @@ class CompanyMetricsService {
    */
   public async getCompanyMetrics(): Promise<ICompanyMetric[]> {
     try {
-      const cacheKey = `${CACHE_CONFIG.PREFIX}_all`;
-      const cached = this.getCachedData(cacheKey);
-      
+      const cacheKey = CACHE_CONFIG.PREFIX;
+      const cached = this.getCachedData<ICompanyMetric[]>(cacheKey);
+
       if (cached) {
-        return cached as ICompanyMetric[];
+        return cached;
       }
 
       const response = await api.get<ICompanyMetric[]>(API_ENDPOINTS.BASE);
       const metrics = response.data;
 
       // Validate each metric
-      metrics.forEach(metric => {
-        const validation = validateCompanyMetric(metric);
+      metrics.forEach((metric) => {
+        const validation = validateMetricData(metric);
         if (!validation.isValid) {
           console.warn('Invalid metric data:', validation.errors);
         }
@@ -62,7 +104,10 @@ class CompanyMetricsService {
       this.setCachedData(cacheKey, metrics);
       return metrics;
     } catch (error) {
-      throw handleApiError(error);
+      if (error instanceof AxiosError && error.response) {
+        throw handleApiError(error as AxiosError<ApiError>);
+      }
+      throw error;
     }
   }
 
@@ -77,17 +122,17 @@ class CompanyMetricsService {
         throw new Error('Metric ID is required');
       }
 
-      const cacheKey = `${CACHE_CONFIG.PREFIX}_${id}`;
-      const cached = this.getCachedData(cacheKey);
-      
+      const cacheKey = `${CACHE_CONFIG.PREFIX}_${id}` as const;
+      const cached = this.getCachedData<ICompanyMetric>(cacheKey);
+
       if (cached) {
-        return cached as ICompanyMetric;
+        return cached;
       }
 
       const response = await api.get<ICompanyMetric>(API_ENDPOINTS.BY_ID(id));
       const metric = response.data;
 
-      const validation = validateCompanyMetric(metric);
+      const validation = validateMetricData(metric);
       if (!validation.isValid) {
         throw new Error(`Invalid metric data: ${validation.errors[0].message}`);
       }
@@ -95,7 +140,10 @@ class CompanyMetricsService {
       this.setCachedData(cacheKey, metric);
       return metric;
     } catch (error) {
-      throw handleApiError(error);
+      if (error instanceof AxiosError && error.response) {
+        throw handleApiError(error as AxiosError<ApiError>);
+      }
+      throw error;
     }
   }
 
@@ -104,20 +152,28 @@ class CompanyMetricsService {
    * @param metricData - Company metric data
    * @returns Promise<ICompanyMetric> Created company metric
    */
-  public async createCompanyMetric(metricData: Omit<ICompanyMetric, 'id'>): Promise<ICompanyMetric> {
+  public async createCompanyMetric(metricData: CompanyMetricInput): Promise<ICompanyMetric> {
     try {
       const validation = validateMetricData(metricData);
       if (!validation.isValid) {
         throw new Error(`Invalid metric data: ${validation.errors[0].message}`);
       }
 
-      const response = await api.post<ICompanyMetric>(API_ENDPOINTS.BASE, metricData);
+      const convertedData = {
+        ...metricData,
+        createdAt: metricData.createdAt ? new Date(metricData.createdAt) : new Date(),
+      };
+
+      const response = await api.post<ICompanyMetric>(API_ENDPOINTS.BASE, convertedData);
       const createdMetric = response.data;
 
       this.invalidateCache();
       return createdMetric;
     } catch (error) {
-      throw handleApiError(error);
+      if (error instanceof AxiosError && error.response) {
+        throw handleApiError(error as AxiosError<ApiError>);
+      }
+      throw error;
     }
   }
 
@@ -129,7 +185,7 @@ class CompanyMetricsService {
    */
   public async updateCompanyMetric(
     id: string,
-    metricData: Partial<ICompanyMetric>
+    metricData: Partial<CompanyMetricInput>
   ): Promise<ICompanyMetric> {
     try {
       if (!id) {
@@ -141,16 +197,20 @@ class CompanyMetricsService {
         throw new Error(`Invalid metric data: ${validation.errors[0].message}`);
       }
 
-      const response = await api.put<ICompanyMetric>(
-        API_ENDPOINTS.BY_ID(id),
-        metricData
-      );
+      const convertedData = metricData.createdAt
+        ? { ...metricData, createdAt: new Date(metricData.createdAt) }
+        : metricData;
+
+      const response = await api.put<ICompanyMetric>(API_ENDPOINTS.BY_ID(id), convertedData);
       const updatedMetric = response.data;
 
       this.invalidateCache();
       return updatedMetric;
     } catch (error) {
-      throw handleApiError(error);
+      if (error instanceof AxiosError && error.response) {
+        throw handleApiError(error as AxiosError<ApiError>);
+      }
+      throw error;
     }
   }
 
@@ -168,7 +228,10 @@ class CompanyMetricsService {
       await api.delete(API_ENDPOINTS.BY_ID(id));
       this.invalidateCache();
     } catch (error) {
-      throw handleApiError(error);
+      if (error instanceof AxiosError && error.response) {
+        throw handleApiError(error as AxiosError<ApiError>);
+      }
+      throw error;
     }
   }
 
@@ -176,28 +239,28 @@ class CompanyMetricsService {
    * Debounced metric update to prevent rapid API calls
    */
   public debouncedUpdateMetric = debounce(
-    async (id: string, metricData: Partial<ICompanyMetric>) => {
+    async (id: string, metricData: Partial<CompanyMetricInput>) => {
       return this.updateCompanyMetric(id, metricData);
     },
-    1000,
+    RETRY_CONFIG.DELAY,
     { leading: false, trailing: true }
   );
 
   /**
    * Cache management methods
    */
-  private getCachedData(key: string): any | null {
+  private getCachedData<T extends ICompanyMetric | ICompanyMetric[]>(key: CacheKey): T | null {
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.timestamp < CACHE_CONFIG.TTL) {
-      return cached.data;
+      return cached.data as T;
     }
     return null;
   }
 
-  private setCachedData(key: string, data: any): void {
+  private setCachedData<T extends ICompanyMetric | ICompanyMetric[]>(key: CacheKey, data: T): void {
     this.cache.set(key, {
       data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 

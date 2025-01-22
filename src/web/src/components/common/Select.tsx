@@ -28,104 +28,93 @@ interface SelectProps {
  * A reusable select component with comprehensive accessibility features,
  * loading states, and error handling.
  */
-const Select: React.FC<SelectProps> = React.memo(({
-  options,
-  value,
-  onChange,
-  name,
-  id,
-  label,
-  placeholder,
-  disabled = false,
-  error,
-  loading = false,
-  required = false,
-  className = '',
-}) => {
-  // Generate unique IDs for accessibility
-  const selectId = useMemo(() => id || `select-${name}`, [id, name]);
-  const errorId = useMemo(() => `${selectId}-error`, [selectId]);
+const Select: React.FC<SelectProps> = React.memo(
+  ({
+    options,
+    value,
+    onChange,
+    name,
+    id,
+    label,
+    placeholder,
+    disabled = false,
+    error,
+    loading = false,
+    required = false,
+    className = '',
+  }) => {
+    // Generate unique IDs for accessibility
+    const selectId = useMemo(() => id || `select-${name}`, [id, name]);
+    const errorId = useMemo(() => `${selectId}-error`, [selectId]);
 
-  // Handle change events with proper type conversion
-  const handleChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newValue = event.target.value;
-    // Convert to number if the current value is a number
-    onChange(typeof value === 'number' ? Number(newValue) : newValue);
-  }, [onChange, value]);
+    // Handle change events with proper type conversion
+    const handleChange = useCallback(
+      (event: React.ChangeEvent<HTMLSelectElement>) => {
+        const newValue = event.target.value;
+        // Convert to number if the current value is a number
+        onChange(typeof value === 'number' ? Number(newValue) : newValue);
+      },
+      [onChange, value]
+    );
 
-  // Compute select classes based on state
-  const selectClasses = useMemo(() => {
-    const classes = ['select'];
-    if (error) classes.push('select-error');
-    if (disabled) classes.push('select-disabled');
-    if (className) classes.push(className);
-    return classes.join(' ');
-  }, [error, disabled, className]);
+    // Compute select classes based on state
+    const selectClasses = useMemo(() => {
+      const classes = ['select'];
+      if (error) classes.push('select-error');
+      if (disabled) classes.push('select-disabled');
+      if (className) classes.push(className);
+      return classes.join(' ');
+    }, [error, disabled, className]);
 
-  return (
-    <div className="select-container">
-      {label && (
-        <label 
-          htmlFor={selectId}
-          className="select-label"
-        >
-          {label}
-          {required && <span aria-hidden="true">*</span>}
-        </label>
-      )}
+    return (
+      <div className="select-container">
+        {label && (
+          <label htmlFor={selectId} className="select-label">
+            {label}
+            {required && <span aria-hidden="true">*</span>}
+          </label>
+        )}
 
-      <div className="select-wrapper">
-        <select
-          id={selectId}
-          name={name}
-          value={value}
-          onChange={handleChange}
-          disabled={disabled || loading}
-          aria-invalid={!!error}
-          aria-required={required}
-          aria-describedby={error ? errorId : undefined}
-          aria-busy={loading}
-          className={selectClasses}
-          data-testid={`select-${name}`}
-        >
-          {placeholder && (
-            <option value="" disabled>
-              {placeholder}
-            </option>
+        <div className="select-wrapper">
+          <select
+            id={selectId}
+            name={name}
+            value={value}
+            onChange={handleChange}
+            disabled={disabled || loading}
+            aria-invalid={!!error}
+            aria-required={required}
+            aria-describedby={error ? errorId : undefined}
+            aria-busy={loading}
+            className={selectClasses}
+            data-testid={`select-${name}`}
+          >
+            {placeholder && (
+              <option value="" disabled>
+                {placeholder}
+              </option>
+            )}
+            {options.map((option) => (
+              <option key={option.value} value={option.value} disabled={option.disabled}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          {loading && (
+            <div className="loading-spinner" aria-hidden="true">
+              <LoadingSpinner size="16px" thickness="2px" ariaLabel="Loading options" />
+            </div>
           )}
-          {options.map((option) => (
-            <option
-              key={option.value}
-              value={option.value}
-              disabled={option.disabled}
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
+        </div>
 
-        {loading && (
-          <div className="loading-spinner" aria-hidden="true">
-            <LoadingSpinner 
-              size="16px"
-              thickness="2px"
-              ariaLabel="Loading options"
-            />
+        {error && (
+          <div id={errorId} className="error-message" role="alert">
+            {error}
           </div>
         )}
-      </div>
 
-      {error && (
-        <div 
-          id={errorId}
-          className="error-message"
-          role="alert"
-        >
-          {error}
-        </div>
-      )}
-
-      <style jsx>{`
+        <style>{`
         .select-container {
           position: relative;
           width: 100%;
@@ -214,9 +203,10 @@ const Select: React.FC<SelectProps> = React.memo(({
           }
         }
       `}</style>
-    </div>
-  );
-});
+      </div>
+    );
+  }
+);
 
 // Display name for debugging
 Select.displayName = 'Select';

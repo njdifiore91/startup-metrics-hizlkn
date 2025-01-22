@@ -16,6 +16,7 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import store from './store';
+import { useAuth } from './hooks/useAuth';
 
 // Lazy-loaded route components
 const Login = React.lazy(() => import('./pages/Login'));
@@ -24,6 +25,7 @@ const Benchmarks = React.lazy(() => import('./pages/Benchmarks'));
 const CompanyMetrics = React.lazy(() => import('./pages/CompanyMetrics'));
 const Reports = React.lazy(() => import('./pages/Reports'));
 const Settings = React.lazy(() => import('./pages/Settings'));
+const NotFound = React.lazy(() => import('./pages/NotFound'));
 
 // Constants
 const ROUTES = {
@@ -103,6 +105,8 @@ const LoadingFallback: React.FC = () => (
  * Root Application Component
  */
 const App: React.FC = () => {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
   // Error handler for route loading failures
   const handleError = useCallback((error: Error) => {
     console.error('Application error:', error);
@@ -111,6 +115,11 @@ const App: React.FC = () => {
       error: error.message,
     });
   }, []);
+
+  // Show loading state while checking authentication
+  if (authLoading) {
+    return <LoadingFallback />;
+  }
 
   return (
     <ErrorBoundary
@@ -128,50 +137,28 @@ const App: React.FC = () => {
                 <Route path={ROUTES.LOGIN} element={<Login />} />
 
                 {/* Protected Routes */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
+                  <Route path={ROUTES.BENCHMARKS} element={<Benchmarks />} />
+                  <Route path={ROUTES.COMPANY_METRICS} element={<CompanyMetrics />} />
+                  <Route path={ROUTES.REPORTS} element={<Reports />} />
+                  <Route path={ROUTES.SETTINGS} element={<Settings />} />
+                </Route>
+
+                {/* Default Route */}
                 <Route
-                  path={ROUTES.DASHBOARD}
+                  path="/"
                   element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.BENCHMARKS}
-                  element={
-                    <ProtectedRoute>
-                      <Benchmarks />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.COMPANY_METRICS}
-                  element={
-                    <ProtectedRoute>
-                      <CompanyMetrics />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.REPORTS}
-                  element={
-                    <ProtectedRoute>
-                      <Reports />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.SETTINGS}
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <Settings />
-                    </ProtectedRoute>
+                    isAuthenticated ? (
+                      <Navigate to={ROUTES.DASHBOARD} replace />
+                    ) : (
+                      <Navigate to={ROUTES.LOGIN} replace />
+                    )
                   }
                 />
 
-                {/* Redirects */}
-                <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-                <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+                {/* 404 Route */}
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
           </Layout>
