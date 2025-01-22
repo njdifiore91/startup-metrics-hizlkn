@@ -15,10 +15,10 @@ export const authConfig = {
    * Uses RS256 algorithm with public/private key pair for enhanced security
    */
   jwt: {
-    privateKey: process.env.JWT_PRIVATE_KEY,
-    publicKey: process.env.JWT_PUBLIC_KEY,
+    privateKey: import.meta.env.JWT_PRIVATE_KEY,
+    publicKey: import.meta.env.JWT_PUBLIC_KEY,
     algorithm: 'RS256' as const,
-    expiresIn: process.env.JWT_EXPIRY || '1h',
+    expiresIn: import.meta.env.JWT_EXPIRY || '1h',
     refreshTokenExpiry: '14d',
     issuer: 'startup-metrics-platform',
     audience: 'startup-metrics-users',
@@ -30,9 +30,9 @@ export const authConfig = {
    * Implements secure OAuth 2.0 flow with enhanced scope management
    */
   google: {
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL,
+    clientId: import.meta.env.GOOGLE_CLIENT_ID,
+    clientSecret: import.meta.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: import.meta.env.GOOGLE_CALLBACK_URL,
     scope: [
       'profile',
       'email',
@@ -40,7 +40,7 @@ export const authConfig = {
     prompt: 'select_account', // Force account selection
     accessType: 'offline', // Enable refresh token generation
     includeGrantedScopes: true, // Include previously granted scopes
-    hostedDomain: process.env.GOOGLE_HOSTED_DOMAIN, // Optional G Suite domain restriction
+    hostedDomain: import.meta.env.GOOGLE_HOSTED_DOMAIN, // Optional G Suite domain restriction
   },
 
   /**
@@ -48,17 +48,17 @@ export const authConfig = {
    * Implements secure session management with strict cookie settings
    */
   session: {
-    secret: process.env.SESSION_SECRET,
+    secret: import.meta.env.SESSION_SECRET,
     name: 'sid', // Custom session ID name
     resave: false, // Don't save session if unmodified
     saveUninitialized: false, // Don't create session until something stored
     rolling: true, // Reset expiration on each request
     cookie: {
-      secure: process.env.NODE_ENV === 'production', // Secure in production
+      secure: import.meta.env.NODE_ENV === 'production', // Secure in production
       httpOnly: true, // Prevent client-side access
       maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days in milliseconds
       sameSite: 'strict' as const, // Strict same-site policy
-      domain: process.env.COOKIE_DOMAIN, // Cookie domain
+      domain: import.meta.env.COOKIE_DOMAIN, // Cookie domain
       path: '/', // Cookie path
     },
   },
@@ -68,7 +68,7 @@ export const authConfig = {
    * Implements distributed session storage with retry mechanism
    */
   redis: {
-    url: process.env.REDIS_URL,
+    url: import.meta.env.REDIS_URL,
     prefix: 'sess:', // Session key prefix
     ttl: 24 * 60 * 60, // Session TTL in seconds (24 hours)
     disableTouch: false, // Enable TTL refresh on session access

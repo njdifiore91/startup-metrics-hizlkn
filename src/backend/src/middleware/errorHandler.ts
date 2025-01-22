@@ -57,7 +57,7 @@ export class CustomError extends Error {
         message: this.message,
         correlationId: this.correlationId,
         timestamp: this.timestamp,
-        ...(process.env.NODE_ENV === 'development' && { stack: this.stack }),
+        ...(import.meta.env.NODE_ENV === 'development' && { stack: this.stack }),
         ...(this.meta && { meta: this.meta })
       }
     };

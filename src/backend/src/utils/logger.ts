@@ -129,8 +129,8 @@ const warn = (message: string, meta: LogMetadata = {}): void => {
  */
 const debug = (message: string, meta: LogMetadata = {}): void => {
   // Apply debug sampling rate if configured
-  const samplingRate = process.env.DEBUG_SAMPLING_RATE ? 
-    parseFloat(process.env.DEBUG_SAMPLING_RATE) : 1;
+  const samplingRate = import.meta.env.DEBUG_SAMPLING_RATE ? 
+    parseFloat(import.meta.env.DEBUG_SAMPLING_RATE) : 1;
 
   if (Math.random() <= samplingRate) {
     const debugMeta = {

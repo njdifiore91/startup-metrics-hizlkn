@@ -1,7 +1,6 @@
 // External imports - versions specified as per requirements
 import axios, { AxiosError, AxiosResponse, CancelTokenSource } from 'axios'; // ^1.4.0
 import { debounce, memoize } from 'lodash'; // ^4.17.21
-import NodeCache from 'node-cache'; // ^5.1.2
 
 // Internal imports
 import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
@@ -70,8 +69,7 @@ interface ResultMetadata {
 
 // Constants
 const CACHE_CONFIG = {
-  TTL: 300, // 5 minutes
-  CHECK_PERIOD: 60, // 1 minute
+  TTL: 300000, // 5 minutes in milliseconds
   MAX_KEYS: 1000,
 } as const;
 
@@ -81,13 +79,47 @@ const API_ENDPOINTS = {
   BENCHMARK_COMPARISON: `${apiConfig.baseURL}/benchmarks/compare`,
 } as const;
 
+// Simple browser-compatible cache implementation
+class BrowserCache {
+  private cache: Map<string, { value: any; timestamp: number }>;
+  private maxKeys: number;
+  private ttl: number;
+
+  constructor(ttl: number, maxKeys: number) {
+    this.cache = new Map();
+    this.ttl = ttl;
+    this.maxKeys = maxKeys;
+  }
+
+  get<T>(key: string): T | undefined {
+    const item = this.cache.get(key);
+    if (!item) return undefined;
+
+    const now = Date.now();
+    if (now - item.timestamp > this.ttl) {
+      this.cache.delete(key);
+      return undefined;
+    }
+
+    return item.value as T;
+  }
+
+  set(key: string, value: any): void {
+    if (this.cache.size >= this.maxKeys) {
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+
+    this.cache.set(key, { value, timestamp: Date.now() });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
 // Cache initialization
-const benchmarkCache = new NodeCache({
-  stdTTL: CACHE_CONFIG.TTL,
-  checkperiod: CACHE_CONFIG.CHECK_PERIOD,
-  maxKeys: CACHE_CONFIG.MAX_KEYS,
-  useClones: false,
-});
+const benchmarkCache = new BrowserCache(CACHE_CONFIG.TTL, CACHE_CONFIG.MAX_KEYS);
 
 // Utility Functions
 const validateBenchmarkFilter = (filter: BenchmarkFilter): void => {

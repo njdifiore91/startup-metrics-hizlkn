@@ -69,7 +69,7 @@ const initialState: AuthState = {
  * Encryption key for token storage
  * @constant
  */
-const ENCRYPTION_KEY = process.env.VITE_TOKEN_ENCRYPTION_KEY || 'default-secure-key';
+const ENCRYPTION_KEY = import.meta.env.VITE_TOKEN_ENCRYPTION_KEY || 'default-secure-key';
 
 /**
  * Helper function to encrypt sensitive data

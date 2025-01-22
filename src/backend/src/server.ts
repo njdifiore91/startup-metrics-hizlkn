@@ -12,10 +12,10 @@ import { logger } from './utils/logger';
 import metrics from './config/metrics';
 
 // Environment variables with defaults
-const PORT = process.env.PORT || 3000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const SHUTDOWN_TIMEOUT = parseInt(process.env.SHUTDOWN_TIMEOUT || '30000', 10);
-const SERVER_TIMEOUT = parseInt(process.env.SERVER_TIMEOUT || '30000', 10);
+const PORT = import.meta.env.PORT || 3000;
+const NODE_ENV = import.meta.env.NODE_ENV || 'development';
+const SHUTDOWN_TIMEOUT = parseInt(import.meta.env.SHUTDOWN_TIMEOUT || '30000', 10);
+const SERVER_TIMEOUT = parseInt(import.meta.env.SERVER_TIMEOUT || '30000', 10);
 
 /**
  * Normalizes port value to number, string, or false

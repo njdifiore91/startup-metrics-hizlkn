@@ -36,13 +36,13 @@ const REDIS_DEFAULTS = {
 
 // Redis base configuration
 export const redisConfig: RedisOptions = {
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
-  password: process.env.REDIS_PASSWORD,
+  url: import.meta.env.REDIS_URL || 'redis://localhost:6379',
+  password: import.meta.env.REDIS_PASSWORD,
   connectTimeout: 10000,
   lazyConnect: true,
   enableReadyCheck: true,
   maxRetriesPerRequest: 3,
-  showFriendlyErrorStack: process.env.NODE_ENV !== 'production',
+  showFriendlyErrorStack: import.meta.env.NODE_ENV !== 'production',
   enableOfflineQueue: true,
   connectionName: 'startup-metrics-platform',
   retryStrategy: (times: number) => {
@@ -58,7 +58,7 @@ export const redisConfig: RedisOptions = {
     return REDIS_DEFAULTS.retryStrategy.randomize ? 
       delay * (0.5 + Math.random() * 0.5) : delay;
   },
-  tls: process.env.REDIS_TLS_ENABLED === 'true' ? {
+  tls: import.meta.env.REDIS_TLS_ENABLED === 'true' ? {
     rejectUnauthorized: true,
   } : undefined,
 };

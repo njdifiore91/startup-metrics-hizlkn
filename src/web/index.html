@@ -10,9 +10,30 @@
     />
     <meta name="robots" content="index, follow" />
 
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
     <!-- Resource Hints -->
     <link rel="preconnect" href="https://accounts.google.com" />
     <link rel="dns-prefetch" href="https://accounts.google.com" />
+
+    <!-- Font Face Declarations -->
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        src: url('/fonts/Inter-Regular.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Inter';
+        src: url('/fonts/Inter-Bold.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
 
     <!-- Preload Critical Assets -->
     <link
@@ -30,30 +51,11 @@
       crossorigin
     />
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/assets/images/favicon.ico" />
-
     <!-- Title -->
     <title>Startup Metrics Benchmarking Platform</title>
 
     <!-- Base Styles -->
     <style>
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 400;
-        font-display: swap;
-        src: url('./src/assets/fonts/Inter-Regular.woff2') format('woff2');
-      }
-
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 700;
-        font-display: swap;
-        src: url('./src/assets/fonts/Inter-Bold.woff2') format('woff2');
-      }
-
       :root {
         --color-primary: #151e2d;
         --color-secondary: #46608c;

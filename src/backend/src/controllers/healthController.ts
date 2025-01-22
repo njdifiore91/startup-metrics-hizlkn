@@ -4,7 +4,7 @@ import * as os from 'os'; // node:os
 
 // Global start time for uptime tracking
 const startTime = Date.now();
-const VERSION = process.env.API_VERSION || '1.0.0';
+const VERSION = import.meta.env.API_VERSION || '1.0.0';
 
 // System metrics thresholds
 const THRESHOLDS = {

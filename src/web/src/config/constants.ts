@@ -31,7 +31,7 @@ interface IChartConfig {
  * Used for service communication and endpoint management
  */
 export const API_CONFIG: IApiConfig = {
-  API_BASE_URL: process.env.VITE_API_BASE_URL || 'http://localhost:3000',
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
   API_TIMEOUT: 30000,
   API_VERSION: 'v1',
   API_ENDPOINTS: {
@@ -42,7 +42,7 @@ export const API_CONFIG: IApiConfig = {
     EXPORTS: '/exports',
     USERS: '/users',
   },
-  ERROR_LOGGING_ENABLED: process.env.NODE_ENV === 'development',
+  ERROR_LOGGING_ENABLED: import.meta.env.MODE === 'development',
 } as const;
 
 /**

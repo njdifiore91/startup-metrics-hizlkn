@@ -83,7 +83,7 @@ export const handleError = (
   // Format error response based on environment
   const formattedResponse = formatErrorResponse(
     errorResponse,
-    process.env.NODE_ENV || 'development'
+    import.meta.env.NODE_ENV || 'development'
   );
 
   return res

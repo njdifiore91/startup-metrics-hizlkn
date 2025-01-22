@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
+import { useLocation } from 'react-router-dom';
 
 // Layout Props Interface
 interface LayoutProps {
@@ -28,9 +29,9 @@ const LayoutContainer = styled.div<{ direction: 'ltr' | 'rtl' }>`
   overflow-x: hidden;
 `;
 
-const MainContent = styled.main<{ sidebarOpen: boolean }>`
+const MainContent = styled.main<{ sidebarOpen: boolean; isLoginPage?: boolean }>`
   flex: 1;
-  margin-inline-start: ${(props) => (props.sidebarOpen ? '240px' : '64px')};
+  margin-inline-start: ${(props) => (!props.isLoginPage ? (props.sidebarOpen ? '240px' : '64px') : '0')};
   margin-top: 64px;
   padding: var(--spacing-lg);
   transition: margin-inline-start 0.3s ease;
@@ -66,6 +67,8 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
   const { validateSession, sessionStatus } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const { showToast } = useToast();
+  const location = useLocation();
+  const isLoginPage = location.pathname === '/login';
 
   // Session Monitoring
   useEffect(() => {
@@ -149,17 +152,20 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
         <Header onThemeChange={handleThemeChange} testId="main-header" />
 
         {/* Sidebar Component */}
-        <Sidebar
-          isOpen={sidebarOpen}
-          onToggle={toggleSidebar}
-          onError={handleError}
-          ariaLabel="Main navigation sidebar"
-        />
+        {!isLoginPage && (
+          <Sidebar
+            isOpen={sidebarOpen}
+            onToggle={toggleSidebar}
+            onError={handleError}
+            ariaLabel="Main navigation sidebar"
+          />
+        )}
 
         {/* Main Content Area */}
         <MainContent
           id="main-content"
           sidebarOpen={sidebarOpen}
+          isLoginPage={isLoginPage}
           role="main"
           aria-label="Main content"
           tabIndex={-1}

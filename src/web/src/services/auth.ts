@@ -18,7 +18,7 @@ import type { UpdateUserSettingsParams } from '../hooks/useAuth';
 // Constants
 const AUTH_CONFIG = {
   REFRESH_INTERVAL: 60000, // 1 minute
-  ENCRYPTION_KEY: process.env.VITE_ENCRYPTION_KEY || 'default-key',
+  ENCRYPTION_KEY: import.meta.env.VITE_ENCRYPTION_KEY || 'default-key',
 } as const;
 
 // Types for Google Auth

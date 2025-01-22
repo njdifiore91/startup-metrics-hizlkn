@@ -51,7 +51,7 @@ const ERROR_MESSAGES = {
 const analytics = Analytics({
   app: 'startup-metrics-platform',
   version: '1.0.0',
-  debug: process.env.NODE_ENV === 'development',
+  debug: import.meta.env.NODE_ENV === 'development',
 });
 
 /**
@@ -165,8 +165,8 @@ const AppContent: React.FC = () => {
   return (
     <BrowserRouter>
       <RouteTracker />
-      <Layout>
-        <Suspense fallback={<LoadingFallback />}>
+      <Suspense fallback={<LoadingFallback />}>
+        <Layout>
           <Routes>
             {/* Public Routes */}
             <Route path={ROUTES.LOGIN} element={<Login />} />
@@ -195,8 +195,8 @@ const AppContent: React.FC = () => {
             {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </Suspense>
-      </Layout>
+        </Layout>
+      </Suspense>
     </BrowserRouter>
   );
 };

@@ -16,7 +16,7 @@ import { useAuth } from '../hooks/useAuth';
 const analytics = Analytics({
   app: 'startup-metrics-platform',
   version: '1.0.0',
-  debug: process.env.NODE_ENV === 'development',
+  debug: import.meta.env.NODE_ENV === 'development',
 });
 
 type StylesType = {

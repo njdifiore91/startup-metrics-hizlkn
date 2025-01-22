@@ -9,8 +9,8 @@ import { createClient } from 'redis';
 
 // Redis client for caching
 const cache = createClient({
-  url: process.env.REDIS_URL,
-  password: process.env.REDIS_PASSWORD
+  url: import.meta.env.REDIS_URL,
+  password: import.meta.env.REDIS_PASSWORD
 });
 
 // Constants
@@ -142,7 +142,7 @@ async function updateUser(
     // Encrypt sensitive fields if present
     const encryptedData = { ...updateData };
     if (updateData.email) {
-      encryptedData.email = await encrypt(updateData.email, Buffer.from(process.env.JWT_SECRET!));
+      encryptedData.email = await encrypt(updateData.email, Buffer.from(import.meta.env.JWT_SECRET!));
     }
 
     // Update user with incremented version
