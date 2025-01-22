@@ -1,46 +1,91 @@
 import { Model, DataTypes } from 'sequelize';
-import { IMetric } from '../interfaces/IMetric';
-import { METRIC_CATEGORIES, METRIC_VALUE_TYPES } from '../constants/metricTypes';
+import sequelize from '../config/database';
 
-/**
- * Sequelize model class for the Metric entity.
- * Implements comprehensive validation and associations for startup performance metrics.
- * @extends Model<IMetric>
- */
-export class Metric extends Model<IMetric> {
-  declare id: string;
-  declare name: string;
-  declare description: string;
-  declare category: typeof METRIC_CATEGORIES[keyof typeof METRIC_CATEGORIES];
-  declare valueType: typeof METRIC_VALUE_TYPES[keyof typeof METRIC_VALUE_TYPES];
-  declare validationRules: object;
-  declare isActive: boolean;
-  declare createdAt: Date;
-  declare updatedAt: Date;
-
-  /**
-   * Define model associations with related entities
-   * @param models - Object containing all model definitions
-   */
-  static associate(models: any): void {
-    // Associate with BenchmarkData - one metric can have many benchmark data points
-    Metric.hasMany(models.BenchmarkData, {
-      foreignKey: {
-        name: 'metricId',
-        allowNull: false
-      },
-      onDelete: 'CASCADE',
-      as: 'benchmarkData'
-    });
-
-    // Associate with CompanyMetric - one metric can have many company-specific values
-    Metric.hasMany(models.CompanyMetric, {
-      foreignKey: {
-        name: 'metricId',
-        allowNull: false
-      },
-      onDelete: 'CASCADE',
-      as: 'companyMetrics'
-    });
-  }
+export interface IMetric {
+  id: string;
+  companyId: string;
+  revenue: number;
+  employees: number;
+  customers: number;
+  churnRate: number;
+  growthRate: number;
+  category: string;
+  industry: string;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+export class Metric extends Model<IMetric> implements IMetric {
+  public id!: string;
+  public companyId!: string;
+  public revenue!: number;
+  public employees!: number;
+  public customers!: number;
+  public churnRate!: number;
+  public growthRate!: number;
+  public category!: string;
+  public industry!: string;
+  public date!: Date;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+Metric.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    companyId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+    revenue: {
+      type: DataTypes.DECIMAL(20, 2),
+      allowNull: false,
+    },
+    employees: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    customers: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    churnRate: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: false,
+    },
+    growthRate: {
+      type: DataTypes.DECIMAL(6, 2),
+      allowNull: false,
+    },
+    category: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    industry: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    date: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    }
+  },
+  {
+    sequelize,
+    tableName: 'metrics',
+    timestamps: true,
+  }
+);

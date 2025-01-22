@@ -47,15 +47,32 @@ const sanitizeInput = (input: string): string => {
  * @param uri Redirect URI to validate
  */
 const validateRedirectUri = (uri: string): boolean => {
+    // Decode the URI if it's encoded
+    const decodedUri = decodeURIComponent(uri.replace(/&#x2F;/g, '/'));
+    
     const allowedDomains = [
         'localhost:3000',
+        'localhost',
         'startup-metrics.com',
         'app.startup-metrics.com'
     ];
+
     try {
-        const url = new URL(uri);
-        return allowedDomains.some(domain => url.host === domain);
-    } catch {
+        const url = new URL(decodedUri);
+        
+        // Allow any localhost URL during development
+        if (url.hostname === 'localhost') {
+            return true;
+        }
+
+        // For non-localhost, check against allowed domains
+        return allowedDomains.some(domain => {
+            // Remove protocol and trailing slashes for comparison
+            const hostWithPort = url.host;
+            return domain === hostWithPort;
+        });
+    } catch (error) {
+        console.error('URL parsing error:', error);
         return false;
     }
 };
@@ -75,23 +92,27 @@ const validateTokenFormat = (token: string): boolean => {
 const googleAuthSchema = Joi.object({
     code: Joi.string()
         .required()
-        .custom((value) => sanitizeInput(value))
         .messages({
             'string.empty': 'Authorization code is required',
             'any.required': 'Authorization code is required'
         }),
     redirectUri: Joi.string()
-        .uri()
         .required()
-        .custom((value) => {
-            if (!validateRedirectUri(value)) {
-                throw new Error('Invalid redirect URI');
+        .custom((value, helpers) => {
+            try {
+                const url = new URL(value);
+                if (!validateRedirectUri(value)) {
+                    return helpers.error('any.invalid');
+                }
+                return value;
+            } catch (error) {
+                return helpers.error('any.invalid');
             }
-            return value;
         })
         .messages({
-            'string.uri': 'Invalid redirect URI format',
-            'any.required': 'Redirect URI is required'
+            'string.empty': 'Redirect URI is required',
+            'any.required': 'Redirect URI is required',
+            'any.invalid': 'Invalid redirect URI format or domain not allowed'
         })
 });
 
@@ -149,11 +170,31 @@ const sessionSchema = Joi.object({
 });
 
 /**
+ * Validation schema for Google OAuth request
+ */
+export const validateGoogleAuthRequest = Joi.object({
+    code: Joi.string().required().messages({
+        'string.empty': 'Authorization code is required',
+        'any.required': 'Authorization code is required'
+    })
+});
+
+/**
+ * Validation schema for refresh token request
+ */
+export const validateRefreshTokenRequest = Joi.object({
+    refreshToken: Joi.string().required().messages({
+        'string.empty': 'Refresh token is required',
+        'any.required': 'Refresh token is required'
+    })
+});
+
+/**
  * Validates Google OAuth authentication request data
  * @param requestData Request data to validate
  * @param ipAddress IP address for rate limiting
  */
-export const validateGoogleAuthRequest = async (
+export const validateGoogleAuthRequestData = async (
     requestData: any,
     ipAddress: string
 ): Promise<ValidationResult> => {

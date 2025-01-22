@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express'; // ^4.18.0
 import { v4 as uuidv4 } from 'uuid'; // ^8.3.2
 import { logger } from '../utils/logger';
 
+// Add type declaration for uuid
+declare module 'uuid';
+
 // Symbols for storing request-specific data
 const startTime = Symbol('startTime');
 const requestId = Symbol('requestId');
@@ -64,12 +67,17 @@ const sanitizeRequestData = (requestData: any): any => {
 const requestLogger = (req: Request, res: Response, next: NextFunction): void => {
   try {
     // Generate unique request ID and store start time
-    const correlationId = uuidv4();
+    const correlationId = req.headers['x-correlation-id'] as string || uuidv4();
     req[requestId] = correlationId;
     req[startTime] = Date.now();
 
     // Set correlation ID in logger context
     logger.setCorrelationId(correlationId);
+
+    // Set correlation ID header early
+    if (!res.headersSent) {
+      res.set('X-Correlation-ID', correlationId);
+    }
 
     // Prepare initial request data
     const requestData = {
@@ -88,46 +96,58 @@ const requestLogger = (req: Request, res: Response, next: NextFunction): void =>
       request: sanitizeRequestData(requestData)
     });
 
-    // Intercept response to log completion details
-    const originalEnd = res.end;
-    res.end = function(chunk: any, encoding?: BufferEncoding, callback?: () => void): any {
-      const duration = Date.now() - req[startTime];
-      const responseSize = res.get('content-length');
-      const statusCode = res.statusCode;
+    // Store original end function
+    const originalEnd = res.end.bind(res);
 
-      // Prepare response metadata
+    // Override end function
+    res.end = function(
+      this: Response,
+      chunk?: any,
+      encoding?: BufferEncoding,
+      callback?: () => void
+    ): Response {
+      if (!this.headersSent) {
+        const duration = Date.now() - req[startTime];
+        
+        // Add performance monitoring headers only if headers haven't been sent
+        try {
+          this.set('X-Request-ID', correlationId);
+          this.set('X-Response-Time', `${duration}ms`);
+        } catch (error) {
+          const err = error instanceof Error ? error : new Error('Failed to set headers');
+          logger.warn('Failed to set response headers', { error: err, correlationId });
+        }
+      }
+
+      // Log response details
       const responseData = {
-        statusCode,
-        duration,
-        responseSize,
-        headers: res.getHeaders()
+        statusCode: this.statusCode,
+        duration: Date.now() - req[startTime],
+        responseSize: this.get('content-length'),
+        headers: this.getHeaders()
       };
 
-      // Log response details with appropriate level based on status code
-      if (statusCode >= 500) {
+      // Log with appropriate level based on status code
+      if (this.statusCode >= 500) {
         logger.error('Request failed', {
-          requestId: correlationId,
+          correlationId,
           response: responseData,
-          error: res.locals.error // Capture error if set by error handler
+          error: res.locals.error
         });
-      } else if (statusCode >= 400) {
+      } else if (this.statusCode >= 400) {
         logger.warn('Request failed', {
-          requestId: correlationId,
+          correlationId,
           response: responseData
         });
       } else {
         logger.info('Request completed', {
-          requestId: correlationId,
+          correlationId,
           response: responseData
         });
       }
 
-      // Add performance monitoring headers
-      res.set('X-Request-ID', correlationId);
-      res.set('X-Response-Time', `${duration}ms`);
-
-      // Call original end method and return its result
-      return originalEnd.call(this, chunk, encoding, callback);
+      // Call original end method with proper typing
+      return originalEnd(chunk, encoding as BufferEncoding, callback);
     };
 
     // Debug log for request body parsing

@@ -78,7 +78,7 @@ export const ROLE_PERMISSIONS: RolePermissionsType = {
 /**
  * Type for the user role enum values
  */
-export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
+export type UserRole = keyof typeof USER_ROLES;
 
 /**
  * Helper function to check if a role has a specific permission for a feature

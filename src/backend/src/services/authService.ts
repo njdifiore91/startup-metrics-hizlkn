@@ -8,12 +8,16 @@
 import { Request, Response } from 'express';
 import { sign, verify, SignOptions, VerifyOptions } from 'jsonwebtoken'; // ^9.0.0
 import Redis from 'ioredis'; // ^5.3.2
-import rateLimit from 'express-rate-limit'; // ^6.7.0
+import { RateLimiterMemory } from 'rate-limiter-flexible'; // ^3.0.0
 import winston from 'winston'; // ^3.8.0
 import crypto from 'crypto';
 import { IAuthProvider } from '../interfaces/IAuthProvider';
 import { IUser } from '../interfaces/IUser';
 import { USER_ROLES } from '../constants/roles';
+import { userService } from './userService';
+import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
+import { GoogleAuthProvider } from './googleAuthProvider';
 
 // Custom error types for authentication flows
 class AuthenticationError extends Error {
@@ -42,13 +46,24 @@ const TOKEN_CONFIG = {
     BLACKLIST_NAMESPACE: 'auth:blacklist:'
 } as const;
 
+interface AuthTokens {
+    accessToken: string;
+    refreshToken: string;
+}
+
+interface AuthResult {
+    user: IUser;
+    tokens: AuthTokens;
+}
+
 /**
  * Enhanced authentication service implementing secure session management
  * and comprehensive token lifecycle handling
  */
 export class AuthService {
     private readonly logger: winston.Logger;
-    private readonly rateLimiter: any;
+    private readonly rateLimiter: RateLimiterMemory;
+    private readonly googleAuthProvider: GoogleAuthProvider;
 
     constructor(
         private readonly authProvider: IAuthProvider,
@@ -64,11 +79,13 @@ export class AuthService {
         });
 
         // Configure rate limiting
-        this.rateLimiter = rateLimit({
-            windowMs: 15 * 60 * 1000, // 15 minutes
-            max: 100, // Limit each IP to 100 requests per windowMs
-            message: 'Too many authentication attempts, please try again later'
+        this.rateLimiter = new RateLimiterMemory({
+            points: 100, // Number of points
+            duration: 60, // Per 1 minute by IP
+            blockDuration: 60 * 15 // Block for 15 minutes
         });
+
+        this.googleAuthProvider = new GoogleAuthProvider();
     }
 
     /**
@@ -84,19 +101,21 @@ export class AuthService {
     ): Promise<{ user: IUser; tokens: { accessToken: string; refreshToken: string } }> {
         try {
             // Apply rate limiting
-            await new Promise((resolve) => this.rateLimiter(req, res, resolve));
+            if (req.ip) {
+                await this.rateLimiter.consume(req.ip);
+            }
 
             // Perform authentication via provider
             const authResult = await this.authProvider.authenticate(req, res);
-
-            // Generate secure token pair
-            const tokens = await this.generateTokenPair(authResult.user);
-
+            console.log('Authentication successful', authResult);
             // Store refresh token securely
-            await this.storeRefreshToken(authResult.user.id, tokens.refreshToken);
+            await this.storeRefreshToken(authResult.user.id, authResult.refreshToken);
 
             // Set secure HTTP-only cookies
-            this.setSecureCookies(res, tokens);
+            this.setSecureCookies(res, {
+                accessToken: authResult.accessToken,
+                refreshToken: authResult.refreshToken
+            });
 
             // Log successful authentication
             this.logger.info('Authentication successful', {
@@ -106,13 +125,18 @@ export class AuthService {
 
             return {
                 user: authResult.user,
-                tokens
+                tokens: {
+                    accessToken: authResult.accessToken,
+                    refreshToken: authResult.refreshToken
+                }
             };
         } catch (error) {
-            this.logger.error('Authentication failed', {
-                error: error.message,
-                timestamp: new Date().toISOString()
-            });
+            if (error instanceof Error) {
+                this.logger.error('Authentication failed', {
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            }
             throw new AuthenticationError('Authentication failed');
         }
     }
@@ -204,6 +228,30 @@ export class AuthService {
         accessToken: string;
         refreshToken: string;
     }> {
+        // In development, use simple JWT signing
+        if (process.env.NODE_ENV === 'development') {
+            const accessToken = sign(
+                {
+                    sub: user.id,
+                    email: user.email,
+                    role: user.role
+                },
+                process.env.JWT_SECRET!,
+                { expiresIn: TOKEN_CONFIG.ACCESS_TOKEN_EXPIRY }
+            );
+
+            const refreshToken = sign(
+                {
+                    sub: user.id,
+                    type: 'refresh'
+                },
+                process.env.JWT_REFRESH_SECRET!,
+                { expiresIn: TOKEN_CONFIG.REFRESH_TOKEN_EXPIRY }
+            );
+
+            return { accessToken, refreshToken };
+        }
+
         const signOptions: SignOptions = {
             algorithm: 'RS256',
             expiresIn: TOKEN_CONFIG.ACCESS_TOKEN_EXPIRY
@@ -237,11 +285,16 @@ export class AuthService {
      * @private
      */
     private async verifyToken(token: string): Promise<object> {
+        // In development, use simple JWT verification
+        if (process.env.NODE_ENV === 'development') {
+            return verify(token, process.env.JWT_SECRET!) as object;
+        }
+
         const verifyOptions: VerifyOptions = {
             algorithms: ['RS256']
         };
 
-        return verify(token, process.env.JWT_PUBLIC_KEY!, verifyOptions);
+        return verify(token, process.env.JWT_PUBLIC_KEY!, verifyOptions) as object;
     }
 
     /**
@@ -306,10 +359,16 @@ export class AuthService {
      * @private
      */
     private encryptToken(token: string): string {
+        // In development, just store the token as is
+        if (process.env.NODE_ENV === 'development') {
+            return token;
+        }
+
         const iv = crypto.randomBytes(16);
+        const key = crypto.scryptSync(process.env.ENCRYPTION_KEY!, 'salt', 32);
         const cipher = crypto.createCipheriv(
             TOKEN_CONFIG.ENCRYPTION_ALGORITHM,
-            process.env.ENCRYPTION_KEY!,
+            key,
             iv
         );
         
@@ -332,4 +391,83 @@ export class AuthService {
         const entropy = crypto.randomBytes(32).toString('base64');
         return Buffer.from(token).length * 8 >= TOKEN_CONFIG.MIN_ENTROPY_BITS;
     }
+
+    async authenticateGoogle(code: string): Promise<AuthResult> {
+        try {
+            const googleUser = await this.googleAuthProvider.getGoogleUser(code);
+            
+            let user = await userService.findByGoogleId(googleUser.id);
+            
+            if (!user) {
+                user = await userService.createUser({
+                    email: googleUser.email,
+                    name: googleUser.name,
+                    googleId: googleUser.id,
+                    role: 'USER',
+                    tier: 'free'
+                });
+            }
+
+            const tokens = this.generateTokens(user.toJSON() as IUser);
+            
+            return {
+                user: user.toJSON() as IUser,
+                tokens
+            };
+        } catch (error) {
+            if (error instanceof Error) {
+                logger.error('Authentication failed:', { error: error.message });
+            }
+            throw new AppError('Authentication failed', 401);
+        }
+    }
+
+    async refreshGoogle(refreshToken: string): Promise<AuthTokens> {
+        try {
+            const decoded = verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string };
+            const user = await userService.findByGoogleId(decoded.userId);
+
+            if (!user) {
+                throw new AppError('Invalid refresh token', 401);
+            }
+
+            return this.generateTokens(user.toJSON() as IUser);
+        } catch (error) {
+            if (error instanceof Error) {
+                logger.error('Token refresh failed:', { error: error.message });
+            }
+            throw new AppError('Invalid refresh token', 401);
+        }
+    }
+
+    async logoutGoogle(refreshToken: string): Promise<void> {
+        try {
+            // In a real implementation, you would blacklist the refresh token
+            // or remove it from a token store
+            return;
+        } catch (error) {
+            if (error instanceof Error) {
+                logger.error('Logout failed:', { error: error.message });
+            }
+            throw new AppError('Logout failed', 500);
+        }
+    }
+
+    private generateTokens(user: IUser): AuthTokens {
+        const accessToken = sign(
+            { userId: user.id, role: user.role },
+            process.env.JWT_ACCESS_SECRET!,
+            { expiresIn: '15m' }
+        );
+
+        const refreshToken = sign(
+            { userId: user.id },
+            process.env.JWT_REFRESH_SECRET!,
+            { expiresIn: '7d' }
+        );
+
+        return { accessToken, refreshToken };
+    }
 }
+
+export const authService = new AuthService();

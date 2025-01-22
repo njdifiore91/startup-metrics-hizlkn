@@ -8,6 +8,12 @@
 import { Request, Response } from 'express'; // ^4.18.2
 import { IUser } from './IUser';
 
+export interface AuthResult {
+    user: IUser;
+    accessToken: string;
+    refreshToken: string;
+}
+
 /**
  * Authentication provider interface that establishes a contract for implementing
  * different authentication strategies. Ensures consistent authentication behavior
@@ -20,30 +26,22 @@ export interface IAuthProvider {
      * Authenticates a user using the provider's authentication flow and generates
      * initial token pair with secure session establishment.
      * 
-     * @param {Request} req - Express request object containing authentication credentials
-     * @param {Response} res - Express response object for setting secure cookies
-     * @returns {Promise<{user: IUser; accessToken: string; refreshToken: string}>}
-     * Authentication result containing user information and secure token pair
+     * @param {string} code - Authorization code received from Google
+     * @param {string} redirectUri - Redirect URI after authentication
+     * @returns {Promise<AuthResult>} Authentication result containing user information and secure token pair
      * @throws {AuthenticationError} When authentication fails
      */
-    authenticate(
-        req: Request,
-        res: Response
-    ): Promise<{
-        user: IUser;
-        accessToken: string;
-        refreshToken: string;
-    }>;
+    authenticate(code: string, redirectUri: string): Promise<AuthResult>;
 
     /**
      * Validates a JWT access token and returns the associated user information.
      * Implements token signature verification and expiration checks.
      * 
-     * @param {string} accessToken - JWT access token to validate
+     * @param {string} token - JWT access token to validate
      * @returns {Promise<IUser>} User associated with the valid token
      * @throws {TokenValidationError} When token is invalid or expired
      */
-    validateToken(accessToken: string): Promise<IUser>;
+    validateToken(token: string): Promise<IUser>;
 
     /**
      * Generates new access and refresh token pair using existing refresh token.
@@ -54,9 +52,7 @@ export interface IAuthProvider {
      * New token pair and associated user information
      * @throws {TokenRefreshError} When refresh token is invalid or expired
      */
-    refreshToken(
-        refreshToken: string
-    ): Promise<{
+    refreshToken(refreshToken: string): Promise<{
         accessToken: string;
         refreshToken: string;
         user: IUser;
@@ -66,9 +62,9 @@ export interface IAuthProvider {
      * Revokes a refresh token and invalidates associated sessions.
      * Implements immediate token blacklisting for security.
      * 
-     * @param {string} refreshToken - Refresh token to revoke
+     * @param {string} token - Refresh token to revoke
      * @returns {Promise<void>} Confirmation of token revocation
      * @throws {TokenRevocationError} When token revocation fails
      */
-    revokeToken(refreshToken: string): Promise<void>;
+    revokeToken(token: string): Promise<void>;
 }

@@ -14,6 +14,8 @@ import { logger } from '../utils/logger';
 import { IMetric } from '../interfaces/IMetric';
 import validateRequest from '../middleware/validator';
 import { BUSINESS_ERRORS, VALIDATION_ERRORS } from '../constants/errorCodes';
+import { AppError } from '../utils/AppError';
+import { validateMetricsRequest } from '../validators/metricsValidator';
 
 // Constants for request handling
 const DEFAULT_PAGE_SIZE = 20;
@@ -240,6 +242,106 @@ const updateMetric = asyncHandler(async (req: Request, res: Response): Promise<v
     throw error;
   }
 });
+
+/**
+ * Get metrics for a specific company
+ */
+export const getCompanyMetrics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { companyId } = req.params;
+    if (!companyId) {
+      throw new AppError(
+        VALIDATION_ERRORS.MISSING_REQUIRED.message,
+        VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
+        VALIDATION_ERRORS.MISSING_REQUIRED.code
+      );
+    }
+
+    const metrics = await metricsService.getMetricsForCompany(companyId);
+    
+    res.json({
+      status: 'success',
+      data: metrics
+    });
+  } catch (error) {
+    logger.error('Failed to get company metrics:', { 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      companyId: req.params.companyId
+    });
+    next(error);
+  }
+};
+
+/**
+ * Get benchmark metrics for a specific industry
+ */
+export const getBenchmarkMetrics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { industry } = req.params;
+    if (!industry) {
+      throw new AppError(
+        VALIDATION_ERRORS.MISSING_REQUIRED.message,
+        VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
+        VALIDATION_ERRORS.MISSING_REQUIRED.code
+      );
+    }
+
+    const metrics = await metricsService.getIndustryBenchmarks(industry);
+    
+    res.json({
+      status: 'success',
+      data: metrics
+    });
+  } catch (error) {
+    logger.error('Failed to get benchmark metrics:', { 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      industry: req.params.industry
+    });
+    next(error);
+  }
+};
+
+/**
+ * Update company metrics
+ */
+export const updateCompanyMetrics = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { companyId } = req.params;
+    if (!companyId) {
+      throw new AppError(
+        VALIDATION_ERRORS.MISSING_REQUIRED.message,
+        VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
+        VALIDATION_ERRORS.MISSING_REQUIRED.code
+      );
+    }
+
+    await validateMetricsRequest(req.body);
+    const metrics = await metricsService.updateMetrics(companyId, req.body);
+    
+    res.json({
+      status: 'success',
+      data: metrics
+    });
+  } catch (error) {
+    logger.error('Failed to update company metrics:', { 
+      error: error instanceof Error ? error.message : 'Unknown error',
+      companyId: req.params.companyId
+    });
+    next(error);
+  }
+};
 
 // Export controller functions with rate limiting applied
 export const metricsController = {

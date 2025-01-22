@@ -16,6 +16,11 @@ import { errorHandler } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
 import { USER_ROLES } from '../constants/roles';
+import { 
+  getCompanyMetrics, 
+  getBenchmarkMetrics, 
+  updateCompanyMetrics 
+} from '../controllers/metricsController';
 
 // Initialize auth middleware with Google auth provider
 const { authenticate, authorize } = createAuthMiddleware(new GoogleAuthProvider());
@@ -107,6 +112,13 @@ router.put(
   validateRequest(updateMetricSchema),
   ...metricsController.updateMetric
 );
+
+// Company metrics routes
+router.get('/company/:companyId', getCompanyMetrics);
+router.post('/company/:companyId', updateCompanyMetrics);
+
+// Industry benchmark routes
+router.get('/benchmarks/:industry', getBenchmarkMetrics);
 
 // Apply error handling middleware last
 router.use(errorHandler);

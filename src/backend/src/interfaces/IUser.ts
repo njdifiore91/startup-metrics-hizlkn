@@ -27,17 +27,14 @@ import { USER_ROLES } from '../constants/roles';
  * @property {number} version - Optimistic locking version number
  */
 export interface IUser {
-    readonly id: string;
-    readonly email: string;
-    readonly name: string;
-    readonly role: typeof USER_ROLES[keyof typeof USER_ROLES];
-    readonly tier: 'free' | 'pro' | 'enterprise';
-    readonly googleId: string;
-    readonly createdAt: Date;
-    readonly lastLoginAt: Date;
-    readonly isActive: boolean;
-    readonly profileImageUrl?: string;
-    readonly timezone?: string;
-    readonly emailVerifiedAt?: Date;
-    readonly version: number;
+    id: string;
+    email: string;
+    googleId?: string;
+    name: string;
+    role: keyof typeof USER_ROLES;
+    tier: 'free' | 'pro' | 'enterprise';
+    isActive: boolean;
+    lastLoginAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
 }

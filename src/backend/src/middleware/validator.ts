@@ -121,7 +121,6 @@ export const validateRequest = (
         path: req.path,
         method: req.method
       });
-
       next();
     } catch (error) {
       next(error);
@@ -222,8 +221,12 @@ const containsLargeArrays = (obj: any, maxLength: number): boolean => {
  * @param data Data to sanitize
  */
 const sanitizeRequestData = (data: any): any => {
-  const sanitize = (value: any): any => {
+  const sanitize = (value: any, key?: string): any => {
     if (typeof value === 'string') {
+      // Skip sanitization for URI fields
+      if (key && (key.toLowerCase().includes('uri') || key.toLowerCase().includes('url'))) {
+        return value;
+      }
       return sanitizeInput(value, {
         maxLength: 10000, // Configurable maximum length
         stripAll: true
@@ -235,7 +238,7 @@ const sanitizeRequestData = (data: any): any => {
     if (typeof value === 'object' && value !== null) {
       return Object.entries(value).reduce((acc, [key, val]) => ({
         ...acc,
-        [key]: sanitize(val)
+        [key]: sanitize(val, key)
       }), {});
     }
     return value;
