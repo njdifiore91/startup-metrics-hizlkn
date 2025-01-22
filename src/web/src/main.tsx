@@ -39,7 +39,7 @@ const initializeMonitoring = async () => {
 
   return analytics;
   // Analytics.init({
-  //   writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
+  //   writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY,
   //   trackApplicationLifecycle: true,
   //   recordScreenViews: true,
   // });

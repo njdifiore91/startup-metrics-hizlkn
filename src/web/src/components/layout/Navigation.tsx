@@ -195,7 +195,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         }
 
         const analyticsInstance = AnalyticsBrowser.load({
-          writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
+          writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
         });
 
         // Track navigation event

@@ -136,7 +136,7 @@ class ErrorBoundary extends React.PureComponent<ErrorBoundaryProps, ErrorBoundar
           <h2 style={styles.errorHeading}>Something went wrong</h2>
           <p style={styles.errorMessage}>
             {error?.message || 'An unexpected error occurred'}
-            {process.env.NODE_ENV === 'development' && (
+            {import.meta.env.NODE_ENV === 'development' && (
               <span>
                 {' '}
                 (Retry attempt {retryCount} of {maxRetries})

@@ -48,7 +48,7 @@ const ComparisonSection = styled.div`
 
 // Initialize analytics outside component
 const analytics = AnalyticsBrowser.load({
-  writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
+  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
 });
 
 // Interfaces

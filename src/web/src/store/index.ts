@@ -88,7 +88,7 @@ export const store = configureStore({
     })
       .prepend(listenerMiddleware.middleware)
       .concat(errorMiddleware, performanceMiddleware),
-  devTools: process.env.NODE_ENV !== 'production' && {
+  devTools: import.meta.env.NODE_ENV !== 'production' && {
     name: 'Startup Metrics Platform',
     trace: true,
     traceLimit: 25,
@@ -115,7 +115,7 @@ const isValidStateSlice = (state: RootState, slice: string): boolean => {
 /**
  * Add runtime type checking in development
  */
-if (process.env.NODE_ENV === 'development') {
+if (import.meta.env.NODE_ENV === 'development') {
   store.subscribe(() => {
     const state = store.getState();
     // Validate state structure

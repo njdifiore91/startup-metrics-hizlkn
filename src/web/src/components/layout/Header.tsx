@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom'; // v6.0.0
 import { useMetrics } from '../../hooks/useMetrics';
-import { ProfileMenu } from '../user/ProfileMenu';
+import ProfileMenu from '../user/ProfileMenu';
 import { Button } from '../common/Button';
 import ErrorBoundary from '../common/ErrorBoundary';
 import logo from '../../assets/images/logo.svg';

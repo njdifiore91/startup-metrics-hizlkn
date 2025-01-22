@@ -49,7 +49,7 @@ const ErrorMessage = styled.p`
 `;
 
 const analytics = AnalyticsBrowser.load({
-  writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
+  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
 });
 
 /**

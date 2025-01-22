@@ -6,10 +6,11 @@ import { AnalyticsBrowser } from '@segment/analytics-next';
 import { useAuth } from '@/hooks/useAuth';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 import { Card } from '@/components/common/Card';
+import logo from '../assets/images/logo.svg';
 
 // Initialize analytics outside component
 const analytics = new Analytics({
-  writeKey: process.env.VITE_SEGMENT_WRITE_KEY || '',
+  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
 });
 
 /**
@@ -23,10 +24,10 @@ const Login: React.FC = () => {
 
   // Initialize analytics
   // const analyticsInstance = analytics.default.load({
-  //   writeKey: process.env.REACT_APP_SEGMENT_WRITE_KEY || '',
+  //   writeKey: import.meta.env.REACT_APP_SEGMENT_WRITE_KEY || '',
   // });
   const analyticsInstance = AnalyticsBrowser.load({
-    writeKey: process.env.REACT_APP_SEGMENT_WRITE_KEY || '',
+    writeKey: import.meta.env.REACT_APP_SEGMENT_WRITE_KEY || '',
   });
 
   // Handle successful authentication
@@ -68,7 +69,7 @@ const Login: React.FC = () => {
   return (
     <div className="loginContainer" {...focusWithinProps} role="main" aria-labelledby="login-title">
       <Card className="loginCard" elevation="medium" role="region" ariaLabel="Login form">
-        <img src="/assets/logo.svg" alt="Startup Metrics Platform" className="logo" />
+        <img src={logo} alt="Startup Metrics Platform" className="logo" />
 
         <h1 id="login-title" className="title">
           Welcome to Startup Metrics

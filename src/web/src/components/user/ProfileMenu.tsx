@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Analytics } from '@segment/analytics-next';
 import { useAuth } from '../../hooks/useAuth';
@@ -17,7 +17,7 @@ const INACTIVITY_WARNING_THRESHOLD = 300000; // 5 minutes
 
 // Initialize Segment Analytics
 const analytics = new Analytics({
-  writeKey: process.env.REACT_APP_SEGMENT_WRITE_KEY || '',
+  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
 });
 
 export interface ProfileMenuProps {
@@ -29,23 +29,26 @@ export interface ProfileMenuProps {
 /**
  * Enhanced profile menu component with security features and accessibility support
  */
-export const ProfileMenu: React.FC<ProfileMenuProps> = React.memo(
-  ({ className = '', ariaLabel = 'User profile menu', testId = 'profile-menu' }) => {
+const ProfileMenu = React.memo(({ 
+  className = '', 
+  ariaLabel = 'User profile menu', 
+  testId = 'profile-menu' 
+}: ProfileMenuProps): React.ReactElement | null => {
     const { user, logout, refreshToken, validateSession } = useAuth();
     const navigate = useNavigate();
-    const [isOpen, setIsOpen] = useState(false);
-    const [showInactivityWarning, setShowInactivityWarning] = useState(false);
-    const menuRef = useRef<HTMLDivElement>(null);
-    const lastActivityRef = useRef<number>(Date.now());
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [showInactivityWarning, setShowInactivityWarning] = React.useState(false);
+    const menuRef = React.useRef<HTMLDivElement>(null);
+    const lastActivityRef = React.useRef<number>(Date.now());
 
     // Track user activity
-    const updateLastActivity = useCallback(() => {
+    const updateLastActivity = React.useCallback(() => {
       lastActivityRef.current = Date.now();
       setShowInactivityWarning(false);
     }, []);
 
     // Handle session monitoring
-    useEffect(() => {
+    React.useEffect(() => {
       const checkSession = async () => {
         const isValid = await validateSession();
         if (!isValid) {
@@ -63,7 +66,7 @@ export const ProfileMenu: React.FC<ProfileMenuProps> = React.memo(
     }, [validateSession]);
 
     // Handle click outside menu
-    useEffect(() => {
+    React.useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
         if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
           setIsOpen(false);
@@ -75,7 +78,7 @@ export const ProfileMenu: React.FC<ProfileMenuProps> = React.memo(
     }, []);
 
     // Handle menu selection
-    const handleMenuSelect = useCallback(
+    const handleMenuSelect = React.useCallback(
       async (action: string) => {
         try {
           analytics.track('Profile Menu Action', { action });
@@ -190,8 +193,7 @@ export const ProfileMenu: React.FC<ProfileMenuProps> = React.memo(
         )}
       </div>
     );
-  }
-);
+  });
 
 ProfileMenu.displayName = 'ProfileMenu';
 

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="180" height="48" viewBox="0 0 180 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Rectangle -->
+  <rect width="180" height="48" rx="8" fill="#151E2D" fill-opacity="0.1"/>
+  
+  <!-- SM Letters -->
+  <path d="M30 14C30 12.8954 30.8954 12 32 12H40C41.1046 12 42 12.8954 42 14V16C42 17.1046 41.1046 18 40 18H34V20H40C41.1046 20 42 20.8954 42 22V24C42 25.1046 41.1046 26 40 26H32C30.8954 26 30 25.1046 30 24V22" stroke="#151E2D" stroke-width="2"/>
+  <path d="M44 14C44 12.8954 44.8954 12 46 12H54C55.1046 12 56 12.8954 56 14V26H52V18H48V26H44V14Z" stroke="#151E2D" stroke-width="2"/>
+  
+  <!-- Startup Metrics Text -->
+  <text x="65" y="22" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#151E2D">Startup</text>
+  <text x="65" y="38" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#151E2D">Metrics</text>
+  
+  <!-- Growth Chart Lines -->
+  <path d="M150 34L160 24L170 28L180 20" stroke="#168947" stroke-width="2"/>
+  <circle cx="160" cy="24" r="2" fill="#168947"/>
+  <circle cx="170" cy="28" r="2" fill="#168947"/>
+</svg> 
