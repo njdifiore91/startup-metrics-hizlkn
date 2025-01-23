@@ -42,7 +42,7 @@ describe('User API Integration Tests', () => {
 
   beforeAll(async () => {
     // Initialize test environment
-    import.meta.env.NODE_ENV = 'test';
+    process.env.NODE_ENV = 'test';
     app = (await import('../../src/app')).default;
 
     // Setup mock OAuth

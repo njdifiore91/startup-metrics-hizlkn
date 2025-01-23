@@ -11,13 +11,13 @@ const getSSLConfig = (): object | boolean => {
 
   return {
     require: true,
-    rejectUnauthorized: import.meta.env.NODE_ENV === 'production',
+    rejectUnauthorized: process.env.NODE_ENV === 'production',
     minVersion: 'TLSv1.3',
     requestCert: true,
-    ca: import.meta.env.NODE_ENV === 'production' ? import.meta.env.SSL_CERT : undefined,
+    ca: process.env.NODE_ENV === 'production' ? process.env.SSL_CERT : undefined,
     checkServerIdentity: (host: string, cert: any) => {
       // Implement custom certificate validation for production
-      if (import.meta.env.NODE_ENV === 'production' && !cert.subject.CN.includes(host)) {
+      if (process.env.NODE_ENV === 'production' && !cert.subject.CN.includes(host)) {
         throw new Error('Certificate CN does not match host');
       }
       return undefined;
@@ -30,9 +30,9 @@ const getSSLConfig = (): object | boolean => {
  * @returns Production-grade pool configuration for Sequelize
  */
 const getPoolConfig = (): Options['pool'] => ({
-  max: import.meta.env.NODE_ENV === 'production' ? 20 : 5,
-  min: import.meta.env.NODE_ENV === 'production' ? 5 : 1,
-  idle: parseInt(import.meta.env.DATABASE_IDLE_TIMEOUT || '10000'),
+  max: process.env.NODE_ENV === 'production' ? 20 : 5,
+  min: process.env.NODE_ENV === 'production' ? 5 : 1,
+  idle: parseInt(process.env.DATABASE_IDLE_TIMEOUT || '10000'),
   acquire: 60000,
   validate: (connection: unknown): boolean => {
     try {
@@ -85,7 +85,7 @@ const DATABASE_CONFIG: Options = {
     application_name: 'startup_metrics_platform'
   },
   pool: getPoolConfig(),
-  logging: import.meta.env.NODE_ENV !== 'production' 
+  logging: process.env.NODE_ENV !== 'production' 
     ? (sql: string) => console.log(`[${new Date().toISOString()}] ${sql}`)
     : false,
   timezone: '+00:00',
@@ -168,7 +168,7 @@ class SequelizeInstance extends Sequelize {
 
 // Initialize and export Sequelize instance
 const sequelize = new SequelizeInstance(
-  import.meta.env.DATABASE_URL as string,
+  process.env.DATABASE_URL as string,
   DATABASE_CONFIG
 );
 

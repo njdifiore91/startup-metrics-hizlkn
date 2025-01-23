@@ -7,13 +7,13 @@ services:
       dockerfile: Dockerfile
       target: development
     ports:
-      - "3000:3000"
+      - "8000:8000"
     volumes:
       - .:/app
       - node_modules:/app/node_modules
     environment:
       - NODE_ENV=development
-      - PORT=3000
+      - PORT=8000
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/metrics
       - REDIS_URL=redis://cache:6379
       - LOG_LEVEL=debug
@@ -31,7 +31,7 @@ services:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
