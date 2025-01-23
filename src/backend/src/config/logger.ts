@@ -2,9 +2,9 @@ import winston from 'winston'; // ^3.8.2
 import DailyRotateFile from 'winston-daily-rotate-file'; // ^4.7.1
 
 // Environment variables with defaults
-const NODE_ENV = import.meta.env.NODE_ENV || 'development';
-const LOG_LEVEL = import.meta.env.LOG_LEVEL || 'info';
-const LOG_FILE_PATH = import.meta.env.LOG_FILE_PATH || 'logs';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+const LOG_FILE_PATH = process.env.LOG_FILE_PATH || 'logs';
 const CORRELATION_ID_KEY = 'x-correlation-id';
 
 // Custom log levels matching ELK Stack severity levels

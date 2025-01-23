@@ -215,7 +215,7 @@ export class AuthService {
                 email: user.email,
                 role: user.role
             },
-            import.meta.env.JWT_PRIVATE_KEY!,
+            process.env.JWT_PRIVATE_KEY!,
             signOptions
         );
 
@@ -224,7 +224,7 @@ export class AuthService {
                 sub: user.id,
                 type: 'refresh'
             },
-            import.meta.env.JWT_PRIVATE_KEY!,
+            process.env.JWT_PRIVATE_KEY!,
             { ...signOptions, expiresIn: TOKEN_CONFIG.REFRESH_TOKEN_EXPIRY }
         );
 
@@ -241,7 +241,7 @@ export class AuthService {
             algorithms: ['RS256']
         };
 
-        return verify(token, import.meta.env.JWT_PUBLIC_KEY!, verifyOptions);
+        return verify(token, process.env.JWT_PUBLIC_KEY!, verifyOptions);
     }
 
     /**
@@ -309,7 +309,7 @@ export class AuthService {
         const iv = crypto.randomBytes(16);
         const cipher = crypto.createCipheriv(
             TOKEN_CONFIG.ENCRYPTION_ALGORITHM,
-            import.meta.env.ENCRYPTION_KEY!,
+            process.env.ENCRYPTION_KEY!,
             iv
         );
         

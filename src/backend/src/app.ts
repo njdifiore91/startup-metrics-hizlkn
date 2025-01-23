@@ -73,7 +73,7 @@ const configureApp = (): Application => {
     res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      version: import.meta.env.npm_package_version
+      version: process.env.npm_package_version
     });
   });
 

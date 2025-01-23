@@ -63,7 +63,7 @@ const securityHeaders = helmet({
  * Configure CORS with strict options
  */
 const corsOptions = {
-  origin: import.meta.env.CORS_ORIGIN?.split(',') || 'http://localhost:3000',
+  origin: process.env.CORS_ORIGIN?.split(',') || 'http://localhost:3000',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID'],
   exposedHeaders: ['X-Total-Count', 'X-Response-Time'],
@@ -89,7 +89,7 @@ router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: import.meta.env.npm_package_version
+    version: process.env.npm_package_version
   });
 });
 

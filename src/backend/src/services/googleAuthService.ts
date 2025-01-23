@@ -31,9 +31,9 @@ class GoogleAuthService implements IAuthProvider {
 
         // Initialize Redis client with secure configuration
         this.redisClient = createClient({
-            url: import.meta.env.REDIS_URL,
+            url: process.env.REDIS_URL,
             socket: {
-                tls: import.meta.env.NODE_ENV === 'production',
+                tls: process.env.NODE_ENV === 'production',
                 rejectUnauthorized: true
             }
         });

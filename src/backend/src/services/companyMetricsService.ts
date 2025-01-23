@@ -38,7 +38,7 @@ export class CompanyMetricsService {
         this.companyMetricModel = CompanyMetric;
         this.auditLogger = new AuditLogger({
             service: 'CompanyMetricsService',
-            level: import.meta.env.LOG_LEVEL || 'info'
+            level: process.env.LOG_LEVEL || 'info'
         });
 
         this.cache = new Cache({
@@ -89,7 +89,7 @@ export class CompanyMetricsService {
                 metricData.metric?.valueType
             );
 
-            const encryptedValue = await encrypt(formattedValue, import.meta.env.ENCRYPTION_KEY);
+            const encryptedValue = await encrypt(formattedValue, process.env.ENCRYPTION_KEY);
 
             // Create metric record
             const createdMetric = await this.companyMetricModel.create(
@@ -179,7 +179,7 @@ export class CompanyMetricsService {
             const formattedMetrics = await Promise.all(
                 metrics.map(async (metric) => ({
                     ...metric.toJSON(),
-                    value: await decrypt(metric.value, import.meta.env.ENCRYPTION_KEY)
+                    value: await decrypt(metric.value, process.env.ENCRYPTION_KEY)
                 }))
             );
 
@@ -245,7 +245,7 @@ export class CompanyMetricsService {
                     existingMetric.metric?.valueType
                 );
 
-                updateData.value = await encrypt(formattedValue, import.meta.env.ENCRYPTION_KEY);
+                updateData.value = await encrypt(formattedValue, process.env.ENCRYPTION_KEY);
             }
 
             // Update metric

@@ -10,7 +10,7 @@ requiredEnvVars.forEach(envVar => {
 });
 
 // Email configuration constants
-const EMAIL_RATE_LIMIT = parseInt(import.meta.env.EMAIL_RATE_LIMIT || '14', 10); // Emails per second
+const EMAIL_RATE_LIMIT = parseInt(process.env.EMAIL_RATE_LIMIT || '14', 10); // Emails per second
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // milliseconds
 
@@ -79,10 +79,10 @@ export const emailTemplates: Record<string, EmailTemplate> = {
 // Create and configure SES client
 const createSESClient = (): SESClient => {
   const config: SESClientConfig = {
-    region: import.meta.env.AWS_REGION!,
+    region: process.env.AWS_REGION!,
     credentials: {
-      accessKeyId: import.meta.env.AWS_ACCESS_KEY_ID!,
-      secretAccessKey: import.meta.env.AWS_SECRET_ACCESS_KEY!
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
     },
     maxAttempts: MAX_RETRIES
   };
@@ -124,7 +124,7 @@ const checkRateLimit = async (): Promise<void> => {
 
 // Initialize SES client
 export const sesClient = createSESClient();
-export const defaultSender = import.meta.env.DEFAULT_SENDER_EMAIL!;
+export const defaultSender = process.env.DEFAULT_SENDER_EMAIL!;
 
 // Main email sending function
 export const sendEmail = async (options: EmailOptions): Promise<boolean> => {

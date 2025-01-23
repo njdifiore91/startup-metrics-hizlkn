@@ -36,7 +36,7 @@ export class CompanyMetricsController {
     ) {
         // Initialize logger
         this.logger = winston.createLogger({
-            level: import.meta.env.LOG_LEVEL || 'info',
+            level: process.env.LOG_LEVEL || 'info',
             format: winston.format.combine(
                 winston.format.timestamp(),
                 winston.format.json()
@@ -120,7 +120,7 @@ export class CompanyMetricsController {
             this.logger.error('Error creating metric', {
                 userId: req.user.id,
                 error: error.message,
-                stack: import.meta.env.NODE_ENV === 'development' ? error.stack : undefined
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
             });
 
             res.status(500).json({
@@ -198,7 +198,7 @@ export class CompanyMetricsController {
             this.logger.error('Error retrieving metrics', {
                 userId: req.user.id,
                 error: error.message,
-                stack: import.meta.env.NODE_ENV === 'development' ? error.stack : undefined
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
             });
 
             res.status(500).json({

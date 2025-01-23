@@ -43,7 +43,7 @@ export const redisConfig: RedisOptions = {
   lazyConnect: true,
   enableReadyCheck: true,
   maxRetriesPerRequest: 3,
-  showFriendlyErrorStack: import.meta.env.NODE_ENV !== 'production',
+  showFriendlyErrorStack: process.env.NODE_ENV !== 'production',
   enableOfflineQueue: true,
   connectionName: 'startup-metrics-platform',
   retryStrategy: (times: number) => {
@@ -59,7 +59,7 @@ export const redisConfig: RedisOptions = {
     return REDIS_DEFAULTS.retryStrategy.randomize ? 
       delay * (0.5 + Math.random() * 0.5) : delay;
   },
-  tls: import.meta.env.REDIS_TLS_ENABLED === 'true' ? {
+  tls: process.env.REDIS_TLS_ENABLED === 'true' ? {
     rejectUnauthorized: true,
   } : undefined,
 };
