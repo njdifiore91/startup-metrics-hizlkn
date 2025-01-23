@@ -1,5 +1,5 @@
 import { AxiosError } from 'axios'; // v1.4.0
-import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { useToast, ToastType, ToastPosition } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
 // Interfaces
@@ -29,14 +29,16 @@ export interface ValidationError {
 // Constants
 const ERROR_MESSAGES = {
   NETWORK_ERROR: 'Unable to connect to the server. Please check your internet connection.',
-  TIMEOUT_ERROR: `Request timed out after ${API_CONFIG.API_TIMEOUT / 1000} seconds. Please try again.`,
+  TIMEOUT_ERROR: `Request timed out after ${
+    API_CONFIG.API_TIMEOUT / 1000
+  } seconds. Please try again.`,
   UNAUTHORIZED: 'You are not authorized to perform this action.',
   NOT_FOUND: 'The requested resource was not found.',
   SERVER_ERROR: 'An unexpected error occurred. Please try again later.',
   VALIDATION_ERROR: 'Please check your input and try again.',
   RATE_LIMIT_ERROR: 'Too many requests. Please try again later.',
   MAINTENANCE_ERROR: 'System is under maintenance. Please try again later.',
-  SECURITY_ERROR: 'Security validation failed. Please try again.'
+  SECURITY_ERROR: 'Security validation failed. Please try again.',
 } as const;
 
 // Default error handler options
@@ -45,7 +47,7 @@ const DEFAULT_OPTIONS: ErrorHandlerOptions = {
   logError: API_CONFIG.ERROR_LOGGING_ENABLED,
   toastPosition: ToastPosition.TOP_RIGHT,
   toastDuration: 5000,
-  sanitizeError: true
+  sanitizeError: true,
 };
 
 /**
@@ -61,12 +63,12 @@ export const handleApiError = (
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
   let errorMessage: string;
   let errorDetails: Record<string, unknown> = {};
+  const { showToast } = useToast();
 
   // Handle network errors
   if (!error.response) {
-    errorMessage = error.code === 'ECONNABORTED' 
-      ? ERROR_MESSAGES.TIMEOUT_ERROR 
-      : ERROR_MESSAGES.NETWORK_ERROR;
+    errorMessage =
+      error.code === 'ECONNABORTED' ? ERROR_MESSAGES.TIMEOUT_ERROR : ERROR_MESSAGES.NETWORK_ERROR;
     errorDetails = { code: error.code, message: error.message };
   } else {
     const { status, data } = error.response;
@@ -101,7 +103,7 @@ export const handleApiError = (
     console.error('[API Error]', {
       message: errorMessage,
       details: errorDetails,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -130,14 +132,15 @@ export const handleValidationError = (
 ): { message: string; fields: Record<string, string> } => {
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
   const fields: Record<string, string> = {};
-  
+  const { showToast } = useToast();
+
   // Process validation errors recursively
   const processValidationError = (err: ValidationError, prefix = ''): void => {
     const fieldName = prefix ? `${prefix}.${err.field}` : err.field;
     fields[fieldName] = err.message;
 
     if (err.nestedErrors) {
-      err.nestedErrors.forEach(nestedError => {
+      err.nestedErrors.forEach((nestedError) => {
         processValidationError(nestedError, fieldName);
       });
     }
@@ -152,7 +155,7 @@ export const handleValidationError = (
     console.error('[Validation Error]', {
       message: errorMessage,
       fields,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -174,9 +177,7 @@ export const handleValidationError = (
  * @param error - The error object to format
  * @returns Accessible and user-friendly error message
  */
-export const formatErrorMessage = (
-  error: ApiError | ValidationError | Error
-): string => {
+export const formatErrorMessage = (error: ApiError | ValidationError | Error): string => {
   let message: string;
 
   if ('code' in error) {

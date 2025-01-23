@@ -2,6 +2,7 @@ import { Sequelize } from 'sequelize';
 import { logger } from '../utils/logger';
 
 const sequelize = new Sequelize(process.env.DATABASE_URL!, {
+
   dialect: 'postgres',
   logging: (msg) => logger.debug(msg),
   dialectOptions: {

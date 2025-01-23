@@ -1,8 +1,32 @@
 import React, { useMemo } from 'react';
-import { Line } from 'react-chartjs-2'; // react-chartjs-2@5.0.0
-import { Chart as ChartJS } from 'chart.js/auto'; // chart.js@4.0.0
-import { chartColors } from '../../config/chart';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  ChartOptions,
+  ChartData,
+  LinearScale,
+  CategoryScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
+import { CHART_COLORS } from '../../config/chart';
 import { generateChartOptions } from '../../utils/chartHelpers';
+
+// Register required Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 // Default height for the area chart if not specified
 const DEFAULT_HEIGHT = 300;
@@ -11,12 +35,11 @@ const DEFAULT_HEIGHT = 300;
 interface IAreaChartProps {
   data: number[];
   labels: string[];
-  title: string;
-  height?: number;
-  fillArea?: boolean;
-  ariaLabel: string;
-  onDataPointClick?: (index: number, value: number) => void;
-  isLoading?: boolean;
+  title?: string;
+  height?: string;
+  loading?: boolean;
+  className?: string;
+  ariaLabel?: string;
 }
 
 /**
@@ -24,133 +47,82 @@ interface IAreaChartProps {
  * @param props - Component props of type IAreaChartProps
  * @returns Rendered area chart component
  */
-const AreaChart: React.FC<IAreaChartProps> = React.memo(({
-  data,
-  labels,
-  title,
-  height = DEFAULT_HEIGHT,
-  fillArea = true,
-  ariaLabel,
-  onDataPointClick,
-  isLoading = false
-}) => {
-  // Memoize chart options for performance
-  const chartOptions = useMemo(() => {
-    return generateChartOptions('line', {
-      onClick: (event: any, elements: any[]) => {
-        if (elements.length > 0 && onDataPointClick) {
-          const index = elements[0].index;
-          onDataPointClick(index, data[index]);
-        }
-      },
-      plugins: {
-        title: {
-          display: true,
-          text: title,
-          font: {
-            size: 16,
-            weight: 'bold'
-          }
-        },
-        accessibility: {
-          enabled: true,
-          description: ariaLabel
-        }
-      }
-    }, {
-      announceOnRender: true,
-      description: ariaLabel
-    });
-  }, [title, ariaLabel, onDataPointClick, data]);
-
-  // Memoize chart data configuration
-  const chartData = useMemo(() => ({
+const AreaChart: React.FC<IAreaChartProps> = React.memo(
+  ({
+    data,
     labels,
-    datasets: [{
-      label: title,
-      data: data,
-      fill: fillArea,
-      backgroundColor: `${chartColors.primary}40`,
-      borderColor: chartColors.primary,
-      tension: 0.4,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      pointBackgroundColor: chartColors.primary,
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
-      'aria-label': `${title} data points`,
-      role: 'graphics-symbol'
-    }]
-  }), [data, labels, title, fillArea]);
+    title,
+    height = '400px',
+    loading = false,
+    className,
+    ariaLabel = 'Area chart',
+  }) => {
+    const chartData: ChartData<'line'> = useMemo(
+      () => ({
+        labels,
+        datasets: [
+          {
+            label: title || 'Data',
+            data,
+            fill: true,
+            backgroundColor: 'rgba(21, 30, 45, 0.1)',
+            borderColor: '#151e2d',
+            tension: 0.4,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          },
+        ],
+      }),
+      [data, labels, title]
+    );
 
-  // Error boundary wrapper for resilient rendering
-  const renderChart = () => {
-    try {
-      if (isLoading) {
-        return (
-          <div 
-            role="alert" 
-            aria-busy="true"
-            style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            Loading chart data...
-          </div>
-        );
-      }
+    const options: ChartOptions<'line'> = useMemo(
+      () => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: !!title,
+            position: 'top' as const,
+          },
+          tooltip: {
+            enabled: true,
+            mode: 'index' as const,
+            intersect: false,
+          },
+        },
+        scales: {
+          x: {
+            display: true,
+            grid: {
+              display: false,
+            },
+          },
+          y: {
+            display: true,
+            beginAtZero: true,
+          },
+        },
+        interaction: {
+          mode: 'nearest' as const,
+          axis: 'x' as const,
+          intersect: false,
+        },
+      }),
+      [title]
+    );
 
-      if (!data.length || !labels.length) {
-        return (
-          <div 
-            role="alert" 
-            aria-label="No data available"
-            style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            No data available
-          </div>
-        );
-      }
-
-      return (
-        <div 
-          style={{ height }} 
-          role="region" 
-          aria-label={ariaLabel}
-        >
-          <Line
-            data={chartData}
-            options={chartOptions}
-            plugins={[{
-              id: 'customCanvasBackgroundColor',
-              beforeDraw: (chart: ChartJS) => {
-                const ctx = chart.canvas.getContext('2d');
-                if (ctx) {
-                  ctx.save();
-                  ctx.globalCompositeOperation = 'destination-over';
-                  ctx.fillStyle = '#ffffff';
-                  ctx.fillRect(0, 0, chart.width, chart.height);
-                  ctx.restore();
-                }
-              }
-            }]}
-          />
-        </div>
-      );
-    } catch (error) {
-      console.error('Error rendering area chart:', error);
-      return (
-        <div 
-          role="alert" 
-          aria-label="Error loading chart"
-          style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'red' }}
-        >
-          Error loading chart
-        </div>
-      );
+    if (loading) {
+      return <div>Loading chart...</div>;
     }
-  };
 
-  return renderChart();
-});
+    return (
+      <div style={{ height }} className={className} role="region" aria-label={ariaLabel}>
+        <Line data={chartData} options={options} />
+      </div>
+    );
+  }
+);
 
 // Display name for debugging
 AreaChart.displayName = 'AreaChart';

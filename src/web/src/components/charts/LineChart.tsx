@@ -1,156 +1,127 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useMemo } from 'react';
+import {
+  Chart as ChartJS,
+  ChartOptions,
+  ChartData,
+  LinearScale,
+  CategoryScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@5.0.0
-import { Chart as ChartJS, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
-import { chartColors } from '../../config/chart';
+import { MetricValueType } from '../../interfaces/IMetric';
 import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers';
+
+// Register required Chart.js components
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 // Default chart height in pixels
 const DEFAULT_HEIGHT = 300;
 
 // Interface for chart data points
-interface DataPoint {
-  x: string | number;
-  y: number;
+export interface DataPoint {
+  value: number;
+  label: string;
 }
 
 // Props interface with comprehensive accessibility and customization options
 interface ILineChartProps {
   data: DataPoint[];
-  labels: string[];
-  metricType: 'percentage' | 'currency' | 'number';
-  height?: number;
-  options?: Partial<ChartOptions>;
+  metricType: MetricValueType;
+  height?: string;
+  title?: string;
+  className?: string;
   ariaLabel?: string;
   locale?: string;
-  isRTL?: boolean;
-  onError?: (error: Error) => void;
 }
 
 /**
  * A reusable, accessible line chart component for metric visualization
  * Built with Chart.js and optimized for performance and accessibility
  */
-const LineChart: React.FC<ILineChartProps> = React.memo(({
-  data,
-  labels,
-  metricType,
-  height = DEFAULT_HEIGHT,
-  options = {},
-  ariaLabel,
-  locale = 'en-US',
-  isRTL = false,
-  onError
-}) => {
-  // Chart instance reference for cleanup
-  const chartRef = useRef<ChartJS | null>(null);
-
-  // Memoized chart data preparation
-  const getChartData = useCallback(() => {
-    return {
-      labels,
-      datasets: [{
-        label: ariaLabel || 'Metric trend',
-        data: data.map(point => point.y),
-        fill: false,
-        borderColor: chartColors.primary,
-        backgroundColor: chartColors.background,
-        borderWidth: 2,
-        pointBackgroundColor: chartColors.accent,
-        pointHoverBackgroundColor: chartColors.secondary,
-        pointHoverRadius: 6,
-        pointHitRadius: 8,
-        tension: 0.4,
-        'aria-label': `${ariaLabel || 'Metric'} data points`,
-        role: 'graphics-symbol'
-      }]
-    };
-  }, [data, labels, ariaLabel]);
-
-  // Memoized chart options with accessibility enhancements
-  const getEnhancedOptions = useCallback(() => {
-    const baseOptions = generateChartOptions('line', options, {
-      announceOnRender: true,
-      description: ariaLabel
-    });
-
-    return {
-      ...baseOptions,
-      layout: {
-        ...baseOptions.layout,
-        rtl: isRTL,
-      },
-      plugins: {
-        ...baseOptions.plugins,
-        tooltip: {
-          ...baseOptions.plugins?.tooltip,
-          callbacks: {
-            label: (context: any) => {
-              const value = context.raw as number;
-              return formatMetricValue(value, metricType, { locale });
-            }
-          }
-        }
-      },
-      scales: {
-        ...baseOptions.scales,
-        y: {
-          ...baseOptions.scales?.y,
-          position: isRTL ? 'right' : 'left',
-          ticks: {
-            callback: (value: number) => formatMetricValue(value, metricType, { locale })
-          }
-        }
-      }
-    };
-  }, [options, ariaLabel, isRTL, metricType, locale]);
-
-  // Cleanup chart instance on unmount
-  useEffect(() => {
-    return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-      }
-    };
-  }, []);
-
-  // Error boundary handler
-  const handleError = (error: Error) => {
-    console.error('LineChart error:', error);
-    onError?.(error);
-  };
-
-  try {
-    return (
-      <div
-        style={{ height: `${height}px` }}
-        role="region"
-        aria-label={ariaLabel || 'Line chart'}
-      >
-        <Line
-          ref={chartRef}
-          data={getChartData()}
-          options={getEnhancedOptions()}
-          fallbackContent={
-            <p role="alert">
-              Chart data visualization is not available.
-              Please check your browser compatibility or try again later.
-            </p>
-          }
-        />
-      </div>
+const LineChart: React.FC<ILineChartProps> = React.memo(
+  ({
+    data,
+    metricType,
+    height = '400px',
+    title,
+    className,
+    ariaLabel = 'Line chart',
+    locale = 'en-US',
+  }) => {
+    const chartData: ChartData<'line'> = useMemo(
+      () => ({
+        labels: data.map((point) => point.label),
+        datasets: [
+          {
+            label: title || 'Data',
+            data: data.map((point) => point.value),
+            borderColor: '#151e2d',
+            backgroundColor: 'rgba(21, 30, 45, 0.1)',
+            fill: false,
+            tension: 0.4,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          },
+        ],
+      }),
+      [data, title]
     );
-  } catch (error) {
-    handleError(error as Error);
+
+    const options: ChartOptions<'line'> = useMemo(
+      () => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: !!title,
+            position: 'top' as const,
+          },
+          tooltip: {
+            mode: 'index' as const,
+            intersect: false,
+            callbacks: {
+              label: (context) => {
+                const value = context.raw as number;
+                return `${context.dataset.label}: ${formatMetricValue(value, metricType, locale)}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            display: true,
+            grid: {
+              display: false,
+            },
+          },
+          y: {
+            display: true,
+            beginAtZero: true,
+            ticks: {
+              callback: (value) => formatMetricValue(value as number, metricType, locale),
+            },
+          },
+        },
+        interaction: {
+          mode: 'nearest' as const,
+          axis: 'x' as const,
+          intersect: false,
+        },
+      }),
+      [metricType, title, locale]
+    );
+
     return (
-      <div
-        role="alert"
-        style={{ height: `${height}px`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      >
-        <p>Unable to display chart. Please try again later.</p>
+      <div style={{ height }} className={className} role="region" aria-label={ariaLabel}>
+        <Line data={chartData} options={options} />
       </div>
     );
   }
-});
+);
 
 // Display name for debugging
 LineChart.displayName = 'LineChart';

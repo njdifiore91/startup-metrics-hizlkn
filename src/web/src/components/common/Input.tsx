@@ -1,13 +1,13 @@
 import React, { useRef, useEffect } from 'react';
-import styled from '@emotion/styled';
-import { useFormContext } from 'react-hook-form';
+import styled from 'styled-components';
+import { useFormContext, RegisterOptions, UseFormRegister, FieldValues } from 'react-hook-form';
 import '../../styles/variables.css';
 
 // Types
 type InputType = 'text' | 'number' | 'email' | 'tel' | 'password' | 'search' | 'url';
 type InputMode = 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url';
 
-export interface InputProps {
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   name: string;
   id?: string;
   type?: InputType;
@@ -26,6 +26,7 @@ export interface InputProps {
   min?: number;
   max?: number;
   step?: number;
+  validation?: RegisterOptions;
 }
 
 // Styled Components
@@ -37,13 +38,20 @@ const StyledInputContainer = styled.div`
   position: relative;
 `;
 
-const StyledLabel = styled.label<{ hasError?: boolean; required?: boolean }>`
+interface StyledLabelProps {
+  hasError?: boolean;
+  required?: boolean;
+}
+
+const StyledLabel = styled.label<StyledLabelProps>`
   font-family: var(--font-family-primary);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: ${props => props.hasError ? 'var(--color-error)' : 'var(--color-text)'};
-  
-  ${props => props.required && `
+  color: ${({ hasError }) => (hasError ? 'var(--color-error)' : 'var(--color-text)')};
+
+  ${({ required }) =>
+    required &&
+    `
     &::after {
       content: '*';
       color: var(--color-error);
@@ -52,7 +60,11 @@ const StyledLabel = styled.label<{ hasError?: boolean; required?: boolean }>`
   `}
 `;
 
-const StyledInput = styled.input<{ hasError?: boolean }>`
+interface StyledInputProps {
+  hasError?: boolean;
+}
+
+const StyledInput = styled.input<StyledInputProps>`
   width: 100%;
   height: var(--input-height);
   padding: var(--input-padding);
@@ -60,27 +72,27 @@ const StyledInput = styled.input<{ hasError?: boolean }>`
   font-size: var(--font-size-md);
   color: var(--color-text);
   background-color: var(--color-background);
-  border: 1px solid ${props => 
-    props.hasError ? 'var(--color-error)' : 'var(--border-color-normal)'};
+  border: 1px solid
+    ${({ hasError }) => (hasError ? 'var(--color-error)' : 'var(--border-color-normal)')};
   border-radius: var(--border-radius-sm);
   transition: all var(--transition-fast);
-  
+
   &:hover:not(:disabled) {
     border-color: var(--color-primary);
   }
-  
+
   &:focus-visible {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
   }
-  
+
   &:disabled {
     background-color: var(--color-primary-light);
     cursor: not-allowed;
     opacity: 0.7;
   }
-  
+
   &::placeholder {
     color: var(--color-text);
     opacity: 0.5;
@@ -106,107 +118,100 @@ const ScreenReaderOnly = styled.span`
   border: 0;
 `;
 
-export const Input = React.memo(({
-  name,
-  id,
-  type = 'text',
-  value,
-  onChange,
-  label,
-  error,
-  placeholder,
-  required = false,
-  disabled = false,
-  className,
-  'aria-label': ariaLabel,
-  autoComplete,
-  inputMode,
-  pattern,
-  min,
-  max,
-  step
-}: InputProps) => {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const errorRef = useRef<HTMLSpanElement>(null);
-  const inputId = id || `input-${name}`;
-  const formContext = useFormContext();
+export const Input = React.memo(
+  ({
+    name,
+    id,
+    type = 'text',
+    value,
+    onChange,
+    label,
+    error,
+    placeholder,
+    required = false,
+    disabled = false,
+    className,
+    'aria-label': ariaLabel,
+    autoComplete,
+    inputMode,
+    pattern,
+    min,
+    max,
+    step,
+    validation,
+    ...rest
+  }: InputProps) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const errorRef = useRef<HTMLSpanElement>(null);
+    const inputId = id || `input-${name}`;
+    const formContext = useFormContext();
 
-  // Handle form context integration if available
-  const fieldState = formContext?.getFieldState(name);
-  const fieldError = error || fieldState?.error?.message;
+    // Handle form context integration if available
+    const fieldState = formContext?.getValues(name);
+    const fieldError = error || fieldState?.error?.message;
 
-  // Announce errors to screen readers
-  useEffect(() => {
-    if (fieldError && errorRef.current) {
-      errorRef.current.focus();
-    }
-  }, [fieldError]);
+    // Announce errors to screen readers
+    useEffect(() => {
+      if (fieldError && errorRef.current) {
+        errorRef.current.focus();
+      }
+    }, [fieldError]);
 
-  // Handle form registration if form context exists
-  const registerProps = formContext ? formContext.register(name, { required }) : {};
+    // Handle form registration if form context exists
+    const registerProps = formContext
+      ? (formContext.register(name, { required, ...validation }) as ReturnType<
+          UseFormRegister<FieldValues>
+        >)
+      : {};
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (onChange) {
-      onChange(e);
-    }
-    if (formContext) {
-      registerProps.onChange(e);
-    }
-  };
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      onChange?.(e);
+      formContext?.register(name, { required, ...validation }).onChange?.(e);
+    };
 
-  return (
-    <StyledInputContainer className={className}>
-      <StyledLabel 
-        htmlFor={inputId}
-        hasError={!!fieldError}
-        required={required}
-      >
-        {label}
-      </StyledLabel>
-      
-      <StyledInput
-        ref={inputRef}
-        id={inputId}
-        type={type}
-        value={value}
-        onChange={handleChange}
-        placeholder={placeholder}
-        disabled={disabled}
-        required={required}
-        aria-label={ariaLabel || label}
-        aria-invalid={!!fieldError}
-        aria-describedby={fieldError ? `${inputId}-error` : undefined}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        pattern={pattern}
-        min={min}
-        max={max}
-        step={step}
-        hasError={!!fieldError}
-        {...registerProps}
-      />
+    return (
+      <StyledInputContainer className={className}>
+        <StyledLabel htmlFor={inputId} hasError={!!fieldError} required={required}>
+          {label}
+        </StyledLabel>
 
-      {fieldError && (
-        <>
-          <ErrorMessage 
-            id={`${inputId}-error`}
-            role="alert"
-          >
-            {fieldError}
-          </ErrorMessage>
-          <ScreenReaderOnly
-            ref={errorRef}
-            tabIndex={-1}
-            role="status"
-            aria-live="polite"
-          >
-            {fieldError}
-          </ScreenReaderOnly>
-        </>
-      )}
-    </StyledInputContainer>
-  );
-});
+        <StyledInput
+          ref={inputRef}
+          id={inputId}
+          type={type}
+          value={value}
+          onChange={handleChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          required={required}
+          aria-label={ariaLabel || label}
+          aria-invalid={!!fieldError}
+          aria-describedby={fieldError ? `${inputId}-error` : undefined}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          pattern={pattern}
+          min={min}
+          max={max}
+          step={step}
+          hasError={!!fieldError}
+          {...registerProps}
+          {...rest}
+        />
+
+        {fieldError && (
+          <>
+            <ErrorMessage id={`${inputId}-error`} role="alert">
+              {fieldError}
+            </ErrorMessage>
+            <ScreenReaderOnly ref={errorRef} tabIndex={-1} role="status" aria-live="polite">
+              {fieldError}
+            </ScreenReaderOnly>
+          </>
+        )}
+      </StyledInputContainer>
+    );
+  }
+);
 
 Input.displayName = 'Input';
 
