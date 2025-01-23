@@ -31,6 +31,7 @@ const configureApp = (): Application => {
   app.use(helmet());
 
   // CORS configuration
+
   app.use(cors());
 
   // Request parsing middleware
@@ -72,7 +73,7 @@ const configureApp = (): Application => {
     res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version
+      version: import.meta.env.npm_package_version
     });
   });
 

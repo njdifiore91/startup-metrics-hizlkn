@@ -1,10 +1,10 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton';
-import { Card } from '../../components/common/Card';
-import { useAccessibility } from '@react-aria/interactions';
-import analytics from '@segment/analytics-next';
+import { useFocusWithin } from '@react-aria/interactions';
+import { useAuth } from '@/hooks/useAuth';
+import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
+import { Card } from '@/components/common/Card';
+import logo from '../assets/images/logo.svg';
 
 /**
  * Login page component that implements secure Google OAuth authentication
@@ -12,29 +12,21 @@ import analytics from '@segment/analytics-next';
  */
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, error, login, clearError } = useAuth();
-  const { focusWithin } = useAccessibility();
-
-  // Initialize analytics
-  const analyticsInstance = analytics.getInstance();
+  const { isAuthenticated, error } = useAuth();
+  const { focusWithinProps } = useFocusWithin({});
 
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
-    analyticsInstance.track('Login Success', {
-      method: 'Google OAuth',
-      timestamp: new Date().toISOString()
-    });
     navigate('/dashboard');
-  }, [navigate, analyticsInstance]);
+  }, [navigate]);
 
   // Handle authentication errors
-  const handleLoginError = useCallback((error: { code: string; message: string }) => {
-    analyticsInstance.track('Login Error', {
-      error_code: error.code,
-      error_message: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }, [analyticsInstance]);
+  const handleLoginError = useCallback(
+    (error: { code: string; message: string }) => {
+      console.error('Login error:', error);
+    },
+    []
+  );
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -43,44 +35,16 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Clear error state on unmount
-  useEffect(() => {
-    return () => {
-      if (error) {
-        clearError();
-      }
-    };
-  }, [error, clearError]);
-
   return (
-    <div 
-      className="loginContainer"
-      {...focusWithin}
-      role="main"
-      aria-labelledby="login-title"
-    >
-      <Card 
-        className="loginCard"
-        elevation="medium"
-        role="region"
-        ariaLabel="Login form"
-      >
-        <img
-          src="/assets/logo.svg"
-          alt="Startup Metrics Platform"
-          className="logo"
-        />
-        
-        <h1 
-          id="login-title"
-          className="title"
-        >
+    <div className="loginContainer" {...focusWithinProps} role="main" aria-labelledby="login-title">
+      <Card className="loginCard" elevation="medium" role="region" ariaLabel="Login form">
+        <img src={logo} alt="Startup Metrics Platform" className="logo" />
+
+        <h1 id="login-title" className="title">
           Welcome to Startup Metrics
         </h1>
-        
-        <p className="subtitle">
-          Sign in to access your startup benchmarking dashboard
-        </p>
+
+        <p className="subtitle">Sign in to access your startup benchmarking dashboard</p>
 
         <GoogleLoginButton
           onSuccess={handleLoginSuccess}
@@ -89,17 +53,13 @@ const Login: React.FC = () => {
         />
 
         {error && (
-          <div 
-            className="errorMessage"
-            role="alert"
-            aria-live="polite"
-          >
+          <div className="errorMessage" role="alert" aria-live="polite">
             {error.message}
           </div>
         )}
       </Card>
 
-      <style jsx>{`
+      <style>{`
         .loginContainer {
           display: flex;
           flex-direction: column;

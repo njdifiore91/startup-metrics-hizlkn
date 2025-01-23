@@ -1,24 +1,48 @@
 import React, { useState, useCallback } from 'react';
+import styled from '@emotion/styled';
 import Button from '../common/Button';
 import Select from '../common/Select';
-import { exportService } from '../../services/export';
+import { exportService, ExportFormat, ExportOptions } from '../../services/export';
 import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
 import { IMetric } from '../../interfaces/IMetric';
 import { IBenchmark } from '../../interfaces/IBenchmark';
 
+interface SelectOption {
+  value: string;
+  label: string;
+  ariaLabel?: string;
+}
+
 // Constants for export options and error messages
-const EXPORT_FORMAT_OPTIONS = [
+const EXPORT_FORMAT_OPTIONS: SelectOption[] = [
   { value: 'PDF', label: 'PDF Document', ariaLabel: 'Export as PDF document' },
-  { value: 'CSV', label: 'CSV Spreadsheet', ariaLabel: 'Export as CSV spreadsheet' }
-] as const;
+  { value: 'CSV', label: 'CSV Spreadsheet', ariaLabel: 'Export as CSV spreadsheet' },
+];
 
 const ERROR_MESSAGES = {
   NO_METRICS: 'Please select at least one metric for the report',
   NO_BENCHMARKS: 'Benchmark data is required for comparison',
   NO_REVENUE_RANGE: 'Please select a revenue range',
   NO_FORMAT: 'Please select an export format',
-  EXPORT_FAILED: 'Failed to generate report. Please try again'
+  EXPORT_FAILED: 'Failed to generate report. Please try again',
 } as const;
+
+const Container = styled.div`
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius-md);
+  background-color: var(--color-background);
+`;
+
+const ExportControls = styled.div`
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-end;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
 
 // Props interface with comprehensive type safety
 interface ReportGeneratorProps {
@@ -38,11 +62,11 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   onExportStart,
   onExportProgress,
   onExportComplete,
-  onError
+  onError,
 }) => {
   // State management
   const [isLoading, setIsLoading] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'PDF' | 'CSV' | ''>('');
+  const [exportFormat, setExportFormat] = useState<ExportFormat | ''>('');
   const { showToast } = useToast();
 
   // Validate required data before export
@@ -79,12 +103,12 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       onExportStart?.();
 
       // Create export options
-      const exportOptions = {
-        format: exportFormat,
+      const exportOptions: ExportOptions = {
+        format: exportFormat as ExportFormat,
         metrics,
         benchmarks,
         revenueRange,
-        includeCharts: true
+        includeCharts: true,
       };
 
       // Track export progress
@@ -93,9 +117,11 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       };
 
       // Add progress event listener
-      window.addEventListener('exportProgress', ((event: CustomEvent) => {
+      const progressListener = ((event: CustomEvent<{ progress: number }>) => {
         handleProgress(event.detail.progress);
-      }) as EventListener);
+      }) as EventListener;
+
+      window.addEventListener('exportProgress', progressListener);
 
       // Execute export based on format
       if (exportFormat === 'PDF') {
@@ -104,18 +130,12 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         await exportService.exportMetricComparison(exportOptions);
       }
 
-      showToast(
-        'Export completed successfully',
-        ToastType.SUCCESS,
-        ToastPosition.TOP_RIGHT
-      );
+      showToast('Export completed successfully', ToastType.SUCCESS, ToastPosition.TOP_RIGHT);
       onExportComplete?.();
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.EXPORT_FAILED;
       showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
       onError?.(error instanceof Error ? error : new Error(ERROR_MESSAGES.EXPORT_FAILED));
-
     } finally {
       setIsLoading(false);
       window.removeEventListener('exportProgress', (() => {}) as EventListener);
@@ -130,16 +150,16 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     onExportProgress,
     onExportComplete,
     onError,
-    showToast
+    showToast,
   ]);
 
   return (
-    <div className="report-generator" role="region" aria-label="Report export options">
-      <div className="export-controls">
+    <Container role="region" aria-label="Report export options">
+      <ExportControls>
         <Select
           options={EXPORT_FORMAT_OPTIONS}
           value={exportFormat}
-          onChange={(value) => setExportFormat(value as 'PDF' | 'CSV')}
+          onChange={(value) => setExportFormat(value as ExportFormat)}
           name="exportFormat"
           label="Export Format"
           placeholder="Select format"
@@ -158,29 +178,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         >
           {isLoading ? 'Generating Report...' : 'Export Report'}
         </Button>
-      </div>
-
-      <style jsx>{`
-        .report-generator {
-          padding: var(--spacing-md);
-          border-radius: var(--border-radius-md);
-          background-color: var(--color-background);
-        }
-
-        .export-controls {
-          display: flex;
-          gap: var(--spacing-md);
-          align-items: flex-end;
-        }
-
-        @media (max-width: 768px) {
-          .export-controls {
-            flex-direction: column;
-            align-items: stretch;
-          }
-        }
-      `}</style>
-    </div>
+      </ExportControls>
+    </Container>
   );
 };
 

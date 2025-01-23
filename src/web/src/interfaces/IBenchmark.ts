@@ -45,4 +45,28 @@ export interface IBenchmark {
 
   /** Reference to the data source providing this benchmark */
   sourceId: string;
+
+  /** Name of the benchmark */
+  name: string;
+
+  /** Description of the benchmark */
+  description?: string;
+
+  /** Type of value (e.g., number, percentage, currency, ratio) */
+  valueType: 'number' | 'percentage' | 'currency' | 'ratio';
+
+  /** Array of percentiles */
+  percentiles: number[];
+
+  /** Array of values */
+  values: number[];
+
+  /** Metadata associated with the benchmark */
+  metadata?: Record<string, unknown>;
+
+  /** Date when the benchmark was created */
+  createdAt: string;
+
+  /** Date when the benchmark was last updated */
+  updatedAt: string;
 }

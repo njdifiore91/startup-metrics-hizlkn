@@ -14,7 +14,8 @@ import {
   ListItemText,
   Collapse,
   useMediaQuery,
-  Theme
+  Theme,
+  useTheme,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -24,13 +25,20 @@ import {
   ExpandLess,
   ExpandMore,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
-import { analytics } from '@analytics/react';
+import { AnalyticsBrowser } from '@segment/analytics-next';
 import { UI_CONSTANTS } from '../../config/constants';
 
-// Interfaces
+interface IUser {
+  id: string;
+  role: string;
+  permissions: string[];
+  name?: string;
+  email?: string;
+}
+
 interface NavigationProps {
   isCollapsed: boolean;
   theme: Theme;
@@ -49,12 +57,30 @@ interface NavItem {
   ariaLabel?: string;
 }
 
+interface StyledNavigationProps {
+  isCollapsed: boolean;
+  theme: Theme;
+}
+
+interface StyledListItemProps {
+  active?: boolean;
+  theme: Theme;
+  onClick?: () => void;
+  'aria-label'?: string;
+  'aria-expanded'?: boolean;
+  'aria-current'?: 'page' | undefined;
+}
+
+// Constants
+const MOBILE_BREAKPOINT = '768px'; // Mobile breakpoint from UI_CONSTANTS
+const DEFAULT_SPACING = 2; // Default spacing in rem
+
 // Styled Components
-const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
-  width: ${props => props.isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH};
+const StyledNavigation = styled('nav')<StyledNavigationProps>`
+  width: ${({ isCollapsed }) => (isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH)};
   height: 100vh;
-  background-color: ${props => props.theme.palette.primary.main};
-  color: ${props => props.theme.palette.primary.contrastText};
+  background-color: ${({ theme }) => theme.palette.primary.main};
+  color: ${({ theme }) => theme.palette.primary.contrastText};
   transition: width 0.3s ease;
   overflow-x: hidden;
   overflow-y: auto;
@@ -62,9 +88,9 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   left: 0;
   top: ${UI_CONSTANTS.HEADER_HEIGHT};
   z-index: 1000;
-  
-  @media (max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE}) {
-    width: ${props => props.isCollapsed ? '0' : UI_CONSTANTS.SIDEBAR_WIDTH};
+
+  @media (max-width: ${MOBILE_BREAKPOINT}) {
+    width: ${({ isCollapsed }) => (isCollapsed ? '0' : UI_CONSTANTS.SIDEBAR_WIDTH)};
   }
 
   /* Scrollbar styling */
@@ -73,21 +99,21 @@ const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
   }
 
   &::-webkit-scrollbar-track {
-    background: ${props => props.theme.palette.primary.dark};
+    background: ${({ theme }) => theme.palette.primary.light};
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.palette.primary.light};
+    background: ${({ theme }) => theme.palette.primary.dark};
     border-radius: 3px;
   }
 `;
 
-const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: ${props => props.theme.spacing(2)};
-  color: ${props => props.active ? props.theme.palette.secondary.main : 'inherit'};
-  
+const StyledListItem = styled(ListItem)<StyledListItemProps>`
+  padding: ${DEFAULT_SPACING}rem;
+  color: ${({ active, theme }) => (active ? theme.palette.secondary.main : 'inherit')};
+
   &:hover {
-    background-color: ${props => props.theme.palette.primary.dark};
+    background-color: ${({ theme }) => theme.palette.primary.light};
   }
 
   .MuiListItemIcon-root {
@@ -105,7 +131,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: <DashboardIcon />,
     roles: ['user', 'admin'],
     permissions: ['view:dashboard'],
-    ariaLabel: 'Navigate to Dashboard'
+    ariaLabel: 'Navigate to Dashboard',
   },
   {
     id: 'benchmarks',
@@ -114,7 +140,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: <AssessmentIcon />,
     roles: ['user', 'admin'],
     permissions: ['view:benchmarks'],
-    ariaLabel: 'Navigate to Benchmarks'
+    ariaLabel: 'Navigate to Benchmarks',
   },
   {
     id: 'metrics',
@@ -123,7 +149,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: <TimelineIcon />,
     roles: ['user', 'admin'],
     permissions: ['view:metrics', 'edit:metrics'],
-    ariaLabel: 'Navigate to Company Metrics'
+    ariaLabel: 'Navigate to Company Metrics',
   },
   {
     id: 'admin',
@@ -132,62 +158,70 @@ const NAV_ITEMS: NavItem[] = [
     icon: <AdminPanelSettingsIcon />,
     roles: ['admin'],
     permissions: ['admin:access'],
-    ariaLabel: 'Navigate to Admin Panel'
-  }
+    ariaLabel: 'Navigate to Admin Panel',
+  },
 ];
 
 export const Navigation: React.FC<NavigationProps> = ({
   isCollapsed,
   theme,
   ariaLabel = 'Main Navigation',
-  onNavigationError
+  onNavigationError,
 }) => {
   const { user, validateSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useMediaQuery(`(max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE})`);
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT})`);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   // Filter navigation items based on user role and permissions
-  const filteredNavItems = NAV_ITEMS.filter(item => {
-    if (!user) return false;
-    return item.roles.includes(user.role) &&
-           item.permissions.every(permission => user.permissions?.includes(permission));
+  const filteredNavItems = NAV_ITEMS.filter((item) => {
+    if (!user || !user.permissions) return false;
+    return (
+      item.roles.includes(user.role) &&
+      item.permissions.every((permission) => user.permissions.includes(permission))
+    );
   });
 
   // Handle navigation item click
-  const handleNavClick = useCallback(async (path: string, item: NavItem) => {
-    try {
-      // Validate session before navigation
-      const isSessionValid = await validateSession();
-      if (!isSessionValid) {
-        throw new Error('Session expired');
+  const handleNavClick = useCallback(
+    async (path: string, item: NavItem) => {
+      try {
+        // Validate session before navigation
+        const isSessionValid = await validateSession();
+        if (!isSessionValid) {
+          throw new Error('Session expired');
+        }
+
+        const analyticsInstance = AnalyticsBrowser.load({
+          writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
+        });
+
+        // Track navigation event
+        analyticsInstance.track('navigation_click', {
+          path,
+          itemId: item.id,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Handle mobile menu
+        if (isMobile) {
+          setExpandedItems([]);
+        }
+
+        navigate(path);
+      } catch (error) {
+        onNavigationError?.(error as Error);
       }
-
-      // Track navigation event
-      analytics.track('navigation_click', {
-        path,
-        itemId: item.id,
-        timestamp: new Date().toISOString()
-      });
-
-      // Handle mobile menu
-      if (isMobile) {
-        setExpandedItems([]);
-      }
-
-      navigate(path);
-    } catch (error) {
-      onNavigationError?.(error as Error);
-    }
-  }, [navigate, validateSession, isMobile, onNavigationError]);
+    },
+    [navigate, validateSession, isMobile, onNavigationError]
+  );
 
   // Toggle expanded state for items with children
   const toggleExpand = (itemId: string) => {
-    setExpandedItems(prev =>
-      prev.includes(itemId)
-        ? prev.filter(id => id !== itemId)
-        : [...prev, itemId]
+    setExpandedItems((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
     );
   };
 
@@ -207,10 +241,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       <React.Fragment key={item.id}>
         <StyledListItem
           active={isActive}
-          onClick={() => item.children ? toggleExpand(item.id) : handleNavClick(item.path, item)}
+          onClick={() => (item.children ? toggleExpand(item.id) : handleNavClick(item.path, item))}
           aria-label={item.ariaLabel}
           aria-expanded={item.children ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}
+          theme={theme}
         >
           <ListItemIcon>{item.icon}</ListItemIcon>
           {!isCollapsed && (
@@ -223,12 +258,20 @@ export const Navigation: React.FC<NavigationProps> = ({
         {item.children && (
           <Collapse in={isExpanded && !isCollapsed} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
-              {item.children.map(child => renderNavItem(child))}
+              {item.children.map((child) => renderNavItem(child))}
             </List>
           </Collapse>
         )}
       </React.Fragment>
     );
+  };
+
+  const handleBackNavigation = () => {
+    if (isCollapsed) {
+      navigate('/');
+    } else {
+      navigate(-1);
+    }
   };
 
   return (
@@ -242,9 +285,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         {filteredNavItems.map(renderNavItem)}
       </List>
       {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
-          {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
-        </div>
+        <div onClick={handleBackNavigation}>{isCollapsed ? <ChevronRight /> : <ChevronLeft />}</div>
       )}
     </StyledNavigation>
   );
