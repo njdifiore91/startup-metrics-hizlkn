@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { authController } from '../controllers/authController';
+import { authController, validateSession } from '../controllers/authController';
 import { authRateLimiter } from '../middleware/authRateLimiter';
 
 const router = Router();
@@ -15,5 +15,6 @@ router.post('/google', authRateLimiter, authController.authenticate);
 router.get('/google/callback', authController.handleGoogleCallback);
 router.post('/refresh', authRateLimiter, authController.refresh);
 router.post('/logout', authController.logout);
+router.post('/session/validate', authRateLimiter, validateSession);
 
 export default router;

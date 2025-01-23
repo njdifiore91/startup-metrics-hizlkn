@@ -25,13 +25,25 @@ declare global {
  * @returns Sanitized request data safe for logging
  */
 const sanitizeRequestData = (requestData: any): any => {
-  const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key'];
+  const sensitiveHeaders = ['cookie', 'x-api-key'];
   const sensitiveParams = ['password', 'token', 'key', 'secret'];
   
-  const sanitized = { ...requestData };
+  // Create a deep copy of the request data
+  const sanitized = JSON.parse(JSON.stringify(requestData));
 
   // Sanitize headers
   if (sanitized.headers) {
+    // Special handling for Authorization header
+    if (sanitized.headers.authorization) {
+      const authParts = String(sanitized.headers.authorization).split(' ');
+      if (authParts.length === 2) {
+        sanitized.headers.authorization = `${authParts[0]} [REDACTED]`;
+      } else {
+        sanitized.headers.authorization = '[REDACTED]';
+      }
+    }
+
+    // Sanitize other sensitive headers
     sensitiveHeaders.forEach(header => {
       if (sanitized.headers[header]) {
         sanitized.headers[header] = '[REDACTED]';
@@ -103,7 +115,7 @@ const requestLogger = (req: Request, res: Response, next: NextFunction): void =>
     res.end = function(
       this: Response,
       chunk?: any,
-      encoding?: BufferEncoding,
+      encoding?: string | (() => void),
       callback?: () => void
     ): Response {
       if (!this.headersSent) {
@@ -146,8 +158,14 @@ const requestLogger = (req: Request, res: Response, next: NextFunction): void =>
         });
       }
 
-      // Call original end method with proper typing
-      return originalEnd(chunk, encoding as BufferEncoding, callback);
+      // Handle different call signatures
+      if (typeof encoding === 'function') {
+        return originalEnd(chunk, encoding);
+      }
+      if (typeof encoding === 'string') {
+        return originalEnd(chunk, encoding as BufferEncoding, callback);
+      }
+      return originalEnd(chunk);
     };
 
     // Debug log for request body parsing

@@ -56,68 +56,25 @@ const DEFAULT_OPTIONS: ErrorHandlerOptions = {
  * @param options - Error handling configuration options
  * @returns Formatted error object with user-friendly message
  */
-export const handleApiError = (
-  error: AxiosError<ApiError>,
-  options: Partial<ErrorHandlerOptions> = {}
-): { message: string; details: Record<string, unknown> } => {
-  const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
-  let errorMessage: string;
-  let errorDetails: Record<string, unknown> = {};
-  const { showToast } = useToast();
-
-  // Handle network errors
-  if (!error.response) {
-    errorMessage =
-      error.code === 'ECONNABORTED' ? ERROR_MESSAGES.TIMEOUT_ERROR : ERROR_MESSAGES.NETWORK_ERROR;
-    errorDetails = { code: error.code, message: error.message };
+export const handleApiError = (error: AxiosError<ApiError>): { message: string } => {
+  if (error.response) {
+    // The request was made and the server responded with a status code
+    // that falls out of the range of 2xx
+    const errorData = error.response.data;
+    return {
+      message: errorData.message || 'An error occurred while processing your request'
+    };
+  } else if (error.request) {
+    // The request was made but no response was received
+    return {
+      message: 'No response received from server. Please try again.'
+    };
   } else {
-    const { status, data } = error.response;
-    errorDetails = data?.details || {};
-
-    // Map HTTP status codes to user-friendly messages
-    switch (status) {
-      case 401:
-        errorMessage = ERROR_MESSAGES.UNAUTHORIZED;
-        break;
-      case 404:
-        errorMessage = ERROR_MESSAGES.NOT_FOUND;
-        break;
-      case 429:
-        errorMessage = ERROR_MESSAGES.RATE_LIMIT_ERROR;
-        break;
-      case 503:
-        errorMessage = ERROR_MESSAGES.MAINTENANCE_ERROR;
-        break;
-      default:
-        errorMessage = data?.message || ERROR_MESSAGES.SERVER_ERROR;
-    }
+    // Something happened in setting up the request that triggered an Error
+    return {
+      message: error.message || 'An unexpected error occurred'
+    };
   }
-
-  // Sanitize error message if enabled
-  if (mergedOptions.sanitizeError) {
-    errorMessage = errorMessage.replace(/[<>]/g, '');
-  }
-
-  // Log error if enabled
-  if (mergedOptions.logError) {
-    console.error('[API Error]', {
-      message: errorMessage,
-      details: errorDetails,
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  // Show toast notification if enabled
-  if (mergedOptions.showToast) {
-    showToast(
-      errorMessage,
-      ToastType.ERROR,
-      mergedOptions.toastPosition,
-      mergedOptions.toastDuration
-    );
-  }
-
-  return { message: errorMessage, details: errorDetails };
 };
 
 /**

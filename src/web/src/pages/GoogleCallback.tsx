@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { authService } from '../services/auth';
@@ -8,10 +8,17 @@ export const GoogleCallback = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const location = useLocation();
+  const isProcessing = useRef(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      if (isProcessing.current) {
+        return;
+      }
+
       try {
+        isProcessing.current = true;
+        
         // Get the code from URL parameters using location.search
         const searchParams = new URLSearchParams(location.search);
         console.log('Search params:', Object.fromEntries(searchParams.entries()));
@@ -43,6 +50,9 @@ export const GoogleCallback = () => {
           refreshToken: response.refreshToken,
           expiration: new Date(response.expiresAt)
         }));
+
+        // Clear the URL parameters
+        window.history.replaceState({}, document.title, '/auth/google/callback');
         
         // Redirect to dashboard
         navigate('/dashboard', { replace: true });

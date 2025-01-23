@@ -7,7 +7,7 @@ import { AUTH_ERRORS } from '../constants/errorCodes';
 import { USER_ROLES } from '../constants/roles';
 import { logger } from '../utils/logger';
 import { userService } from '../services/userService';
-import { sign } from 'jsonwebtoken';
+import { sign, verify } from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import Redis from 'ioredis';
 import crypto from 'crypto';
@@ -213,17 +213,17 @@ export class GoogleAuthProvider implements IAuthProvider {
    */
   async validateToken(token: string): Promise<IUser> {
     try {
-      const ticket = await this.oAuth2Client.verifyIdToken({
-        idToken: token,
-        audience: process.env.GOOGLE_CLIENT_ID
-      });
-
-      const payload = ticket.getPayload();
-      if (!payload) {
-        throw new AppError('Invalid token payload', HTTP_STATUS.UNAUTHORIZED, AUTH_ERRORS.INVALID_TOKEN.code);
+      // Verify JWT token
+      const decoded = verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
+      
+      // Get user from database
+      const user = await User.findOne({ where: { id: decoded.userId } });
+      
+      if (!user) {
+        throw new AppError('User not found', HTTP_STATUS.UNAUTHORIZED, AUTH_ERRORS.INVALID_TOKEN.code);
       }
 
-      return this.mapGoogleUserToAppUser(payload);
+      return user;
     } catch (error) {
       logger.error('Token validation failed', { 
         error: error instanceof Error ? error : new Error(String(error))

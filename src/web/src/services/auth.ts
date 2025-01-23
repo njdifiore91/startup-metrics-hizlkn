@@ -5,7 +5,6 @@
  */
 
 // External imports
-import CryptoJS from 'crypto-js';
 import { AxiosError } from 'axios';
 
 // Internal imports
@@ -14,11 +13,11 @@ import { api } from './api';
 import { IUser } from '../interfaces/IUser';
 import { handleApiError, type ApiError } from '../utils/errorHandlers';
 import type { UpdateUserSettingsParams } from '../hooks/useAuth';
+import { AUTH_CONSTANTS } from '../config/constants';
 
 // Constants
 const AUTH_CONFIG = {
   REFRESH_INTERVAL: 60000, // 1 minute
-  ENCRYPTION_KEY: import.meta.env.VITE_ENCRYPTION_KEY || 'default-key',
 } as const;
 
 // Types for Google Auth
@@ -38,35 +37,6 @@ interface GoogleAuth {
   };
   signIn(params: { prompt: string }): Promise<GoogleUser>;
   signOut(): Promise<void>;
-  attachClickHandler(
-    element: HTMLElement | null,
-    options: { prompt: string },
-    onSuccess: (user: GoogleUser) => void,
-    onFailure: (error: Error) => void,
-    popupConfig?: {
-      width: number;
-      height: number;
-      left: number;
-      top: number;
-    }
-  ): void;
-}
-
-interface GoogleAuthStatic {
-  init(params: {
-    client_id: string;
-    scope: string;
-    ux_mode?: 'popup' | 'redirect';
-    redirect_uri?: string;
-    cookie_policy?: 'single_host_origin' | 'none';
-    hosted_domain?: string;
-    fetch_basic_profile?: boolean;
-    prompt?: 'select_account' | 'consent';
-    gsiwebsdk?: number;
-    state_cookie_domain?: string;
-    access_type?: 'online' | 'offline';
-  }): Promise<GoogleAuth>;
-  getAuthInstance(): GoogleAuth | null;
 }
 
 declare global {
@@ -76,7 +46,16 @@ declare global {
         apiName: string,
         params: { callback: () => void; onerror: (error: Error) => void }
       ): void;
-      auth2: GoogleAuthStatic;
+      auth2?: {
+        init(params: {
+          client_id: string;
+          scope: string;
+          ux_mode?: 'popup' | 'redirect';
+          cookie_policy?: string;
+          fetch_basic_profile?: boolean;
+        }): Promise<GoogleAuth>;
+        getAuthInstance(): GoogleAuth | null;
+      };
     };
   }
 }
@@ -85,21 +64,18 @@ declare global {
  * Enhanced response structure from authentication endpoints
  */
 interface IAuthResponse {
-  token: string;
-  refreshToken: string;
+  data(arg0: string, data: any): unknown;
   user: IUser;
-  expiresAt: number;
-  sessionId: string;
+  accessToken: string;
+  refreshToken: string;
 }
 
 /**
- * Enhanced structure for storing encrypted authentication tokens
+ * Enhanced structure for storing authentication tokens
  */
 interface ITokens {
   token: string;
   refreshToken: string;
-  expiresAt: number;
-  sessionId: string;
 }
 
 /**
@@ -127,8 +103,12 @@ const RATE_LIMIT = {
 export class AuthService {
   private googleAuth: GoogleAuth | null = null;
   private currentUser: IUser | null = null;
-  private sessionId: string = '';
   private refreshTimer: NodeJS.Timeout | null = null;
+  private isAuthenticated: boolean = false;
+  private token: string = '';
+  private refreshToken: string = '';
+  private tokenExpiration: Date = new Date();
+  private googleAuthUrl: string = '';
 
   constructor() {
     this.initializeRateLimiter();
@@ -183,54 +163,31 @@ export class AuthService {
         throw new Error('Google OAuth client ID is not configured');
       }
 
-      // Check if auth2 is already initialized
-      try {
-        const existingAuth = window.gapi?.auth2?.getAuthInstance();
-        if (existingAuth) {
-          console.log('Using existing auth instance');
-          this.googleAuth = existingAuth;
-          return;
-        }
-      } catch (e) {
-        console.log('No existing auth instance found');
+      // Skip initialization if we already have valid tokens
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const refreshToken = localStorage.getItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY);
+      
+      if (token && refreshToken) {
+        this.token = token;
+        this.refreshToken = refreshToken;
+        this.isAuthenticated = true;
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        return;
       }
 
-      // Load the Google API script if not already loaded
-      await this.loadGoogleApiScript();
-      console.log('Google API script loaded');
-
-      // Load auth2 module
-      await this.loadAuth2();
-      console.log('Auth2 module loaded');
-
-      // Initialize the Google Auth client
-      console.log('Creating new auth instance with config:', {
+      // Initialize Google OAuth client without the IFrame
+      const params = new URLSearchParams({
         client_id: clientId,
+        redirect_uri: `${window.location.origin}/auth/google/callback`,
+        response_type: 'code',
         scope: authConfig.googleScopes.join(' '),
-      });
-      
-      this.googleAuth = await window.gapi.auth2.init({
-        client_id: clientId,
-        scope: authConfig.googleScopes.join(' '),
-        fetch_basic_profile: true,
-        ux_mode: 'popup',
-        cookie_policy: 'single_host_origin'
+        access_type: 'offline',
+        prompt: 'consent'
       });
 
-      if (!this.googleAuth) {
-        throw new Error('Failed to create auth instance');
-      }
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      this.googleAuthUrl = authUrl;
 
-      // Set up security monitoring
-      console.log('Auth instance created successfully');
-      this.googleAuth.currentUser.listen(this.handleUserChange.bind(this));
-      
-      // Check if already signed in
-      const isSignedIn = this.googleAuth.isSignedIn.get();
-      if (isSignedIn) {
-        const googleUser = this.googleAuth.currentUser.get();
-        await this.handleUserChange(googleUser);
-      }
     } catch (error) {
       console.error('Google Auth initialization failed:', error);
       throw new Error('Authentication service initialization failed');
@@ -262,33 +219,57 @@ export class AuthService {
   /**
    * Handles the OAuth callback and exchanges code for tokens
    */
-  public async handleGoogleCallback(code: string): Promise<IAuthResponse> {
+  public async handleGoogleCallback(code: string, retryCount = 0): Promise<IAuthResponse> {
     try {
+      // Add delay if this is a retry attempt
+      if (retryCount > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+      }
+
       const response = await api.post<IAuthResponse>(authConfig.authEndpoints.googleAuth, {
         code,
         redirectUri: `${window.location.origin}/auth/google/callback`
       });
+      const data: any = response.data.data;
+      const { accessToken: token, refreshToken, user } = data;
 
-      console.log('Token exchange successful');
-      const { token, refreshToken, user, expiresAt } = response.data;
-
-      const encryptedTokens = this.encryptTokens({
-        token,
-        refreshToken,
-        expiresAt,
-        sessionId: this.generateSessionId(),
-      });
-
-      this.storeTokens(encryptedTokens);
+      // Store tokens securely
+      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, token);
+      localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
+      
+      // Update auth state
+      this.isAuthenticated = true;
       this.currentUser = user;
-      this.setupTokenRefresh();
+      this.token = token;
+      this.refreshToken = refreshToken;
+      
+      // Set token expiration to 1 hour from now (typical JWT expiration)
+      this.tokenExpiration = new Date(Date.now() + 3600 * 1000);
+
+      // Initialize API client with new token
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+      // Emit state change event
+      window.dispatchEvent(new CustomEvent('auth-state-change', {
+        detail: {
+          isAuthenticated: true,
+          user,
+          token,
+          refreshToken,
+          tokenExpiration: this.tokenExpiration
+        }
+      }));
 
       return response.data;
     } catch (error) {
-      if (error instanceof AxiosError && error.response) {
-        throw this.handleAuthError(error as AxiosError<ApiError>);
+      if (error instanceof AxiosError) {
+        if (error.response?.status === 429 && retryCount < 3) {
+          console.log(`Rate limited, retrying in ${retryCount + 1} seconds...`);
+          return this.handleGoogleCallback(code, retryCount + 1);
+        }
       }
-      throw new Error('Failed to exchange code for tokens');
+      console.error('Failed to exchange code for tokens:', error);
+      throw error;
     }
   }
 
@@ -299,14 +280,11 @@ export class AuthService {
     try {
       const tokens = this.getStoredTokens();
       if (tokens) {
-        await api.post(authConfig.authEndpoints.logout, {
-          sessionId: tokens.sessionId,
-        });
+        await api.post(authConfig.authEndpoints.logout);
       }
 
       this.clearTokens();
       this.currentUser = null;
-      this.sessionId = '';
 
       if (this.googleAuth) {
         await this.googleAuth.signOut();
@@ -334,20 +312,21 @@ export class AuthService {
       }
 
       const response = await api.post<IAuthResponse>(authConfig.authEndpoints.refreshToken, {
-        refreshToken: tokens.refreshToken,
-        sessionId: tokens.sessionId,
+        refreshToken: tokens.refreshToken
       });
 
-      const { token, refreshToken, expiresAt } = response.data;
-      const encryptedTokens = this.encryptTokens({
-        ...tokens,
-        token,
-        refreshToken,
-        expiresAt,
-      });
-
-      this.storeTokens(encryptedTokens);
-      return token;
+      const { accessToken, refreshToken } = response.data;
+      
+      // Store new tokens
+      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, accessToken);
+      localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
+      
+      // Update instance state
+      this.token = accessToken;
+      this.refreshToken = refreshToken;
+      this.tokenExpiration = new Date(Date.now() + 3600 * 1000);
+      
+      return accessToken;
     } catch (error) {
       if (error instanceof AxiosError && error.response) {
         throw this.handleAuthError(error as AxiosError<ApiError>);
@@ -357,18 +336,18 @@ export class AuthService {
   }
 
   /**
-   * Retrieves and decrypts stored tokens
+   * Retrieves stored tokens
    */
   public getStoredTokens(): ITokens | null {
     try {
-      const encryptedTokens = localStorage.getItem(authConfig.tokenStorageKey);
-      if (!encryptedTokens) return null;
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const refreshToken = localStorage.getItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY);
+      
+      if (!token || !refreshToken) {
+        return null;
+      }
 
-      const decrypted = CryptoJS.AES.decrypt(encryptedTokens, this.getEncryptionKey()).toString(
-        CryptoJS.enc.Utf8
-      );
-
-      return JSON.parse(decrypted);
+      return { token, refreshToken };
     } catch (error) {
       console.error('Token retrieval failed:', error);
       return null;
@@ -389,55 +368,96 @@ export class AuthService {
         return false;
       }
 
+      const token = tokens.token;
+      console.log('validateSession: Using token:', token);
+
+      // Set up API client with token
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
       console.log('validateSession: Making validation request');
-      const response = await api.post(
-        authConfig.authEndpoints.validateToken,
-        { sessionId: tokens.sessionId },
-        {
-          headers: {
-            Authorization: `Bearer ${tokens.token}`,
-          },
+      try {
+        const response = await api.post(
+          authConfig.authEndpoints.validateToken,
+          {}
+        );
+        console.log('validateSession: Response received:', response.data);
+
+        // Handle double-wrapped response structure
+        const innerResponse = response.data.data;
+        if (innerResponse.status === 'success' && innerResponse.data?.user) {
+          const user = innerResponse.data.user;
+          this.updateAuthState(true, user, tokens);
+          return true;
         }
-      );
-      console.log('validateSession: Response received:', response.data);
 
-      if (response.data.valid) {
-        console.log('validateSession: Session is valid, updating user');
-        this.currentUser = response.data.user;
-        return true;
+        console.log('validateSession: Invalid response format:', response.data);
+        this.clearTokens();
+        return false;
+      } catch (error) {
+        console.error('validateSession: Request error:', error);
+        if (error instanceof AxiosError) {
+          console.log('validateSession: Error status:', error.response?.status);
+          console.log('validateSession: Error data:', error.response?.data);
+          
+          if (error.response?.status === 404) {
+            console.log('validateSession: Validation endpoint not found, maintaining current auth state');
+            this.updateAuthState(true, this.currentUser, tokens);
+            return true;
+          }
+        }
+        throw error;
       }
-
-      console.log('validateSession: Session is invalid, clearing tokens');
-      this.clearTokens();
-      return false;
     } catch (error) {
       console.error('validateSession: Error occurred:', error);
-      this.clearTokens();
+      // Only clear tokens if it's not a 404 error
+      if (!(error instanceof AxiosError && error.response?.status === 404)) {
+        this.clearTokens();
+      }
       return false;
+    }
+  }
+
+  /**
+   * Updates authentication state and emits change event
+   */
+  private updateAuthState(isAuthenticated: boolean, user: IUser | null, tokens?: ITokens): void {
+    this.isAuthenticated = isAuthenticated;
+    this.currentUser = user;
+    
+    if (tokens) {
+      this.token = tokens.token;
+      this.refreshToken = tokens.refreshToken;
+      this.tokenExpiration = new Date(Date.now() + 3600 * 1000); // 1 hour from now
+    }
+
+    // Emit state change event
+    window.dispatchEvent(new CustomEvent('auth-state-change', {
+      detail: {
+        isAuthenticated,
+        user,
+        token: this.token,
+        refreshToken: this.refreshToken,
+        tokenExpiration: this.tokenExpiration
+      }
+    }));
+
+    // Set up token refresh if authenticated
+    if (isAuthenticated && !this.refreshTimer) {
+      this.setupTokenRefresh();
     }
   }
 
   /**
    * Private helper methods
    */
-  private encryptTokens(tokens: ITokens): string {
-    return CryptoJS.AES.encrypt(JSON.stringify(tokens), this.getEncryptionKey()).toString();
-  }
-
-  private storeTokens(encryptedTokens: string): void {
-    localStorage.setItem(authConfig.tokenStorageKey, encryptedTokens);
-  }
-
   private clearTokens(): void {
-    localStorage.removeItem(authConfig.tokenStorageKey);
-  }
-
-  private generateSessionId(): string {
-    return CryptoJS.lib.WordArray.random(16).toString();
-  }
-
-  private getEncryptionKey(): string {
-    return AUTH_CONFIG.ENCRYPTION_KEY;
+    localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
+    localStorage.removeItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY);
+    this.token = '';
+    this.refreshToken = '';
+    this.isAuthenticated = false;
+    this.currentUser = null;
+    api.defaults.headers.common['Authorization'] = '';
   }
 
   private setupTokenRefresh(): void {
@@ -445,11 +465,26 @@ export class AuthService {
       clearInterval(this.refreshTimer);
     }
 
+    // Only set up refresh timer if we have tokens
+    const tokens = this.getStoredTokens();
+    if (!tokens) {
+      return;
+    }
+
     this.refreshTimer = setInterval(async () => {
       try {
+        const tokens = this.getStoredTokens();
+        if (!tokens) {
+          clearInterval(this.refreshTimer!);
+          this.refreshTimer = null;
+          return;
+        }
         await this.refreshAuthToken();
       } catch (error) {
         console.error('Token refresh failed:', error);
+        // Clear refresh timer on error
+        clearInterval(this.refreshTimer!);
+        this.refreshTimer = null;
       }
     }, AUTH_CONFIG.REFRESH_INTERVAL);
   }
@@ -520,6 +555,15 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Rate limit helper
+   */
+  private async waitForRateLimit(retryCount: number): Promise<void> {
+    const baseDelay = 1000; // 1 second
+    const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
 }
 

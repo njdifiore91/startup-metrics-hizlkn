@@ -193,7 +193,9 @@ export const validateSession = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log(req.headers);
     const accessToken = req.headers.authorization?.split(' ')[1];
+    console.log('Access token:', accessToken);
     if (!accessToken) {
       throw new AppError('Access token not provided', 401);
     }
