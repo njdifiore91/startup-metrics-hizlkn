@@ -3,21 +3,24 @@ import classnames from 'classnames'; // v2.3.1
 import LoadingSpinner from './LoadingSpinner';
 import { theme } from '../../config/theme';
 
+// Generic type for table data
+export type TableData = Record<string, unknown>;
+
 // Column configuration interface
-export interface TableColumn {
+export interface TableColumn<T extends TableData = TableData> {
   id: string;
   header: string;
-  accessor: string | ((row: any) => any);
+  accessor: keyof T | ((row: T) => unknown);
   sortable?: boolean;
   width?: string;
-  renderCell?: (value: any, row: any) => React.ReactNode;
+  renderCell?: (value: unknown, row: T) => React.ReactNode;
   align?: 'left' | 'center' | 'right';
 }
 
 // Table props interface
-export interface TableProps {
-  columns: TableColumn[];
-  data: any[];
+export interface TableProps<T extends TableData = TableData> {
+  columns: TableColumn<T>[];
+  data: T[];
   isLoading?: boolean;
   sortable?: boolean;
   className?: string;
@@ -27,7 +30,7 @@ export interface TableProps {
   rowHeight?: number;
 }
 
-const Table: React.FC<TableProps> = ({
+const Table = <T extends TableData>({
   columns,
   data,
   isLoading = false,
@@ -37,76 +40,81 @@ const Table: React.FC<TableProps> = ({
   onSort,
   virtualized = false,
   rowHeight = 48,
-}) => {
+}: TableProps<T>): React.ReactElement => {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const tableRef = useRef<HTMLTableElement>(null);
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 });
 
   // Handle column sorting
-  const handleSort = useCallback((columnId: string, event: React.MouseEvent | React.KeyboardEvent) => {
-    if (!sortable || (event.type === 'keydown' && (event as React.KeyboardEvent).key !== 'Enter')) {
-      return;
-    }
+  const handleSort = useCallback(
+    (columnId: string, event: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => {
+      if (
+        !sortable ||
+        (event.type === 'keydown' && (event as React.KeyboardEvent).key !== 'Enter')
+      ) {
+        return;
+      }
 
-    const newDirection = columnId === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc';
-    setSortColumn(columnId);
-    setSortDirection(newDirection);
-    onSort?.(columnId, newDirection);
+      const newDirection = sortColumn === columnId && sortDirection === 'asc' ? 'desc' : 'asc';
+      setSortColumn(columnId);
+      setSortDirection(newDirection);
+      onSort?.(columnId, newDirection);
+    },
+    [sortable, sortColumn, sortDirection, onSort]
+  );
 
-    // Manage focus for accessibility
-    const target = event.target as HTMLElement;
-    target.setAttribute('aria-sort', newDirection);
-  }, [sortable, sortColumn, sortDirection, onSort]);
-
-  // Virtual scrolling calculation
+  // Handle scroll for virtualization
   useEffect(() => {
     if (!virtualized || !tableRef.current) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const tableHeight = tableRef.current?.clientHeight ?? 0;
-        const visibleRows = Math.ceil(tableHeight / rowHeight);
-        const buffer = Math.floor(visibleRows / 2);
+    const handleScroll = (): void => {
+      const table = tableRef.current;
+      if (!table) return;
 
-        const start = Math.max(0, visibleRange.start - buffer);
-        const end = Math.min(data.length, visibleRange.end + buffer);
+      const scrollTop = table.scrollTop;
+      const viewportHeight = table.clientHeight;
+      const totalHeight = table.scrollHeight;
 
-        setVisibleRange({ start, end });
-      },
-      { root: tableRef.current, threshold: 0.1 }
-    );
+      const start = Math.floor(scrollTop / rowHeight);
+      const visibleRows = Math.ceil(viewportHeight / rowHeight);
+      const end = Math.min(start + visibleRows + 10, data.length);
 
-    observer.observe(tableRef.current);
-    return () => observer.disconnect();
-  }, [virtualized, rowHeight, data.length, visibleRange]);
+      setVisibleRange({ start: Math.max(0, start - 10), end });
+    };
+
+    const table = tableRef.current;
+    table.addEventListener('scroll', handleScroll);
+    handleScroll();
+
+    return () => {
+      table.removeEventListener('scroll', handleScroll);
+    };
+  }, [virtualized, data.length, rowHeight]);
 
   // Render table header
-  const renderHeader = () => (
+  const renderHeader = (): React.ReactNode => (
     <thead>
       <tr>
         {columns.map((column) => (
           <th
             key={column.id}
-            style={{
-              width: column.width,
-              textAlign: column.align || 'left',
-              padding: `${theme.spacing.sm}px`,
-              fontWeight: theme.typography.fontWeight.bold,
-              borderBottom: `1px solid ${theme.colors.secondary}`,
-            }}
+            style={{ width: column.width }}
+            className={classnames('table-header', {
+              'cursor-pointer': sortable && column.sortable,
+              'text-left': column.align === 'left' || !column.align,
+              'text-center': column.align === 'center',
+              'text-right': column.align === 'right',
+            })}
             onClick={column.sortable ? (e) => handleSort(column.id, e) : undefined}
             onKeyDown={column.sortable ? (e) => handleSort(column.id, e) : undefined}
-            tabIndex={column.sortable ? 0 : -1}
-            role={column.sortable ? 'columnheader button' : 'columnheader'}
-            aria-sort={sortColumn === column.id ? sortDirection : undefined}
+            tabIndex={column.sortable ? 0 : undefined}
+            role={column.sortable ? 'button' : undefined}
           >
-            <div className="header-content">
+            <div className="flex items-center gap-2">
               {column.header}
-              {column.sortable && sortColumn === column.id && (
-                <span className="sort-indicator" aria-hidden="true">
-                  {sortDirection === 'asc' ? ' ↑' : ' ↓'}
-                </span>
+              {sortable && column.sortable && sortColumn === column.id && (
+                <span className="sort-indicator">{sortDirection === 'asc' ? '↑' : '↓'}</span>
               )}
             </div>
           </th>
@@ -116,89 +124,67 @@ const Table: React.FC<TableProps> = ({
   );
 
   // Render table rows
-  const renderRows = () => {
-    if (isLoading) {
-      return (
-        <tr>
-          <td colSpan={columns.length} style={{ textAlign: 'center', padding: `${theme.spacing.md}px` }}>
-            <LoadingSpinner size="32px" color={theme.colors.primary} />
-          </td>
-        </tr>
-      );
-    }
-
-    if (!data.length) {
-      return (
-        <tr>
-          <td
-            colSpan={columns.length}
-            style={{ textAlign: 'center', padding: `${theme.spacing.md}px`, color: theme.colors.text }}
-          >
-            {emptyMessage}
-          </td>
-        </tr>
-      );
-    }
-
+  const renderRows = (): React.ReactNode => {
     const rowsToRender = virtualized ? data.slice(visibleRange.start, visibleRange.end) : data;
 
-    return rowsToRender.map((row, index) => (
-      <tr
-        key={index}
-        style={{
-          backgroundColor: index % 2 === 0 ? theme.colors.surface : theme.colors.background,
-          height: rowHeight,
-        }}
-      >
-        {columns.map((column) => {
-          const value = typeof column.accessor === 'function'
-            ? column.accessor(row)
-            : row[column.accessor];
+    return (
+      <tbody>
+        {rowsToRender.map((row, index) => (
+          <tr
+            key={index}
+            style={virtualized ? { height: `${rowHeight}px` } : undefined}
+            className="table-row"
+          >
+            {columns.map((column) => {
+              const value =
+                typeof column.accessor === 'function' ? column.accessor(row) : row[column.accessor];
 
-          return (
-            <td
-              key={column.id}
-              style={{
-                padding: `${theme.spacing.sm}px`,
-                textAlign: column.align || 'left',
-                borderBottom: `1px solid ${theme.colors.secondary}20`,
-              }}
-            >
-              {column.renderCell ? column.renderCell(value, row) : value}
-            </td>
-          );
-        })}
-      </tr>
-    ));
+              return (
+                <td
+                  key={column.id}
+                  className={classnames('table-cell', {
+                    'text-left': column.align === 'left' || !column.align,
+                    'text-center': column.align === 'center',
+                    'text-right': column.align === 'right',
+                  })}
+                >
+                  {column.renderCell ? column.renderCell(value, row) : (value as React.ReactNode)}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    );
   };
 
   return (
-    <div
-      className={classnames('table-container', className)}
-      style={{
-        overflowX: 'auto',
-        position: 'relative',
-        maxWidth: '100%',
-      }}
-    >
-      <table
-        ref={tableRef}
-        role="grid"
-        aria-busy={isLoading}
-        aria-colcount={columns.length}
-        aria-rowcount={data.length}
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          fontFamily: theme.typography.fontFamily.primary,
-          fontSize: theme.typography.fontSize.md,
-        }}
-      >
-        {renderHeader()}
-        <tbody>
-          {renderRows()}
-        </tbody>
-      </table>
+    <div className={classnames('table-container', className)}>
+      {isLoading ? (
+        <div className="loading-container">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <table
+          ref={tableRef}
+          className={classnames('table', {
+            'table-virtualized': virtualized,
+          })}
+        >
+          {renderHeader()}
+          {data.length > 0 ? (
+            renderRows()
+          ) : (
+            <tbody>
+              <tr>
+                <td colSpan={columns.length} className="empty-message">
+                  {emptyMessage}
+                </td>
+              </tr>
+            </tbody>
+          )}
+        </table>
+      )}
     </div>
   );
 };

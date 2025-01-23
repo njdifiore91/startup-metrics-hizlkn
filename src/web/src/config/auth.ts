@@ -14,7 +14,7 @@ import process from 'process';
  * Google OAuth Client ID from environment variables
  * @constant
  */
-const GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 /**
  * JWT token storage key for localStorage

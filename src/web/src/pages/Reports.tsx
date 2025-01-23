@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useA11y } from '@react-aria/i18n'; // v3.0.0
-import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
-import { useProgress } from '@progress/hooks'; // v1.0.0
+import { announce } from '@react-aria/live-announcer';
+import { ErrorBoundary } from 'react-error-boundary';
+import { useToast, ToastPosition, ToastType } from '../hooks/useToast';
 
 // Internal imports
 import ReportGenerator from '../components/reports/ReportGenerator';
 import ExportButton from '../components/reports/ExportButton';
-import useMetrics from '../hooks/useMetrics';
-import useBenchmarks from '../hooks/useBenchmarks';
-import { showToast } from '../hooks/useToast';
+import { useMetrics } from '../hooks/useMetrics';
+import { useBenchmarks } from '../hooks/useBenchmarks';
+import { exportService, ExportOptions } from '../services/export';
+import { RevenueRange } from '../store/benchmarkSlice';
 
 // Types and interfaces
 import { IMetric } from '../interfaces/IMetric';
@@ -20,17 +21,41 @@ const MAX_METRICS_PER_REPORT = 10;
 const RETRY_CONFIG = {
   maxRetries: 3,
   baseDelay: 1000,
-  maxDelay: 5000
+  maxDelay: 5000,
 };
 const CACHE_CONFIG = {
   ttl: 300000, // 5 minutes
-  maxSize: 100
+  maxSize: 100,
 };
+
+const VALID_REVENUE_RANGES = ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'] as const;
+type ValidRevenueRange = (typeof VALID_REVENUE_RANGES)[number];
+
+/**
+ * Type guard to check if a string is a valid RevenueRange
+ */
+const isValidRevenueRange = (value: string): value is ValidRevenueRange => {
+  return VALID_REVENUE_RANGES.includes(value as ValidRevenueRange);
+};
+
+// Progress hook interface
+interface ProgressHook {
+  startProgress: () => void;
+  updateProgress: (progress: number) => void;
+  completeProgress: () => void;
+}
+
+// a simple progress hook
+const useProgress = (): ProgressHook => ({
+  startProgress: () => {},
+  updateProgress: () => {},
+  completeProgress: () => {},
+});
 
 // Interface for component state
 interface ReportPageState {
   selectedMetrics: IMetric[];
-  selectedRevenueRange: string;
+  selectedRevenueRange: ValidRevenueRange;
   exportFormat: ExportFormat;
   loadingStates: Record<string, boolean>;
   exportProgress: number;
@@ -38,23 +63,31 @@ interface ReportPageState {
   retryCount: number;
 }
 
+// Interface for report data
+interface ReportData {
+  metrics: IMetric[];
+  benchmarks: IBenchmark[];
+  revenueRange: ValidRevenueRange;
+  format: ExportFormat;
+}
+
 const Reports: React.FC = () => {
   // State management
   const [state, setState] = useState<ReportPageState>({
     selectedMetrics: [],
-    selectedRevenueRange: '',
+    selectedRevenueRange: VALID_REVENUE_RANGES[0],
     exportFormat: 'PDF',
     loadingStates: {},
     exportProgress: 0,
     error: null,
-    retryCount: 0
+    retryCount: 0,
   });
 
   // Custom hooks
   const { getMetricsByCategory, validateMetricValue } = useMetrics();
   const { benchmarks, fetchBenchmarkData, compareBenchmark } = useBenchmarks();
-  const { announce } = useA11y();
   const { startProgress, updateProgress, completeProgress } = useProgress();
+  const toast = useToast();
 
   // Refs for cleanup and abort control
   const abortController = useRef<AbortController>();
@@ -64,11 +97,11 @@ const Reports: React.FC = () => {
   useEffect(() => {
     const initializeReports = async () => {
       try {
-        setState(prev => ({ ...prev, loadingStates: { ...prev.loadingStates, init: true } }));
+        setState((prev) => ({ ...prev, loadingStates: { ...prev.loadingStates, init: true } }));
         const metrics = await getMetricsByCategory('financial');
-        setState(prev => ({ 
-          ...prev, 
-          loadingStates: { ...prev.loadingStates, init: false }
+        setState((prev) => ({
+          ...prev,
+          loadingStates: { ...prev.loadingStates, init: false },
         }));
       } catch (error) {
         handleError(error);
@@ -86,49 +119,50 @@ const Reports: React.FC = () => {
   }, []);
 
   // Error handling
-  const handleError = useCallback((error: unknown) => {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    setState(prev => ({ ...prev, error: new Error(errorMessage) }));
-    showToast(errorMessage, 'error', 'top-right');
-    announce(`Error: ${errorMessage}`, 'assertive');
-  }, [announce]);
+  const handleError = useCallback(
+    (error: unknown) => {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      setState((prev) => ({ ...prev, error: new Error(errorMessage) }));
+      toast.showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      announce(`Error: ${errorMessage}`, 'assertive');
+    },
+    [toast]
+  );
 
   // Metric selection handler
-  const handleMetricSelection = useCallback(async (metrics: IMetric[]) => {
-    try {
-      if (metrics.length > MAX_METRICS_PER_REPORT) {
-        throw new Error(`Maximum of ${MAX_METRICS_PER_REPORT} metrics can be selected`);
+  const handleMetricSelection = useCallback(
+    async (metrics: IMetric[]) => {
+      try {
+        if (metrics.length > MAX_METRICS_PER_REPORT) {
+          throw new Error(`Maximum of ${MAX_METRICS_PER_REPORT} metrics can be selected`);
+        }
+
+        setState((prev) => ({
+          ...prev,
+          selectedMetrics: metrics,
+          loadingStates: { ...prev.loadingStates, metricSelection: true },
+        }));
+
+        // Fetch benchmark data for selected metrics
+        await Promise.all(
+          metrics.map((metric) => fetchBenchmarkData(metric.id, state.selectedRevenueRange))
+        );
+
+        announce(`Selected ${metrics.length} metrics for report generation`, 'polite');
+
+        setState((prev) => ({
+          ...prev,
+          loadingStates: { ...prev.loadingStates, metricSelection: false },
+        }));
+      } catch (error) {
+        handleError(error);
       }
-
-      setState(prev => ({
-        ...prev,
-        selectedMetrics: metrics,
-        loadingStates: { ...prev.loadingStates, metricSelection: true }
-      }));
-
-      // Fetch benchmark data for selected metrics
-      await Promise.all(
-        metrics.map(metric => 
-          fetchBenchmarkData(metric.id, state.selectedRevenueRange)
-        )
-      );
-
-      announce(
-        `Selected ${metrics.length} metrics for report generation`,
-        'polite'
-      );
-
-      setState(prev => ({
-        ...prev,
-        loadingStates: { ...prev.loadingStates, metricSelection: false }
-      }));
-    } catch (error) {
-      handleError(error);
-    }
-  }, [state.selectedRevenueRange, fetchBenchmarkData, announce]);
+    },
+    [state.selectedRevenueRange, fetchBenchmarkData]
+  );
 
   // Export handler
-  const handleExportStart = useCallback(async (format: ExportFormat) => {
+  const handleExportStart = useCallback(async () => {
     if (!state.selectedMetrics.length || !benchmarks.length) {
       handleError(new Error('Please select metrics and ensure benchmark data is available'));
       return;
@@ -136,11 +170,10 @@ const Reports: React.FC = () => {
 
     try {
       // Initialize progress tracking
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
-        exportFormat: format,
         exportProgress: 0,
-        loadingStates: { ...prev.loadingStates, export: true }
+        loadingStates: { ...prev.loadingStates, export: true },
       }));
 
       abortController.current = new AbortController();
@@ -148,53 +181,61 @@ const Reports: React.FC = () => {
 
       // Track progress
       progressTimer.current = setInterval(() => {
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
-          exportProgress: Math.min(prev.exportProgress + 10, 90)
+          exportProgress: Math.min(prev.exportProgress + 10, 90),
         }));
       }, 500);
 
       announce('Starting report export', 'polite');
 
       // Generate report
-      const reportData = {
+      const reportData: ReportData = {
         metrics: state.selectedMetrics,
         benchmarks,
         revenueRange: state.selectedRevenueRange,
-        format
+        format: state.exportFormat,
       };
 
-      await ReportGenerator.generateReport(reportData, {
-        onProgress: (progress: number) => {
-          updateProgress(progress);
-          setState(prev => ({ ...prev, exportProgress: progress }));
-          announce(`Export progress: ${progress}%`, 'polite');
-        },
-        signal: abortController.current.signal
-      });
+      const exportOptions: ExportOptions = {
+        format: state.exportFormat,
+        metrics: state.selectedMetrics,
+        benchmarks,
+        revenueRange: state.selectedRevenueRange,
+        includeCharts: true,
+      };
+
+      // Set up progress tracking
+      window.addEventListener('exportProgress', ((event: CustomEvent) => {
+        const progress = event.detail.progress;
+        updateProgress(progress);
+        setState((prev) => ({ ...prev, exportProgress: progress }));
+        announce(`Export progress: ${progress}%`, 'polite');
+      }) as EventListener);
+
+      await exportService.exportBenchmarkReport(exportOptions);
 
       // Cleanup and complete
       if (progressTimer.current) {
         clearInterval(progressTimer.current);
       }
       completeProgress();
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         exportProgress: 100,
-        loadingStates: { ...prev.loadingStates, export: false }
+        loadingStates: { ...prev.loadingStates, export: false },
       }));
 
       announce('Report export completed successfully', 'polite');
-      showToast('Report exported successfully', 'success', 'top-right');
-
+      toast.showToast('Report exported successfully', ToastType.SUCCESS, ToastPosition.TOP_RIGHT);
     } catch (error) {
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         announce('Export cancelled', 'polite');
         return;
       }
       handleError(error);
     }
-  }, [state.selectedMetrics, benchmarks, state.selectedRevenueRange, announce]);
+  }, [state.selectedMetrics, benchmarks, state.selectedRevenueRange, state.exportFormat, toast]);
 
   // Cancel export handler
   const handleExportCancel = useCallback(() => {
@@ -202,16 +243,16 @@ const Reports: React.FC = () => {
     if (progressTimer.current) {
       clearInterval(progressTimer.current);
     }
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       exportProgress: 0,
-      loadingStates: { ...prev.loadingStates, export: false }
+      loadingStates: { ...prev.loadingStates, export: false },
     }));
   }, []);
 
   return (
     <ErrorBoundary
-      fallback={({ error }) => (
+      fallback={({ error }: { error: Error }) => (
         <div role="alert" className="error-container">
           <h2>Error Loading Reports</h2>
           <p>{error.message}</p>
@@ -231,59 +272,34 @@ const Reports: React.FC = () => {
             metrics={state.selectedMetrics}
             benchmarks={benchmarks}
             revenueRange={state.selectedRevenueRange}
-            onMetricSelect={handleMetricSelection}
-            onRevenueRangeChange={(range) => 
-              setState(prev => ({ ...prev, selectedRevenueRange: range }))
+            onExportStart={handleExportStart}
+            onExportProgress={(progress: number) =>
+              setState((prev) => ({ ...prev, exportProgress: progress }))
             }
-            disabled={state.loadingStates.export}
+            onExportComplete={() => {
+              setState((prev) => ({
+                ...prev,
+                loadingStates: { ...prev.loadingStates, export: false },
+              }));
+            }}
+            onError={handleError}
           />
 
-          <div className="export-controls" aria-label="Export options">
-            <ExportButton
-              format="PDF"
-              metrics={state.selectedMetrics}
-              benchmarks={benchmarks}
-              revenueRange={state.selectedRevenueRange}
-              disabled={!state.selectedMetrics.length || state.loadingStates.export}
-              onProgress={(progress) => 
-                setState(prev => ({ ...prev, exportProgress: progress }))
-              }
-              onCancel={handleExportCancel}
-            />
-            <ExportButton
-              format="CSV"
-              metrics={state.selectedMetrics}
-              benchmarks={benchmarks}
-              revenueRange={state.selectedRevenueRange}
-              disabled={!state.selectedMetrics.length || state.loadingStates.export}
-              onProgress={(progress) => 
-                setState(prev => ({ ...prev, exportProgress: progress }))
-              }
-              onCancel={handleExportCancel}
-            />
-          </div>
-
-          {state.loadingStates.export && (
-            <div 
-              role="progressbar" 
-              aria-valuenow={state.exportProgress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              className="export-progress"
-            >
-              <div 
-                className="progress-bar"
-                style={{ width: `${state.exportProgress}%` }}
-              />
-              <span className="progress-label">
-                {state.exportProgress}% Complete
-              </span>
-            </div>
-          )}
+          <ExportButton
+            format={state.exportFormat}
+            metrics={state.selectedMetrics}
+            benchmarks={benchmarks}
+            revenueRange={state.selectedRevenueRange}
+            disabled={!state.selectedMetrics.length || !benchmarks.length}
+            onProgress={(progress: number) =>
+              setState((prev) => ({ ...prev, exportProgress: progress }))
+            }
+            onCancel={handleExportCancel}
+          />
         </main>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .reports-page {
           padding: var(--spacing-lg);
           max-width: 1200px;

@@ -1,11 +1,12 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import styled from '@emotion/styled';
 import Header from './Header';
 import Footer from './Footer';
 import Sidebar from './Sidebar';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { useAuth } from '../../hooks/useAuth';
-import { showToast, ToastType, ToastPosition } from '../../hooks/useToast';
+import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
+import { useLocation } from 'react-router-dom';
 
 // Layout Props Interface
 interface LayoutProps {
@@ -14,6 +15,8 @@ interface LayoutProps {
   direction?: 'ltr' | 'rtl';
 }
 
+type SessionStatus = 'valid' | 'invalid' | 'loading';
+
 // Styled Components
 const LayoutContainer = styled.div<{ direction: 'ltr' | 'rtl' }>`
   display: flex;
@@ -21,14 +24,14 @@ const LayoutContainer = styled.div<{ direction: 'ltr' | 'rtl' }>`
   min-height: 100vh;
   background-color: var(--color-background);
   color: var(--color-text);
-  direction: ${props => props.direction};
+  direction: ${(props) => props.direction};
   position: relative;
   overflow-x: hidden;
 `;
 
-const MainContent = styled.main<{ sidebarOpen: boolean }>`
+const MainContent = styled.main<{ sidebarOpen: boolean; isLoginPage?: boolean }>`
   flex: 1;
-  margin-inline-start: ${props => props.sidebarOpen ? '240px' : '64px'};
+  margin-inline-start: ${(props) => (!props.isLoginPage ? (props.sidebarOpen ? '240px' : '64px') : '0')};
   margin-top: 64px;
   padding: var(--spacing-lg);
   transition: margin-inline-start 0.3s ease;
@@ -58,15 +61,14 @@ const SkipLink = styled.a`
 `;
 
 // Layout Component
-const Layout: React.FC<LayoutProps> = React.memo(({
-  children,
-  className = '',
-  direction = 'ltr'
-}) => {
+const Layout: React.FC<LayoutProps> = memo(({ children, className = '', direction = 'ltr' }) => {
   // State Management
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { validateSession, sessionStatus } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const { showToast } = useToast();
+  const location = useLocation();
+  const isLoginPage = location.pathname === '/login';
 
   // Session Monitoring
   useEffect(() => {
@@ -97,36 +99,36 @@ const Layout: React.FC<LayoutProps> = React.memo(({
 
   // Sidebar Toggle Handler
   const toggleSidebar = useCallback(() => {
-    setSidebarOpen(prev => !prev);
+    setSidebarOpen((prev) => !prev);
   }, []);
 
   // Error Handler
   const handleError = useCallback((error: Error) => {
-    showToast(
-      error.message,
-      ToastType.ERROR,
-      ToastPosition.TOP_RIGHT
-    );
+    showToast(error.message, ToastType.ERROR, ToastPosition.TOP_RIGHT);
   }, []);
 
   // Keyboard Navigation Handler
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (event.altKey) {
-      switch (event.key) {
-        case 'n':
-          const skipLink = document.querySelector('#skip-to-content');
-          if (skipLink instanceof HTMLElement) {
-            skipLink.focus();
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.altKey) {
+        switch (event.key) {
+          case 'n': {
+            const skipLink = document.querySelector('#skip-to-content') as HTMLElement | null;
+            if (skipLink) {
+              skipLink.focus();
+            }
+            break;
           }
-          break;
-        case 'm':
-          toggleSidebar();
-          break;
-        default:
-          break;
+          case 'm':
+            toggleSidebar();
+            break;
+          default:
+            break;
+        }
       }
-    }
-  }, [toggleSidebar]);
+    },
+    [toggleSidebar]
+  );
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -142,39 +144,33 @@ const Layout: React.FC<LayoutProps> = React.memo(({
         aria-label="Main application layout"
       >
         {/* Skip Navigation Link */}
-        <SkipLink
-          href="#main-content"
-          id="skip-to-content"
-          tabIndex={0}
-        >
+        <SkipLink href="#main-content" id="skip-to-content" tabIndex={0}>
           Skip to main content
         </SkipLink>
 
         {/* Header Component */}
-        <Header
-          onThemeChange={handleThemeChange}
-          testId="main-header"
-        />
+        <Header onThemeChange={handleThemeChange} testId="main-header" />
 
         {/* Sidebar Component */}
-        <Sidebar
-          isOpen={sidebarOpen}
-          onToggle={toggleSidebar}
-          onError={handleError}
-          ariaLabel="Main navigation sidebar"
-        />
+        {!isLoginPage && (
+          <Sidebar
+            isOpen={sidebarOpen}
+            onToggle={toggleSidebar}
+            onError={handleError}
+            ariaLabel="Main navigation sidebar"
+          />
+        )}
 
         {/* Main Content Area */}
         <MainContent
           id="main-content"
           sidebarOpen={sidebarOpen}
+          isLoginPage={isLoginPage}
           role="main"
           aria-label="Main content"
           tabIndex={-1}
         >
-          <ErrorBoundary onError={handleError}>
-            {children}
-          </ErrorBoundary>
+          <ErrorBoundary onError={handleError}>{children}</ErrorBoundary>
         </MainContent>
 
         {/* Footer Component */}
@@ -183,7 +179,7 @@ const Layout: React.FC<LayoutProps> = React.memo(({
           links={[
             { id: 'privacy', label: 'Privacy Policy', href: '/privacy' },
             { id: 'terms', label: 'Terms of Service', href: '/terms' },
-            { id: 'contact', label: 'Contact Us', href: '/contact' }
+            { id: 'contact', label: 'Contact Us', href: '/contact' },
           ]}
         />
       </LayoutContainer>

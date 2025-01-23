@@ -4,12 +4,13 @@
  * @version 1.0.0
  */
 
+import { UserPreferences } from '@/store/authSlice';
 import { UserRole } from '../config/constants';
 
 /**
  * Interface representing a user entity in the frontend application
  * Ensures type safety and consistent user object structure across components
- * 
+ *
  * @interface IUser
  * @property {string} id - Unique identifier (UUID) for the user
  * @property {string} email - User's email address from Google OAuth
@@ -29,4 +30,6 @@ export interface IUser {
   readonly createdAt: Date;
   readonly lastLoginAt: Date;
   readonly isActive: boolean;
+  preferences: UserPreferences;
+  permissions: string[];
 }

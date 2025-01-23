@@ -3,12 +3,13 @@ import styled from '@emotion/styled';
 
 // Internal imports
 import { CompanyMetricForm } from '../components/metrics/CompanyMetricForm';
-import { MetricComparison } from '../components/metrics/MetricComparison';
+import MetricComparison from '../components/metrics/MetricComparison';
 import { useCompanyMetrics } from '../hooks/useCompanyMetrics';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { Card } from '../components/common/Card';
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { ToastType, useToast } from '../hooks/useToast';
+import { IMetric } from '../interfaces/IMetric';
 
 // Styled components with enterprise-ready styling
 const StyledPage = styled.div`
@@ -55,17 +56,31 @@ const StyledLoadingOverlay = styled.div`
   z-index: var(--z-index-modal);
 `;
 
+// Add interface for comparison result
+interface ComparisonResult {
+  percentile: number;
+  error?: string;
+  confidence?: number;
+}
+
+// Add interface for CompanyMetricForm props
+interface CompanyMetricFormProps {
+  initialData?: ICompanyMetric;
+  onSubmitSuccess: (metricData: ICompanyMetric) => Promise<void>;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+// Add interface for API error
+interface ApiError extends Error {
+  status?: number;
+  code?: string;
+}
+
 const CompanyMetrics: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
-  const {
-    metrics,
-    loading,
-    error,
-    fetchMetrics,
-    createMetric,
-    updateMetric
-  } = useCompanyMetrics();
+  const { metrics, loading, error, fetchMetrics, createMetric, updateMetric } = useCompanyMetrics();
 
   // Local state
   const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
@@ -73,41 +88,43 @@ const CompanyMetrics: React.FC = () => {
 
   // Fetch metrics on mount
   useEffect(() => {
-    fetchMetrics().catch((error) => {
-      showToast('Failed to load metrics', ToastType.ERROR);
+    fetchMetrics().catch((error: ApiError) => {
+      const errorMessage = error.message || 'Failed to load metrics';
+      showToast(errorMessage, ToastType.ERROR);
     });
   }, [fetchMetrics, showToast]);
 
   // Memoized sorted metrics
   const sortedMetrics = useMemo(() => {
-    return [...metrics].sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    return [...metrics].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
   }, [metrics]);
 
   /**
    * Handles metric submission with enhanced validation and error handling
    */
-  const handleMetricSubmit = useCallback(async (metricData: ICompanyMetric) => {
-    setIsSubmitting(true);
-    try {
-      if (selectedMetric) {
-        await updateMetric(selectedMetric.id, metricData);
-        showToast('Metric updated successfully', ToastType.SUCCESS);
-      } else {
-        await createMetric(metricData);
-        showToast('Metric created successfully', ToastType.SUCCESS);
+  const handleMetricSubmit = useCallback(
+    async (metricData: ICompanyMetric) => {
+      setIsSubmitting(true);
+      try {
+        if (selectedMetric) {
+          await updateMetric(selectedMetric.id, metricData);
+          showToast('Metric updated successfully', ToastType.SUCCESS);
+        } else {
+          await createMetric(metricData);
+          showToast('Metric created successfully', ToastType.SUCCESS);
+        }
+        setSelectedMetric(null);
+      } catch (error) {
+        const err = error as Error;
+        showToast(err.message || 'Failed to save metric', ToastType.ERROR);
+      } finally {
+        setIsSubmitting(false);
       }
-      setSelectedMetric(null);
-    } catch (error) {
-      showToast(
-        error.message || 'Failed to save metric',
-        ToastType.ERROR
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [selectedMetric, createMetric, updateMetric, showToast]);
+    },
+    [selectedMetric, createMetric, updateMetric, showToast]
+  );
 
   /**
    * Handles metric selection for editing
@@ -126,14 +143,23 @@ const CompanyMetrics: React.FC = () => {
   /**
    * Handles comparison completion
    */
-  const handleComparisonComplete = useCallback((result: any) => {
-    if (result.percentile) {
-      showToast(
-        `Your metric is in the ${result.percentile}th percentile`,
-        ToastType.INFO
-      );
-    }
-  }, [showToast]);
+  const handleComparisonComplete = useCallback(
+    (result: ComparisonResult) => {
+      if (result.percentile) {
+        showToast(`Your metric is in the ${result.percentile}th percentile`, ToastType.INFO);
+      }
+    },
+    [showToast]
+  );
+
+  /**
+   * Handles company value changes in comparison
+   */
+  const handleCompanyValueChange = useCallback((value: string) => {
+    // This is just for tracking changes in the comparison component
+    // The actual value update happens through the form
+    console.debug('Company value changed:', value);
+  }, []);
 
   return (
     <ErrorBoundary>
@@ -148,7 +174,7 @@ const CompanyMetrics: React.FC = () => {
           <section aria-label="Metric Input Form">
             <Card elevation="medium">
               <CompanyMetricForm
-                initialData={selectedMetric}
+                initialData={selectedMetric || undefined}
                 onSubmitSuccess={handleMetricSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}
@@ -165,25 +191,23 @@ const CompanyMetrics: React.FC = () => {
                   revenueRange="1M-5M"
                   companyValue={selectedMetric.value}
                   onComparisonComplete={handleComparisonComplete}
+                  onCompanyValueChange={handleCompanyValueChange}
                 />
               </Card>
             </section>
           )}
 
           {/* Metrics List Section */}
-          <section 
-            aria-label="Saved Metrics"
-            className="metrics-list-section"
-          >
+          <section aria-label="Saved Metrics" className="metrics-list-section">
             <StyledMetricList role="list">
               {sortedMetrics.map((metric) => (
                 <Card
                   key={metric.id}
-                  interactive
+                  interactive={true}
                   onClick={() => handleMetricSelect(metric)}
                   elevation="low"
                   role="listitem"
-                  ariaLabel={`${metric.metric.name}: ${metric.value}`}
+                  aria-label={`${metric.metric.name}: ${metric.value}`}
                 >
                   <h3>{metric.metric.name}</h3>
                   <p>Value: {metric.value}</p>
@@ -196,10 +220,7 @@ const CompanyMetrics: React.FC = () => {
 
         {/* Loading Overlay */}
         {loading && (
-          <StyledLoadingOverlay 
-            role="status" 
-            aria-label="Loading metrics"
-          >
+          <StyledLoadingOverlay role="status" aria-label="Loading metrics">
             <span className="loading-spinner" />
             <span className="sr-only">Loading...</span>
           </StyledLoadingOverlay>
@@ -207,11 +228,7 @@ const CompanyMetrics: React.FC = () => {
 
         {/* Error Display */}
         {error && (
-          <div 
-            role="alert" 
-            className="error-message"
-            aria-live="polite"
-          >
+          <div role="alert" className="error-message" aria-live="polite">
             {error}
           </div>
         )}

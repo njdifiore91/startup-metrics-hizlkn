@@ -4,9 +4,11 @@ import '../../styles/theme.css';
 import '../../styles/animations.css';
 
 // Types and Interfaces
+type TooltipPosition = 'top' | 'right' | 'bottom' | 'left';
+
 interface TooltipProps {
   content: React.ReactNode;
-  position?: 'top' | 'right' | 'bottom' | 'left';
+  position?: TooltipPosition;
   children: React.ReactNode;
   className?: string;
   delay?: number;
@@ -21,8 +23,19 @@ interface Position {
   left: string;
 }
 
+interface TooltipContainerProps {
+  tooltipPosition: TooltipPosition;
+  isVisible: boolean;
+  style?: React.CSSProperties;
+}
+
 // Styled Components
-const TooltipContainer = styled.div<{ position: string; isVisible: boolean }>`
+const TooltipContainer = styled.div.attrs<TooltipContainerProps>(
+  (props: TooltipContainerProps) => ({
+    style: props.style,
+    'data-testid': 'tooltip-container',
+  })
+)<TooltipContainerProps>`
   position: fixed;
   background-color: var(--color-primary);
   color: #ffffff;
@@ -32,7 +45,7 @@ const TooltipContainer = styled.div<{ position: string; isVisible: boolean }>`
   max-width: 300px;
   z-index: var(--z-index-tooltip);
   pointer-events: none;
-  opacity: ${({ isVisible }) => (isVisible ? 1 : 0)};
+  opacity: ${({ isVisible }: TooltipContainerProps) => (isVisible ? 1 : 0)};
   transition: opacity var(--transition-fast) ease-in-out;
   box-shadow: var(--shadow-md);
 
@@ -50,97 +63,70 @@ const TooltipTrigger = styled.div`
 const getTooltipPosition = (
   triggerRect: DOMRect,
   tooltipRect: DOMRect,
-  position: string,
+  position: TooltipPosition,
   offset: number
 ): Position => {
-  const spacing = offset || 8;
-  let top = 0;
-  let left = 0;
+  let top = '0';
+  let left = '0';
 
   switch (position) {
     case 'top':
-      top = triggerRect.top - tooltipRect.height - spacing;
-      left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
+      top = `${triggerRect.top - tooltipRect.height - offset}px`;
+      left = `${triggerRect.left + (triggerRect.width - tooltipRect.width) / 2}px`;
       break;
     case 'right':
-      top = triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-      left = triggerRect.right + spacing;
+      top = `${triggerRect.top + (triggerRect.height - tooltipRect.height) / 2}px`;
+      left = `${triggerRect.right + offset}px`;
       break;
     case 'bottom':
-      top = triggerRect.bottom + spacing;
-      left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
+      top = `${triggerRect.bottom + offset}px`;
+      left = `${triggerRect.left + (triggerRect.width - tooltipRect.width) / 2}px`;
       break;
     case 'left':
-      top = triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-      left = triggerRect.left - tooltipRect.width - spacing;
+      top = `${triggerRect.top + (triggerRect.height - tooltipRect.height) / 2}px`;
+      left = `${triggerRect.left - tooltipRect.width - offset}px`;
       break;
   }
 
-  // Viewport boundary checks
-  const viewport = {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  };
-
-  if (left < 0) left = spacing;
-  if (left + tooltipRect.width > viewport.width) {
-    left = viewport.width - tooltipRect.width - spacing;
-  }
-  if (top < 0) top = spacing;
-  if (top + tooltipRect.height > viewport.height) {
-    top = viewport.height - tooltipRect.height - spacing;
-  }
-
-  return {
-    top: `${Math.round(top)}px`,
-    left: `${Math.round(left)}px`,
-  };
+  return { top, left };
 };
 
-// Custom Hook for Position Management
 const useTooltipPosition = (
   triggerRef: React.RefObject<HTMLDivElement>,
   tooltipRef: React.RefObject<HTMLDivElement>,
-  position: string,
+  position: TooltipPosition,
   offset: number
-) => {
-  const [tooltipPosition, setTooltipPosition] = useState<Position>({ top: '0', left: '0' });
+): Position | null => {
+  const [tooltipPosition, setTooltipPosition] = useState<Position | null>(null);
 
   const updatePosition = useCallback(() => {
-    if (triggerRef.current && tooltipRef.current) {
-      const triggerRect = triggerRef.current.getBoundingClientRect();
-      const tooltipRect = tooltipRef.current.getBoundingClientRect();
-      const newPosition = getTooltipPosition(triggerRect, tooltipRect, position, offset);
-      setTooltipPosition(newPosition);
-    }
-  }, [triggerRef, tooltipRef, position, offset]);
+    if (!triggerRef.current || !tooltipRef.current) return null;
+
+    const triggerRect = triggerRef.current.getBoundingClientRect();
+    const tooltipRect = tooltipRef.current.getBoundingClientRect();
+    const newPosition = getTooltipPosition(triggerRect, tooltipRect, position, offset);
+
+    setTooltipPosition(newPosition);
+    return newPosition;
+  }, [position, offset]);
 
   useEffect(() => {
-    updatePosition();
-
-    const resizeObserver = new ResizeObserver(updatePosition);
-    const scrollHandler = () => {
-      requestAnimationFrame(updatePosition);
+    const handleScroll = (): void => {
+      updatePosition();
     };
 
-    if (triggerRef.current) {
-      resizeObserver.observe(triggerRef.current);
-    }
-
-    window.addEventListener('scroll', scrollHandler, true);
-    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
 
     return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener('scroll', scrollHandler, true);
-      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
     };
   }, [updatePosition]);
 
   return tooltipPosition;
 };
 
-// Main Component
 export const Tooltip: React.FC<TooltipProps> = ({
   content,
   position = 'top',
@@ -155,32 +141,34 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<number>();
+
   const tooltipPosition = useTooltipPosition(triggerRef, tooltipRef, position, offset);
 
   const showTooltip = useCallback(() => {
     if (disabled) return;
-    timeoutRef.current = setTimeout(() => {
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = window.setTimeout(() => {
       setIsVisible(true);
       onShow?.();
     }, delay);
-  }, [disabled, delay, onShow]);
+  }, [delay, disabled, onShow]);
 
   const hideTooltip = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    clearTimeout(timeoutRef.current);
     setIsVisible(false);
     onHide?.();
   }, [onHide]);
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      clearTimeout(timeoutRef.current);
     };
   }, []);
+
+  if (disabled) {
+    return <>{children}</>;
+  }
 
   return (
     <TooltipTrigger
@@ -192,14 +180,16 @@ export const Tooltip: React.FC<TooltipProps> = ({
       onBlur={hideTooltip}
     >
       {children}
-      {isVisible && (
+      {isVisible && tooltipPosition && (
         <TooltipContainer
           ref={tooltipRef}
-          position={position}
+          tooltipPosition={position}
           isVisible={isVisible}
-          style={tooltipPosition}
+          style={{
+            top: tooltipPosition.top,
+            left: tooltipPosition.left,
+          }}
           role="tooltip"
-          aria-live="polite"
         >
           {content}
         </TooltipContainer>

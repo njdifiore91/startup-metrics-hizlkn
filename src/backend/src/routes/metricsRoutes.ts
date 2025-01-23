@@ -34,7 +34,7 @@ const router: Router = express.Router();
 // Apply common middleware
 router.use(compression());
 router.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://localhost:3000',
+  origin: import.meta.env.ALLOWED_ORIGINS?.split(',') || 'http://localhost:3000',
   methods: ['GET', 'POST', 'PUT'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['X-Total-Count', 'X-Response-Time'],

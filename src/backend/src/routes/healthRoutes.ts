@@ -15,7 +15,7 @@ const basicHealthLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many health check requests, please try again later',
-  skip: (req) => process.env.NODE_ENV === 'development'
+  skip: (req) => import.meta.env.NODE_ENV === 'development'
 });
 
 /**
@@ -28,7 +28,7 @@ const detailedHealthLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many detailed health check requests, please try again later',
-  skip: (req) => process.env.NODE_ENV === 'development'
+  skip: (req) => import.meta.env.NODE_ENV === 'development'
 });
 
 /**

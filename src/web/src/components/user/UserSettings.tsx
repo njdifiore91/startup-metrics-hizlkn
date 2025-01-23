@@ -6,13 +6,13 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../hooks/useAuth';
+import { UpdateUserSettingsParams, useAuth } from '../../hooks/useAuth';
 import { Card } from '../common/Card';
-import type { IUser } from '../../interfaces/IUser';
 
 // Interfaces
 interface UserSettingsProps {
   className?: string;
+  onError: (error: Error) => void;
 }
 
 interface UserPreferences {
@@ -33,7 +33,7 @@ const SESSION_TIMEOUT_WARNING = 5 * 60 * 1000; // 5 minutes
 const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => {
   const { t } = useTranslation();
   const { user, isLoading, updateUserSettings, logout } = useAuth();
-  
+
   // State management
   const [preferences, setPreferences] = useState<UserPreferences>({
     theme: 'system',
@@ -41,32 +41,32 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
     notifications: {
       email: true,
       browser: true,
-      security: true
+      security: true,
     },
-    twoFactorEnabled: false
+    twoFactorEnabled: false,
   });
   const [isEditing, setIsEditing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showSessionWarning, setShowSessionWarning] = useState(false);
 
   // Format last login date with localization
-  const formatLastLogin = useCallback((date: Date): string => {
-    return new Intl.DateTimeFormat(preferences.language, {
-      dateStyle: 'full',
-      timeStyle: 'long'
-    }).format(date);
-  }, [preferences.language]);
+  const formatLastLogin = useCallback(
+    (date: Date): string => {
+      return new Intl.DateTimeFormat(preferences.language, {
+        dateStyle: 'full',
+        timeStyle: 'long',
+      }).format(date);
+    },
+    [preferences.language]
+  );
 
   // Handle preference updates
-  const handlePreferenceChange = useCallback((
-    key: keyof UserPreferences,
-    value: any
-  ) => {
-    setPreferences(prev => ({
+  const handlePreferenceChange = useCallback((key: keyof UserPreferences, value: any) => {
+    setPreferences((prev) => ({
       ...prev,
-      [key]: value
+      [key]: value,
     }));
-    setErrors(prev => ({ ...prev, [key]: '' }));
+    setErrors((prev) => ({ ...prev, [key]: '' }));
   }, []);
 
   // Handle form submission
@@ -75,14 +75,19 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
     setErrors({});
 
     try {
-      await updateUserSettings({
-        userId: user?.id,
-        preferences
-      });
+      if (!user?.id) {
+        throw new Error('User ID not found');
+      }
+
+      const updateParams: UpdateUserSettingsParams = {
+        userId: user.id,
+        preferences,
+      };
+      await updateUserSettings(updateParams);
       setIsEditing(false);
     } catch (error: any) {
       setErrors({
-        submit: error.message || t('settings.error.updateFailed')
+        submit: error.message || t('settings.error.updateFailed'),
       });
     }
   };
@@ -152,9 +157,7 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
         </div>
         <div className="user-settings__field">
           <label>{t('settings.profile.lastLogin')}</label>
-          <div className="user-settings__value">
-            {formatLastLogin(user.lastLoginAt)}
-          </div>
+          <div className="user-settings__value">{formatLastLogin(user.lastLoginAt)}</div>
         </div>
       </Card>
 
@@ -167,9 +170,7 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
         <h2>{t('settings.security.title')}</h2>
         <form onSubmit={handleSubmit}>
           <div className="user-settings__field">
-            <label htmlFor="twoFactor">
-              {t('settings.security.2fa')}
-            </label>
+            <label htmlFor="twoFactor">{t('settings.security.2fa')}</label>
             <div className="user-settings__toggle">
               <input
                 type="checkbox"
@@ -214,7 +215,7 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
               value={preferences.language}
               onChange={(e) => handlePreferenceChange('language', e.target.value)}
             >
-              {SUPPORTED_LANGUAGES.map(lang => (
+              {SUPPORTED_LANGUAGES.map((lang) => (
                 <option key={lang} value={lang}>
                   {t(`languages.${lang}`)}
                 </option>
@@ -225,15 +226,19 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
           <div className="user-settings__field">
             <label>{t('settings.preferences.notifications')}</label>
             <div className="user-settings__checkboxes">
-              {Object.keys(preferences.notifications).map(key => (
+              {Object.keys(preferences.notifications).map((key) => (
                 <label key={key} className="user-settings__checkbox">
                   <input
                     type="checkbox"
-                    checked={preferences.notifications[key as keyof typeof preferences.notifications]}
-                    onChange={(e) => handlePreferenceChange('notifications', {
-                      ...preferences.notifications,
-                      [key]: e.target.checked
-                    })}
+                    checked={
+                      preferences.notifications[key as keyof typeof preferences.notifications]
+                    }
+                    onChange={(e) =>
+                      handlePreferenceChange('notifications', {
+                        ...preferences.notifications,
+                        [key]: e.target.checked,
+                      })
+                    }
                   />
                   {t(`settings.preferences.notifications.${key}`)}
                 </label>
@@ -248,18 +253,10 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
           )}
 
           <div className="user-settings__actions">
-            <button
-              type="submit"
-              className="button button--primary"
-              disabled={!isEditing}
-            >
+            <button type="submit" className="button button--primary" disabled={!isEditing}>
               {t('common.save')}
             </button>
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={logout}
-            >
+            <button type="button" className="button button--secondary" onClick={logout}>
               {t('common.logout')}
             </button>
           </div>
@@ -275,13 +272,11 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
         >
           <h3 id="sessionWarningTitle">{t('settings.session.warningTitle')}</h3>
           <p>{t('settings.session.warningMessage')}</p>
-          <button onClick={() => setShowSessionWarning(false)}>
-            {t('common.continue')}
-          </button>
+          <button onClick={() => setShowSessionWarning(false)}>{t('common.continue')}</button>
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .user-settings {
           max-width: 800px;
           margin: 0 auto;

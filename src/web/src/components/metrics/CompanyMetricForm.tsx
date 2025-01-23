@@ -1,9 +1,18 @@
 import React, { useCallback, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
-import { Input, InputProps } from '../common/Input';
+import { Input } from '../common/Input';
 import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
+import { AxiosError } from 'axios';
+import { useAuth } from '../../hooks/useAuth';
+
+interface ApiError {
+  errors: Array<{
+    field: string;
+    message: string;
+  }>;
+}
 
 // Styled components with enterprise-ready styling
 const StyledForm = styled.form`
@@ -46,8 +55,10 @@ const StyledButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
   font-weight: var(--font-weight-medium);
   transition: all var(--transition-fast);
   cursor: pointer;
-  
-  ${({ variant = 'secondary' }) => variant === 'primary' ? `
+
+  ${({ variant = 'secondary' }) =>
+    variant === 'primary'
+      ? `
     background-color: var(--color-primary);
     color: white;
     border: none;
@@ -55,7 +66,8 @@ const StyledButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
     &:hover:not(:disabled) {
       background-color: var(--color-primary-dark);
     }
-  ` : `
+  `
+      : `
     background-color: transparent;
     color: var(--color-text);
     border: 1px solid var(--border-color-normal);
@@ -74,7 +86,7 @@ const StyledButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
 // Props interface
 interface CompanyMetricFormProps {
   initialData?: ICompanyMetric;
-  onSubmitSuccess: () => void;
+  onSubmitSuccess: (metricData: ICompanyMetric) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
 }
@@ -83,28 +95,31 @@ interface CompanyMetricFormProps {
 interface FormValues {
   value: number;
   metricId: string;
-  metadata?: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
   initialData,
   onSubmitSuccess,
   onCancel,
-  isSubmitting
+  isSubmitting,
 }) => {
+  // Get user info
+  const { user } = useAuth();
+
   // Initialize form with react-hook-form
   const {
     register,
     handleSubmit,
     formState: { errors, isDirty },
     reset,
-    setError
+    setError,
   } = useForm<FormValues>({
     defaultValues: {
-      value: initialData?.value || 0,
-      metricId: initialData?.metricId || '',
-      metadata: initialData?.metadata || {}
-    }
+      value: initialData?.value ?? 0,
+      metricId: initialData?.metricId ?? '',
+      metadata: initialData?.metadata ?? {},
+    },
   });
 
   // Get company metrics operations
@@ -116,51 +131,95 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
       reset({
         value: initialData.value,
         metricId: initialData.metricId,
-        metadata: initialData.metadata
+        metadata: initialData.metadata ?? {},
       });
     }
   }, [initialData, reset]);
 
   // Form submission handler
-  const onSubmit = useCallback(async (formData: FormValues) => {
-    try {
-      if (initialData) {
-        // Update existing metric
-        await updateMetric(initialData.id, {
-          value: formData.value,
-          metadata: formData.metadata
-        });
-      } else {
-        // Create new metric
-        await createMetric({
-          value: formData.value,
-          metricId: formData.metricId,
-          metadata: formData.metadata,
-          timestamp: new Date().toISOString()
-        });
-      }
-      onSubmitSuccess();
-    } catch (error) {
-      // Handle validation errors
-      if (error.response?.data?.errors) {
-        error.response.data.errors.forEach((err: any) => {
-          setError(err.field as keyof FormValues, {
+  const onSubmit = useCallback(
+    async (formData: FormValues) => {
+      try {
+        if (isNaN(formData.value)) {
+          setError('value', {
             type: 'manual',
-            message: err.message
+            message: 'Please enter a valid number',
           });
-        });
+          return;
+        }
+
+        const now = new Date().toISOString();
+        let metricData: ICompanyMetric;
+
+        if (initialData) {
+          // Update existing metric
+          metricData = {
+            ...initialData,
+            value: Number(formData.value),
+            metadata: formData.metadata ?? {},
+            lastModified: now,
+          };
+          await updateMetric(initialData.id, metricData);
+        } else {
+          if (!user?.id) {
+            throw new Error('User not authenticated');
+          }
+          // Create new metric
+          metricData = {
+            id: '', // Will be set by the server
+            userId: user.id,
+            value: Number(formData.value),
+            metricId: formData.metricId,
+            metadata: formData.metadata ?? {},
+            timestamp: now,
+            isActive: true,
+            metric: {
+              id: formData.metricId,
+              name: '', // Will be populated by the server
+              description: '', // Will be populated by the server
+              category: 'financial', // Default category, will be updated by server
+              valueType: 'number', // Default type, will be updated by server
+              validationRules: {}, // Will be populated by server
+              isActive: true,
+              displayOrder: 0,
+              tags: [],
+              metadata: {},
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+            lastModified: now,
+            createdAt: now,
+          };
+          await createMetric(metricData);
+        }
+        await onSubmitSuccess(metricData);
+      } catch (error) {
+        // Handle validation errors
+        if (error instanceof AxiosError && error.response?.data?.errors) {
+          const apiError = error.response.data as ApiError;
+          apiError.errors.forEach((err) => {
+            setError(err.field as keyof FormValues, {
+              type: 'manual',
+              message: err.message,
+            });
+          });
+        }
       }
-    }
-  }, [initialData, createMetric, updateMetric, onSubmitSuccess, setError]);
+    },
+    [initialData, createMetric, updateMetric, onSubmitSuccess, setError, user]
+  );
 
   // Handle form cancellation
-  const handleCancel = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    onCancel();
-  }, [onCancel]);
+  const handleCancel = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      onCancel();
+    },
+    [onCancel]
+  );
 
   return (
-    <StyledForm 
+    <StyledForm
       onSubmit={handleSubmit(onSubmit)}
       aria-label={initialData ? 'Edit metric' : 'Add new metric'}
       noValidate
@@ -174,25 +233,27 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
       <Input
         label="Metric Value"
         type="number"
+        defaultValue={initialData?.value ?? 0}
         {...register('value', {
           required: 'Value is required',
           min: {
             value: 0,
-            message: 'Value must be positive'
-          }
+            message: 'Value must be positive',
+          },
+          valueAsNumber: true,
         })}
         error={errors.value?.message}
         disabled={isSubmitting}
         aria-describedby={errors.value ? 'value-error' : undefined}
         inputMode="decimal"
-        step="0.01"
+        step={0.01}
       />
 
       {!initialData && (
         <Input
           label="Metric ID"
           {...register('metricId', {
-            required: 'Metric ID is required'
+            required: 'Metric ID is required',
           })}
           error={errors.metricId?.message}
           disabled={isSubmitting}
@@ -201,18 +262,10 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
       )}
 
       <StyledButtonContainer>
-        <StyledButton
-          type="button"
-          onClick={handleCancel}
-          disabled={isSubmitting}
-        >
+        <StyledButton type="button" onClick={handleCancel} disabled={isSubmitting}>
           Cancel
         </StyledButton>
-        <StyledButton
-          type="submit"
-          variant="primary"
-          disabled={isSubmitting || !isDirty}
-        >
+        <StyledButton type="submit" variant="primary" disabled={isSubmitting || !isDirty}>
           {isSubmitting ? 'Saving...' : initialData ? 'Update' : 'Create'}
         </StyledButton>
       </StyledButtonContainer>

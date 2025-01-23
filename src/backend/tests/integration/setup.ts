@@ -31,8 +31,8 @@ const testMetrics = {
 
 // Test environment configuration
 const TEST_CONFIG = {
-  DATABASE_URL: process.env.TEST_DATABASE_URL || 'postgres://localhost:5432/startup_metrics_test',
-  REDIS_URL: process.env.TEST_REDIS_URL || 'redis://localhost:6379/1',
+  DATABASE_URL: import.meta.env.TEST_DATABASE_URL || 'postgres://localhost:5432/startup_metrics_test',
+  REDIS_URL: import.meta.env.TEST_REDIS_URL || 'redis://localhost:6379/1',
   TEST_TIMEOUT: 30000, // 30 seconds
   CLEANUP_TIMEOUT: 5000 // 5 seconds
 };
@@ -54,15 +54,15 @@ export const request = supertest(app);
 export const setupTestDatabase = async (): Promise<void> => {
   try {
     // Set test environment variables
-    process.env.NODE_ENV = 'test';
-    process.env.DATABASE_URL = TEST_CONFIG.DATABASE_URL;
-    process.env.REDIS_URL = TEST_CONFIG.REDIS_URL;
+    import.meta.env.NODE_ENV = 'test';
+    import.meta.env.DATABASE_URL = TEST_CONFIG.DATABASE_URL;
+    import.meta.env.REDIS_URL = TEST_CONFIG.REDIS_URL;
 
     // Initialize database connection
     await sequelize.authenticate();
 
     // Force sync database schema with safety check
-    if (process.env.NODE_ENV === 'test') {
+    if (import.meta.env.NODE_ENV === 'test') {
       await sequelize.sync({ force: true });
     }
 
@@ -87,7 +87,7 @@ export const setupTestDatabase = async (): Promise<void> => {
 export const teardownTestDatabase = async (): Promise<void> => {
   try {
     // Clean up database
-    if (process.env.NODE_ENV === 'test') {
+    if (import.meta.env.NODE_ENV === 'test') {
       await sequelize.dropAllSchemas({
         logging: false,
         cascade: true
@@ -103,9 +103,9 @@ export const teardownTestDatabase = async (): Promise<void> => {
     await redisClient.quit();
 
     // Reset environment variables
-    delete process.env.NODE_ENV;
-    delete process.env.DATABASE_URL;
-    delete process.env.REDIS_URL;
+    delete import.meta.env.NODE_ENV;
+    delete import.meta.env.DATABASE_URL;
+    delete import.meta.env.REDIS_URL;
 
     logger.info('Test environment cleanup completed');
   } catch (error) {

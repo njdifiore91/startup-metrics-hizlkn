@@ -4,55 +4,87 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     <meta name="theme-color" content="#151e2d" />
-    <meta name="description" content="Compare and analyze key startup metrics across revenue ranges with our comprehensive benchmarking platform. Make data-driven decisions with industry-standard metrics." />
+    <meta
+      name="description"
+      content="Compare and analyze key startup metrics across revenue ranges with our comprehensive benchmarking platform. Make data-driven decisions with industry-standard metrics."
+    />
     <meta name="robots" content="index, follow" />
 
-    <!-- Security Headers -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https:; connect-src 'self' https://accounts.google.com; frame-ancestors 'none'; form-action 'self'" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="Strict-Transport-Security" content="max-age=31536000; includeSubDomains" />
-    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
 
     <!-- Resource Hints -->
     <link rel="preconnect" href="https://accounts.google.com" />
     <link rel="dns-prefetch" href="https://accounts.google.com" />
+    <link rel="preconnect" href="https://www.gstatic.com" />
+    <link rel="dns-prefetch" href="https://www.gstatic.com" />
+    <link rel="preconnect" href="https://apis.google.com" />
+    <link rel="dns-prefetch" href="https://apis.google.com" />
+
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://*.gstatic.com https://*.googleapis.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' data: https://fonts.gstatic.com;
+      img-src 'self' data: https:;
+      frame-src https://accounts.google.com https://*.google.com;
+      connect-src 'self' https://*.google.com https://*.googleapis.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+    ">
+
+    <!-- Google OAuth -->
+    <script src="https://apis.google.com/js/platform.js" async defer></script>
+    <meta name="google-signin-client_id" content="<%- VITE_GOOGLE_CLIENT_ID %>" />
+    <meta name="google-signin-scope" content="profile email" />
+
+    <!-- Font Face Declarations -->
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        src: url('/fonts/Inter-Regular.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Inter';
+        src: url('/fonts/Inter-Bold.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
 
     <!-- Preload Critical Assets -->
-    <link rel="preload" href="./src/assets/fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="./src/assets/fonts/Inter-Bold.woff2" as="font" type="font/woff2" crossorigin />
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="./src/assets/images/favicon.ico" />
+    <link
+      rel="preload"
+      href="/fonts/Inter-Regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/Inter-Bold.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
 
     <!-- Title -->
     <title>Startup Metrics Benchmarking Platform</title>
 
     <!-- Base Styles -->
     <style>
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 400;
-        font-display: swap;
-        src: url('./src/assets/fonts/Inter-Regular.woff2') format('woff2');
-      }
-
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 700;
-        font-display: swap;
-        src: url('./src/assets/fonts/Inter-Bold.woff2') format('woff2');
-      }
-
       :root {
         --color-primary: #151e2d;
-        --color-secondary: #46608C;
+        --color-secondary: #46608c;
         --color-accent: #168947;
-        --color-background: #DBEAAC;
-        --color-text: #0D3330;
+        --color-background: #dbeaac;
+        --color-text: #0d3330;
       }
 
       html {
@@ -60,7 +92,9 @@
         scroll-behavior: smooth;
       }
 
-      *, *::before, *::after {
+      *,
+      *::before,
+      *::after {
         box-sizing: inherit;
         margin: 0;
         padding: 0;
@@ -101,7 +135,7 @@
       }
 
       #root:empty::after {
-        content: "Loading...";
+        content: 'Loading...';
         color: var(--color-primary);
         font-size: 1.2rem;
       }
@@ -119,7 +153,7 @@
 
     <!-- Fallback for JavaScript disabled -->
     <noscript>
-      <div style="padding: 20px; text-align: center;">
+      <div style="padding: 20px; text-align: center">
         <h1>JavaScript Required</h1>
         <p>Please enable JavaScript to use the Startup Metrics Benchmarking Platform.</p>
       </div>
