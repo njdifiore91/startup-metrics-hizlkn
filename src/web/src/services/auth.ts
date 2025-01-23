@@ -37,7 +37,16 @@ interface GoogleAuth {
 }
 
 interface GoogleAuthStatic {
-  init(params: { client_id: string; scope: string }): Promise<GoogleAuth>;
+  init(params: {
+    client_id: string;
+    scope: string;
+    ux_mode?: 'popup' | 'redirect';
+    redirect_uri?: string;
+    cookie_policy?: 'single_host_origin' | 'none';
+    hosted_domain?: string;
+    fetch_basic_profile?: boolean;
+  }): Promise<GoogleAuth>;
+  getAuthInstance(): GoogleAuth | null;
 }
 
 declare global {
@@ -111,21 +120,88 @@ export class AuthService {
    */
   public async initializeGoogleAuth(): Promise<void> {
     try {
+      console.log('Initializing Google OAuth client...');
+      const clientId = authConfig.googleClientId;
+      console.log('Client ID available:', !!clientId);
+      console.log('Origin:', window.location.origin);
+
+      if (!clientId) {
+        throw new Error('Google OAuth client ID is not configured');
+      }
+
+      // First, check if gapi is loaded
+      if (!window.gapi) {
+        console.log('Loading Google API client library...');
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://apis.google.com/js/platform.js';
+          script.async = true;
+          script.defer = true;
+          script.onload = () => {
+            console.log('Google API client library loaded');
+            resolve();
+          };
+          script.onerror = (error) => {
+            console.error('Failed to load Google API client library:', error);
+            reject(new Error('Failed to load Google API client library'));
+          };
+          document.head.appendChild(script);
+        });
+      }
+
+      // Wait for gapi.auth2 to be available
+      console.log('Loading auth2 module...');
       await new Promise<void>((resolve, reject) => {
+        if (window.gapi.auth2) {
+          console.log('auth2 module already loaded');
+          resolve();
+          return;
+        }
+
         window.gapi.load('auth2', {
-          callback: resolve,
-          onerror: reject,
+          callback: () => {
+            console.log('auth2 module loaded');
+            resolve();
+          },
+          onerror: (error) => {
+            console.error('Failed to load auth2 module:', error);
+            reject(error);
+          },
         });
       });
 
-      this.googleAuth = await window.gapi.auth2.init({
-        client_id: authConfig.googleClientId || '',
+      // Initialize the Google Auth client
+      console.log('Initializing auth2...');
+      try {
+        const existingAuth = window.gapi.auth2.getAuthInstance();
+        if (existingAuth) {
+          console.log('Using existing auth instance');
+          this.googleAuth = existingAuth;
+          return;
+        }
+      } catch (e) {
+        console.log('No existing auth instance found');
+      }
+
+      console.log('Creating new auth instance with config:', {
+        client_id: clientId,
         scope: authConfig.googleScopes.join(' '),
+      });
+      
+      this.googleAuth = await window.gapi.auth2.init({
+        client_id: clientId,
+        scope: authConfig.googleScopes.join(' '),
+        fetch_basic_profile: true,
+        ux_mode: 'popup',
+        cookie_policy: 'single_host_origin'
       });
 
       // Set up security monitoring
       if (this.googleAuth) {
+        console.log('Auth instance created successfully');
         this.googleAuth.currentUser.listen(this.handleUserChange.bind(this));
+      } else {
+        throw new Error('Failed to create auth instance');
       }
     } catch (error) {
       console.error('Google Auth initialization failed:', error);
@@ -141,6 +217,7 @@ export class AuthService {
       this.checkRateLimit();
 
       if (!this.googleAuth) {
+        console.log('No auth instance found, initializing...');
         await this.initializeGoogleAuth();
       }
 
@@ -148,18 +225,27 @@ export class AuthService {
         throw new Error('Google Auth not initialized');
       }
 
+      console.log('Starting Google sign-in flow...');
+      console.log('Auth endpoints:', {
+        googleAuth: authConfig.authEndpoints.googleAuth,
+        validateToken: authConfig.authEndpoints.validateToken,
+        refreshToken: authConfig.authEndpoints.refreshToken,
+      });
+
       const googleUser = await this.googleAuth.signIn({
         prompt: 'select_account',
       });
 
+      console.log('Google sign-in successful, getting auth response...');
       const authResponse = googleUser.getAuthResponse();
-      const idToken = authResponse.id_token;
+      console.log('Got ID token, exchanging for app tokens...');
 
       // Exchange Google token for application tokens
       const response = await api.post<IAuthResponse>(authConfig.authEndpoints.googleAuth, {
-        idToken,
+        idToken: authResponse.id_token,
       });
 
+      console.log('Token exchange successful');
       const { token, refreshToken, user, expiresAt } = response.data;
 
       // Encrypt tokens before storage
@@ -176,6 +262,7 @@ export class AuthService {
 
       return response.data;
     } catch (error) {
+      console.error('Login error details:', error);
       if (error instanceof AxiosError && error.response) {
         throw this.handleAuthError(error as AxiosError<ApiError>);
       }
