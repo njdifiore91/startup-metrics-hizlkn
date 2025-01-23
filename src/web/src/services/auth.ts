@@ -243,7 +243,6 @@ export class AuthService {
   public async loginWithGoogle(): Promise<void> {
     try {
       this.checkRateLimit();
-
       const params = new URLSearchParams({
         client_id: authConfig.googleClientId,
         redirect_uri: `${window.location.origin}/auth/google/callback`,
@@ -270,6 +269,7 @@ export class AuthService {
         redirectUri: `${window.location.origin}/auth/google/callback`
       });
 
+      console.log('Token exchange successful');
       const { token, refreshToken, user, expiresAt } = response.data;
 
       const encryptedTokens = this.encryptTokens({

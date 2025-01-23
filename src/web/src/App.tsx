@@ -29,7 +29,6 @@ const CompanyMetrics = React.lazy(() => import('./pages/CompanyMetrics'));
 const Reports = React.lazy(() => import('./pages/Reports'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
-const GoogleCallback = React.lazy(() => import('./pages/GoogleCallback'));
 
 // Constants
 const ROUTES = {
@@ -39,7 +38,6 @@ const ROUTES = {
   COMPANY_METRICS: '/company-metrics',
   REPORTS: '/reports',
   SETTINGS: '/settings',
-  GOOGLE_CALLBACK: '/auth/google/callback',
 } as const;
 
 // Error messages
@@ -172,7 +170,6 @@ const AppContent: React.FC = () => {
           <Routes>
             {/* Public Routes */}
             <Route path={ROUTES.LOGIN} element={<Login />} />
-            <Route path={ROUTES.GOOGLE_CALLBACK} element={<GoogleCallback />} />
 
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>

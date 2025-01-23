@@ -6,6 +6,8 @@ import Metric from '../models/Metric';
 import { MetricCategory, isValidMetricCategory } from '../constants/metricTypes';
 import { ValidationError, NotFoundError, DuplicateError } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { AppError } from '../utils/AppError';
+import { BUSINESS_ERRORS } from '../constants/errorCodes';
 
 // Constants for service configuration
 const DEFAULT_METRIC_LIMIT = 100;
@@ -24,7 +26,7 @@ const metricCache = caching({
 /**
  * Service class for managing metric operations with enhanced validation and caching
  */
-class MetricsService {
+export class MetricsService {
   /**
    * Creates a new metric with comprehensive validation
    * @param metricData - The metric data to create
@@ -201,6 +203,83 @@ class MetricsService {
     } catch (error) {
       logger.error('Error calculating metric values:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get metrics for a specific company
+   */
+  async getMetricsForCompany(companyId: string): Promise<Metric[]> {
+    try {
+      const metrics = await Metric.findAll({
+        where: { companyId },
+        order: [['date', 'DESC']]
+      });
+
+      return metrics;
+    } catch (error) {
+      logger.error('Failed to get company metrics:', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        companyId 
+      });
+      throw new AppError(
+        BUSINESS_ERRORS.OPERATION_FAILED.message,
+        BUSINESS_ERRORS.OPERATION_FAILED.httpStatus,
+        BUSINESS_ERRORS.OPERATION_FAILED.code
+      );
+    }
+  }
+
+  /**
+   * Get benchmark metrics for an industry
+   */
+  async getIndustryBenchmarks(industry: string): Promise<Metric[]> {
+    try {
+      const metrics = await Metric.findAll({
+        where: { industry },
+        order: [['date', 'DESC']]
+      });
+
+      return metrics;
+    } catch (error) {
+      logger.error('Failed to get industry benchmarks:', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        industry 
+      });
+      throw new AppError(
+        BUSINESS_ERRORS.OPERATION_FAILED.message,
+        BUSINESS_ERRORS.OPERATION_FAILED.httpStatus,
+        BUSINESS_ERRORS.OPERATION_FAILED.code
+      );
+    }
+  }
+
+  /**
+   * Update metrics for a company
+   */
+  async updateMetrics(companyId: string, data: Partial<Metric>): Promise<Metric> {
+    try {
+      const metric = await Metric.findOne({
+        where: { companyId, date: data.date }
+      });
+
+      if (metric) {
+        await metric.update(data);
+        return metric;
+      }
+
+      return await Metric.create({ ...data, companyId });
+    } catch (error) {
+      logger.error('Failed to update metrics:', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        companyId,
+        data 
+      });
+      throw new AppError(
+        BUSINESS_ERRORS.OPERATION_FAILED.message,
+        BUSINESS_ERRORS.OPERATION_FAILED.httpStatus,
+        BUSINESS_ERRORS.OPERATION_FAILED.code
+      );
     }
   }
 

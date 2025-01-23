@@ -1,7 +1,6 @@
 import winston from 'winston'; // ^3.8.2
 import { loggerConfig } from '../config/logger';
 import { AsyncLocalStorage } from 'async_hooks';
-import { LogMetadata } from './errors';
 
 const { combine, timestamp, printf, colorize } = winston.format;
 
@@ -17,12 +16,7 @@ type LogLevel = typeof ALLOWED_LOG_LEVELS[number];
 
 // Metadata interface for type safety
 interface LogMetadata {
-  [key: string]: any;
-  correlationId?: string;
-  timestamp?: string;
-  error?: Error;
-  stack?: string;
-  requestId?: string;
+  [key: string]: unknown;
 }
 
 // Custom format for log messages
@@ -198,10 +192,10 @@ export const loggerInstance = winston.createLogger({
 
 // Add type definitions for the logger methods
 export interface Logger {
-  error(message: string, metadata?: LogMetadata): void;
-  warn(message: string, metadata?: LogMetadata): void;
-  info(message: string, metadata?: LogMetadata): void;
-  debug(message: string, metadata?: LogMetadata): void;
+  error(message: string, meta?: LogMetadata): void;
+  warn(message: string, meta?: LogMetadata): void;
+  info(message: string, meta?: LogMetadata): void;
+  debug(message: string, meta?: LogMetadata): void;
 }
 
 // Export logger interface

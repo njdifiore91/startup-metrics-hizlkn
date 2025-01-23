@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import express, { Application, Request, Response } from 'express';
+import express, { Application, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
@@ -15,6 +15,8 @@ import router from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import requestLogger from './middleware/requestLogger';
 import { rateLimiter } from './middleware/rateLimiter';
+import metricsRouter from './routes/metricsRoutes';
+import authRouter from './routes/authRoutes';
 
 // Initialize metrics collection
 const metrics = new Registry();
@@ -45,7 +47,10 @@ const configureApp = (): Application => {
   }));
 
   // CORS configuration
-  app.use(cors());
+  app.use(cors({
+    origin: process.env.CORS_ORIGIN?.split(',') || 'http://localhost:3000',
+    credentials: true
+  }));
 
   // Request parsing middleware
   app.use(express.json({ limit: '1mb' }));
@@ -58,10 +63,13 @@ const configureApp = (): Application => {
   app.use(requestLogger);
 
   // Rate limiting - 100 requests per minute
-  app.use(rateLimiter({ 
-    windowMs: 60 * 1000, // 1 minute
-    max: 100 // limit each IP to 100 requests per windowMs
-  }));
+  app.use(rateLimiter);
+
+  // API routes - Note this comes before the general routes
+  app.use('/api/v1', router);
+
+  // Metrics route
+  app.use('/api/metrics', metricsRouter);
 
   // Root route
   app.get('/', (req: Request, res: Response) => {
@@ -100,19 +108,20 @@ const configureApp = (): Application => {
     }
   });
 
-  // API routes
-  app.use('/api/v1', router);
-
-  // Error handling
-  app.use(errorHandler);
-
-  // 404 handler
-  app.use((req: Request, res: Response) => {
-    res.status(404).json({
-      status: 'error',
-      message: 'Resource not found'
-    });
+  // 404 handler - should come before error handler
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!res.headersSent) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Resource not found'
+      });
+    } else {
+      next();
+    }
   });
+
+  // Error handling - should be last
+  app.use(errorHandler);
 
   return app;
 };

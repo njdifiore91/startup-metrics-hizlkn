@@ -36,9 +36,19 @@ export const AUTH_ERRORS = {
     httpStatus: 401
   },
   INSUFFICIENT_PERMISSIONS: {
-    code: 'AUTH_002',
+    code: 'AUTH_004',
     message: 'Insufficient permissions',
     httpStatus: 403
+  },
+  RATE_LIMIT_EXCEEDED: {
+    code: 'AUTH_005',
+    message: 'Rate limit exceeded',
+    httpStatus: 429
+  },
+  AUTHENTICATION_FAILED: {
+    code: 'AUTH_006',
+    message: 'Authentication failed',
+    httpStatus: 401
   }
 } as const;
 
@@ -52,18 +62,23 @@ export const VALIDATION_ERRORS = {
     message: 'Invalid request data',
     httpStatus: 400
   },
-  MISSING_REQUIRED_FIELD: {
+  MISSING_REQUIRED: {
     code: 'VAL_002',
-    message: 'Required field is missing',
+    message: 'Missing required fields',
+    httpStatus: 400
+  },
+  INVALID_FORMAT: {
+    code: 'VAL_003',
+    message: 'Invalid data format',
     httpStatus: 400
   },
   INVALID_METRIC_VALUE: {
-    code: 'VAL_003',
+    code: 'VAL_004',
     message: 'Invalid metric value provided',
     httpStatus: 400
   },
   INVALID_REVENUE_RANGE: {
-    code: 'VAL_004',
+    code: 'VAL_005',
     message: 'Invalid revenue range specified',
     httpStatus: 400
   }
@@ -74,11 +89,6 @@ export const VALIDATION_ERRORS = {
  * HTTP Status: 404 Not Found, 409 Conflict, 429 Too Many Requests
  */
 export const BUSINESS_ERRORS = {
-  RATE_LIMIT_EXCEEDED: {
-    code: 'BUS_001',
-    message: 'Rate limit exceeded',
-    httpStatus: 429
-  },
   INVALID_INPUT: {
     code: 'BUS_002',
     message: 'Invalid input data',
@@ -93,6 +103,11 @@ export const BUSINESS_ERRORS = {
     code: 'BUS_004',
     message: 'Operation failed',
     httpStatus: 500
+  },
+  RATE_LIMIT_EXCEEDED: {
+    code: 'BUS_005',
+    message: 'Rate limit exceeded',
+    httpStatus: 429
   }
 } as const;
 

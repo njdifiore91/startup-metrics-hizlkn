@@ -8,6 +8,8 @@ import Joi from 'joi'; // v17.9.0
 import { IMetric } from '../interfaces/IMetric';
 import { METRIC_CATEGORIES, METRIC_VALUE_TYPES, MetricValueType } from '../constants/metricTypes';
 import { METRIC_VALIDATION_RULES } from '../constants/validations';
+import { VALIDATION_ERRORS } from '../constants/errorCodes';
+import { AppError } from '../utils/AppError';
 
 // Global validation constants
 const METRIC_NAME_MIN_LENGTH = 2;
@@ -177,4 +179,33 @@ export const validateMetricValue = (
   }
 
   return { isValid: true };
+};
+
+const metricSchema = Joi.object({
+  revenue: Joi.number().min(0).required(),
+  employees: Joi.number().integer().min(1).required(),
+  customers: Joi.number().integer().min(0).required(),
+  churnRate: Joi.number().min(0).max(100).required(),
+  growthRate: Joi.number().min(-100).max(1000).required(),
+  category: Joi.string().required(),
+  date: Joi.date().iso().required()
+});
+
+/**
+ * Validates metrics request data
+ */
+export const validateMetricsRequest = async (data: unknown): Promise<void> => {
+  try {
+    await metricSchema.validateAsync(data, { abortEarly: false });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new AppError(
+        VALIDATION_ERRORS.INVALID_REQUEST.message,
+        VALIDATION_ERRORS.INVALID_REQUEST.httpStatus,
+        VALIDATION_ERRORS.INVALID_REQUEST.code,
+        { details: error.message }
+      );
+    }
+    throw error;
+  }
 };

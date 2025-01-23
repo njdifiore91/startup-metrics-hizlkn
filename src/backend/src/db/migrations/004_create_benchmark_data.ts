@@ -1,15 +1,10 @@
-import { QueryInterface, DataTypes } from 'sequelize';
-import { IBenchmarkData } from '../../interfaces/IBenchmarkData';
+const { DataTypes } = require('sequelize');
 
-/**
- * Migration file to create the benchmark_data table with comprehensive data quality tracking
- * and validation mechanisms. Implements secure storage for benchmark aggregates with
- * appropriate indexing and temporal validity tracking.
- * @version 1.0.0
- */
-export default {
-  up: async (queryInterface: QueryInterface, Sequelize: typeof DataTypes): Promise<void> => {
-    await queryInterface.createTable('benchmark_data', {
+const TABLE_NAME = 'benchmark_data';
+
+module.exports = {
+  async up(queryInterface) {
+    await queryInterface.createTable(TABLE_NAME, {
       // Primary identifier
       id: {
         type: DataTypes.UUID,
@@ -19,7 +14,7 @@ export default {
       },
 
       // Foreign key references
-      metric_id: {
+      metricId: {
         type: DataTypes.UUID,
         allowNull: false,
         references: {
@@ -30,7 +25,7 @@ export default {
         onDelete: 'RESTRICT'
       },
 
-      source_id: {
+      sourceId: {
         type: DataTypes.UUID,
         allowNull: false,
         references: {
@@ -42,7 +37,7 @@ export default {
       },
 
       // Revenue range classification
-      revenue_range: {
+      revenueRange: {
         type: DataTypes.ENUM(
           '0-1M',
           '1M-5M',
@@ -53,7 +48,7 @@ export default {
         allowNull: false
       },
 
-      // Percentile values with validation constraints
+      // Percentile values
       p10: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
@@ -95,7 +90,7 @@ export default {
       },
 
       // Statistical and quality metrics
-      sample_size: {
+      sampleSize: {
         type: DataTypes.INTEGER,
         allowNull: false,
         validate: {
@@ -103,7 +98,7 @@ export default {
         }
       },
 
-      confidence_level: {
+      confidenceLevel: {
         type: DataTypes.DECIMAL(5, 2),
         allowNull: false,
         validate: {
@@ -112,13 +107,13 @@ export default {
         }
       },
 
-      is_seasonally_adjusted: {
+      isSeasonallyAdjusted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false
       },
 
-      data_quality_score: {
+      dataQualityScore: {
         type: DataTypes.DECIMAL(3, 2),
         allowNull: false,
         validate: {
@@ -128,57 +123,46 @@ export default {
       },
 
       // Temporal tracking
-      report_date: {
+      reportDate: {
         type: DataTypes.DATE,
         allowNull: false
       },
 
       // Audit timestamps
-      created_at: {
+      createdAt: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: Sequelize.fn('NOW')
+        defaultValue: DataTypes.NOW
       },
 
-      updated_at: {
+      updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: Sequelize.fn('NOW')
+        defaultValue: DataTypes.NOW
       }
     });
 
-    // Create optimized indexes for common query patterns
-    await queryInterface.addIndex('benchmark_data', ['metric_id', 'revenue_range', 'report_date'], {
-      name: 'idx_benchmark_metric_revenue_date',
-      unique: false
+    // Create indexes for common query patterns
+    await queryInterface.addIndex(TABLE_NAME, ['metricId', 'revenueRange', 'reportDate'], {
+      name: 'benchmark_metric_revenue_date_idx'
     });
 
-    await queryInterface.addIndex('benchmark_data', ['source_id'], {
-      name: 'idx_benchmark_source',
-      unique: false
+    await queryInterface.addIndex(TABLE_NAME, ['sourceId'], {
+      name: 'benchmark_source_idx'
     });
 
-    // Partial index for high-quality benchmark data
+    await queryInterface.addIndex(TABLE_NAME, ['reportDate'], {
+      name: 'benchmark_report_date_idx'
+    });
+
+    // Create index for high-quality data
     await queryInterface.sequelize.query(`
-      CREATE INDEX idx_benchmark_quality ON benchmark_data (data_quality_score)
-      WHERE data_quality_score >= 4.0
+      CREATE INDEX benchmark_quality_idx ON "${TABLE_NAME}" ("dataQualityScore")
+      WHERE "dataQualityScore" >= 4.0
     `);
-
-    // Index for temporal queries
-    await queryInterface.addIndex('benchmark_data', ['report_date'], {
-      name: 'idx_benchmark_report_date',
-      unique: false
-    });
   },
 
-  down: async (queryInterface: QueryInterface): Promise<void> => {
-    // Drop indexes first
-    await queryInterface.removeIndex('benchmark_data', 'idx_benchmark_metric_revenue_date');
-    await queryInterface.removeIndex('benchmark_data', 'idx_benchmark_source');
-    await queryInterface.removeIndex('benchmark_data', 'idx_benchmark_quality');
-    await queryInterface.removeIndex('benchmark_data', 'idx_benchmark_report_date');
-
-    // Drop the table
-    await queryInterface.dropTable('benchmark_data');
+  async down(queryInterface) {
+    await queryInterface.dropTable(TABLE_NAME);
   }
 };

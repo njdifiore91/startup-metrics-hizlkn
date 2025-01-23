@@ -7,6 +7,7 @@ import {
   VALIDATION_ERRORS, 
   SYSTEM_ERRORS 
 } from '../constants/errorCodes';
+import { AppError } from '../utils/errors';
 
 // Prometheus metrics for error tracking
 const errorCounter = new Counter({
@@ -22,49 +23,6 @@ const errorLatencyHistogram = new Histogram({
 });
 
 /**
- * Custom error class with enhanced tracking capabilities
- */
-export class CustomError extends Error {
-  public readonly code: string;
-  public readonly httpStatus: number;
-  public readonly isOperational: boolean;
-  public readonly correlationId: string;
-  public readonly meta?: Record<string, any>;
-  public readonly timestamp: string;
-
-  constructor(
-    message: string,
-    code: string,
-    httpStatus: number,
-    isOperational = true,
-    meta?: Record<string, any>
-  ) {
-    super(message);
-    this.name = this.constructor.name;
-    this.code = code;
-    this.httpStatus = httpStatus;
-    this.isOperational = isOperational;
-    this.meta = meta;
-    this.correlationId = logger.getCorrelationId() || `err-${Date.now()}`;
-    this.timestamp = new Date().toISOString();
-    Error.captureStackTrace(this, this.constructor);
-  }
-
-  toJSON() {
-    return {
-      error: {
-        code: this.code,
-        message: this.message,
-        correlationId: this.correlationId,
-        timestamp: this.timestamp,
-        ...(process.env.NODE_ENV === 'development' && { stack: this.stack }),
-        ...(this.meta && { meta: this.meta })
-      }
-    };
-  }
-}
-
-/**
  * Express error handling middleware
  */
 export const errorHandler = (
@@ -73,41 +31,63 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ): void => {
-  const startTime = process.hrtime();
+  // If headers are already sent, delegate to Express default error handler
+  if (res.headersSent) {
+    return next(error);
+  }
 
-  // Ensure correlation ID is set
+  const startTime = process.hrtime();
   const correlationId = logger.getCorrelationId() || `err-${Date.now()}`;
   logger.setCorrelationId(correlationId);
 
   // Initialize error response
-  let errorResponse: CustomError;
+  let errorResponse: any;
 
   // Handle known error types
-  if (error instanceof CustomError) {
-    errorResponse = error;
+  if (error instanceof AppError || (error as any).statusCode) {
+    const appError = error as AppError;
+    errorResponse = {
+      error: {
+        code: appError.code,
+        message: appError.message,
+        correlationId,
+        timestamp: new Date().toISOString(),
+        ...(process.env.NODE_ENV === 'development' && { stack: appError.stack }),
+        ...(appError.meta && { meta: appError.meta })
+      }
+    };
   } else {
     // Map unknown errors to appropriate types
     if (error.name === 'UnauthorizedError') {
-      errorResponse = new CustomError(
-        AUTH_ERRORS.UNAUTHORIZED.message,
-        AUTH_ERRORS.UNAUTHORIZED.code,
-        AUTH_ERRORS.UNAUTHORIZED.httpStatus
-      );
+      errorResponse = {
+        error: {
+          code: AUTH_ERRORS.UNAUTHORIZED.code,
+          message: AUTH_ERRORS.UNAUTHORIZED.message,
+          correlationId,
+          timestamp: new Date().toISOString()
+        }
+      };
     } else if (error.name === 'ValidationError') {
-      errorResponse = new CustomError(
-        VALIDATION_ERRORS.INVALID_REQUEST.message,
-        VALIDATION_ERRORS.INVALID_REQUEST.code,
-        VALIDATION_ERRORS.INVALID_REQUEST.httpStatus
-      );
+      errorResponse = {
+        error: {
+          code: VALIDATION_ERRORS.INVALID_REQUEST.code,
+          message: VALIDATION_ERRORS.INVALID_REQUEST.message,
+          correlationId,
+          timestamp: new Date().toISOString()
+        }
+      };
     } else {
       // Default to internal server error for unknown errors
-      errorResponse = new CustomError(
-        SYSTEM_ERRORS.INTERNAL_SERVER_ERROR.message,
-        SYSTEM_ERRORS.INTERNAL_SERVER_ERROR.code,
-        SYSTEM_ERRORS.INTERNAL_SERVER_ERROR.httpStatus,
-        false,
-        { originalError: error.message }
-      );
+      errorResponse = {
+        error: {
+          code: SYSTEM_ERRORS.INTERNAL_SERVER_ERROR.code,
+          message: SYSTEM_ERRORS.INTERNAL_SERVER_ERROR.message,
+          correlationId,
+          timestamp: new Date().toISOString(),
+          ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+          meta: { originalError: error.message }
+        }
+      };
     }
   }
 
@@ -121,34 +101,44 @@ export const errorHandler = (
     userId: (req as any).user?.id
   };
 
-  if (errorResponse.httpStatus >= 500) {
-    logger.error(`Server Error: ${errorResponse.message}`, logMeta);
+  if (error instanceof AppError || (error as any).statusCode) {
+    const appError = error as AppError;
+    if (appError.statusCode >= 500) {
+      logger.error(`Server Error: ${appError.message}`, logMeta);
+    } else {
+      logger.warn(`Client Error: ${appError.message}`, logMeta);
+    }
   } else {
-    logger.warn(`Client Error: ${errorResponse.message}`, logMeta);
+    logger.error(`Unhandled Error: ${error.message}`, logMeta);
   }
 
   // Track error metrics
   errorCounter.inc({
-    error_type: errorResponse.name,
-    error_code: errorResponse.code
+    error_type: error.name,
+    error_code: errorResponse.error.code
   });
 
   // Calculate error handling duration
   const [seconds, nanoseconds] = process.hrtime(startTime);
   const duration = seconds + nanoseconds / 1e9;
-  errorLatencyHistogram.observe({ error_type: errorResponse.name }, duration);
+  errorLatencyHistogram.observe({ error_type: error.name }, duration);
 
-  // Set security headers
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-Correlation-ID', correlationId);
+  try {
+    // Set security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Correlation-ID', correlationId);
 
-  // Send error response
-  res.status(errorResponse.httpStatus).json(errorResponse.toJSON());
-
-  // Trigger alerts for critical errors if needed
-  if (!errorResponse.isOperational) {
-    // This would integrate with your monitoring system
-    // monitoringSystem.triggerAlert({ ...errorResponse });
+    // Send error response with correct status code
+    const statusCode = error instanceof AppError || (error as any).statusCode 
+      ? (error as AppError).statusCode 
+      : 500;
+    res.status(statusCode).json(errorResponse);
+  } catch (err) {
+    logger.error('Error while sending error response', { 
+      originalError: error,
+      responseError: err
+    });
+    next(error);
   }
 };

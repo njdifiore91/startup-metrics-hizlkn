@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { createCipheriv, createDecipheriv, randomBytes, createHash, CipherGCM, DecipherGCM } from 'crypto'; // ^1.0.0
 import { CustomError } from 'ts-custom-error'; // ^3.3.1
 import { authConfig } from '../config/auth';
@@ -5,7 +6,7 @@ import { authConfig } from '../config/auth';
 /**
  * Custom error class for encryption-related errors
  */
-class EncryptionError extends CustomError {
+class EncryptionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'EncryptionError';
@@ -16,9 +17,9 @@ class EncryptionError extends CustomError {
  * Interface for encryption operation results
  */
 export interface EncryptionResult {
-  encryptedData: string;
-  iv: string;
-  tag: string;
+  iv: Buffer;
+  authTag: Buffer;
+  encryptedData: Buffer;
 }
 
 /**
@@ -35,7 +36,7 @@ const ALGORITHM = 'aes-256-gcm' as const;
 const HASH_ALGORITHM = 'sha256' as const;
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits
-const TAG_LENGTH = 16; // 128 bits
+const AUTH_TAG_LENGTH = 16; // 128 bits
 const MIN_ENTROPY = 0.75;
 
 /**
@@ -89,100 +90,64 @@ export async function generateKey(length: number): Promise<Buffer> {
 }
 
 /**
- * Encrypts data using AES-256-GCM algorithm with secure IV generation
- * @param data - String data to encrypt
- * @param key - Encryption key as Buffer
- * @param options - Optional cryptographic parameters
- * @returns Promise resolving to EncryptionResult containing encrypted data, IV, and tag
- * @throws EncryptionError for invalid inputs or encryption failures
+ * Encrypts data using AES-256-GCM
  */
-export async function encrypt(
-  data: string,
-  key: Buffer,
-  options: CryptoOptions = { keyLength: KEY_LENGTH, ivLength: IV_LENGTH, tagLength: TAG_LENGTH }
-): Promise<EncryptionResult> {
-  if (!data || !key) {
-    throw new EncryptionError('Data and key are required');
-  }
-
-  if (key.length !== options.keyLength) {
-    throw new EncryptionError(`Key must be ${options.keyLength} bytes`);
-  }
-
-  let cipher: CipherGCM;
+export async function encrypt(data: string): Promise<string> {
   try {
-    const iv = randomBytes(options.ivLength);
-    cipher = createCipheriv(ALGORITHM, key, iv) as CipherGCM;
+    if (!process.env.ENCRYPTION_KEY) {
+      throw new Error('ENCRYPTION_KEY environment variable is not set');
+    }
+
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8');
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     
-    const encryptedData = Buffer.concat([
+    const encrypted = Buffer.concat([
       cipher.update(data, 'utf8'),
       cipher.final()
     ]);
 
-    const tag = cipher.getAuthTag();
+    const authTag = cipher.getAuthTag();
 
-    return {
-      encryptedData: encryptedData.toString('base64'),
-      iv: iv.toString('base64'),
-      tag: tag.toString('base64')
-    };
-  } catch (error) {
-    throw new EncryptionError(`Encryption failed: ${error.message}`);
-  } finally {
-    // Clean up sensitive data
-    if (cipher) {
-      cipher.end();
+    // Combine IV, auth tag, and encrypted data
+    return Buffer.concat([iv, authTag, encrypted]).toString('base64');
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      throw new Error(`Encryption failed: ${error.message}`);
     }
+    throw new Error('Encryption failed');
   }
 }
 
 /**
- * Decrypts data using AES-256-GCM algorithm with authentication verification
- * @param encryptedData - Base64 encoded encrypted data
- * @param key - Decryption key as Buffer
- * @param iv - Base64 encoded initialization vector
- * @param tag - Base64 encoded authentication tag
- * @param options - Optional cryptographic parameters
- * @returns Promise resolving to decrypted string
- * @throws EncryptionError for invalid inputs, decryption failures, or authentication failures
+ * Decrypts data using AES-256-GCM
  */
-export async function decrypt(
-  encryptedData: string,
-  key: Buffer,
-  iv: string,
-  tag: string,
-  options: CryptoOptions = { keyLength: KEY_LENGTH, ivLength: IV_LENGTH, tagLength: TAG_LENGTH }
-): Promise<string> {
-  if (!encryptedData || !key || !iv || !tag) {
-    throw new EncryptionError('All parameters are required for decryption');
-  }
-
-  if (key.length !== options.keyLength) {
-    throw new EncryptionError(`Key must be ${options.keyLength} bytes`);
-  }
-
-  let decipher: DecipherGCM;
+export async function decrypt(encryptedData: string): Promise<string> {
   try {
-    const ivBuffer = Buffer.from(iv, 'base64');
-    const tagBuffer = Buffer.from(tag, 'base64');
-    const encryptedBuffer = Buffer.from(encryptedData, 'base64');
-
-    decipher = createDecipheriv(ALGORITHM, key, ivBuffer) as DecipherGCM;
-    decipher.setAuthTag(tagBuffer);
-
-    const decrypted = Buffer.concat([
-      decipher.update(encryptedBuffer),
-      decipher.final()
-    ]);
-
-    return decrypted.toString('utf8');
-  } catch (error) {
-    throw new EncryptionError(`Decryption failed: ${error.message}`);
-  } finally {
-    // Clean up sensitive data
-    if (decipher) {
-      decipher.end();
+    if (!process.env.ENCRYPTION_KEY) {
+      throw new Error('ENCRYPTION_KEY environment variable is not set');
     }
+
+    const buffer = Buffer.from(encryptedData, 'base64');
+    
+    // Extract components
+    const iv = buffer.slice(0, IV_LENGTH);
+    const authTag = buffer.slice(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
+    const data = buffer.slice(IV_LENGTH + AUTH_TAG_LENGTH);
+    
+    const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8');
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    
+    return Buffer.concat([
+      decipher.update(data),
+      decipher.final()
+    ]).toString('utf8');
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      throw new Error(`Decryption failed: ${error.message}`);
+    }
+    throw new Error('Decryption failed');
   }
 }
 

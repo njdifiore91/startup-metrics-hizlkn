@@ -118,7 +118,7 @@ export const useAuth = (): UseAuthReturn => {
   /**
    * Handles Google OAuth login with rate limiting and security measures
    */
-  const login = useCallback(async (): Promise<void> => {
+  const login = useCallback(async (): Promise<AuthResponse> => {
     try {
       // Check for auth attempts rate limiting
       const now = Date.now();
@@ -144,6 +144,7 @@ export const useAuth = (): UseAuthReturn => {
       // Reset auth attempts
       authAttemptsRef.current.count = 0;
       authAttemptsRef.current.locked = false;
+
     } catch (error) {
       authAttemptsRef.current.count++;
       authAttemptsRef.current.lastAttempt = Date.now();
