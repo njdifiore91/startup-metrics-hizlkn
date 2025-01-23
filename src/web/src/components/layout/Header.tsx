@@ -117,7 +117,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           />
         </div>
 
-        <style jsx>{`
+        <style>{`
           .header {
             position: fixed;
             top: 0;

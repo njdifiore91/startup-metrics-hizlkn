@@ -1,6 +1,6 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { Line } from 'react-chartjs-2'; // react-chartjs-2@5.0.0
-import { Chart as ChartJS, ChartOptions } from 'chart.js/auto'; // chart.js@4.0.0
+import { Chart as ChartJS, ChartOptions, ScaleOptions } from 'chart.js/auto'; // chart.js@4.0.0
 import { chartColors } from '../../config/chart';
 import { generateChartOptions, formatMetricValue } from '../../utils/chartHelpers';
 
@@ -42,7 +42,7 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
   onError
 }) => {
   // Chart instance reference for cleanup
-  const chartRef = useRef<ChartJS | null>(null);
+  const chartRef = useRef<ChartJS<'line'>>(null);
 
   // Memoized chart data preparation
   const getChartData = useCallback(() => {
@@ -68,16 +68,17 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
 
   // Memoized chart options with accessibility enhancements
   const getEnhancedOptions = useCallback(() => {
-    const baseOptions = generateChartOptions('line', options, {
+    const baseOptions = generateChartOptions({
+      ...options,
       announceOnRender: true,
       description: ariaLabel
     });
 
-    return {
+    const enhancedOptions: ChartOptions<'line'> = {
       ...baseOptions,
       layout: {
         ...baseOptions.layout,
-        rtl: isRTL,
+        padding: baseOptions.layout?.padding
       },
       plugins: {
         ...baseOptions.plugins,
@@ -92,16 +93,16 @@ const LineChart: React.FC<ILineChartProps> = React.memo(({
         }
       },
       scales: {
-        ...baseOptions.scales,
         y: {
-          ...baseOptions.scales?.y,
-          position: isRTL ? 'right' : 'left',
+          position: isRTL ? 'right' as const : 'left' as const,
           ticks: {
             callback: (value: number) => formatMetricValue(value, metricType, { locale })
           }
         }
       }
     };
+
+    return enhancedOptions;
   }, [options, ariaLabel, isRTL, metricType, locale]);
 
   // Cleanup chart instance on unmount

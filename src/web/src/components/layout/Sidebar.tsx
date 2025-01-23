@@ -16,9 +16,6 @@ import { UI_CONSTANTS } from '../../config/constants';
 const DRAWER_WIDTH = parseInt(UI_CONSTANTS.SIDEBAR_WIDTH);
 const COLLAPSED_WIDTH = 64;
 const TRANSITION_DURATION = 225;
-const KEYBOARD_SHORTCUTS = {
-  TOGGLE: 'mod+b'
-} as const;
 
 // Interfaces
 interface SidebarProps {

@@ -1,9 +1,7 @@
-import { AxiosResponse } from 'axios'; // v1.4.0
-import { IMetric, MetricCategory, ValidationRule } from '../interfaces/IMetric';
+import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
 import { api } from './api';
-import { calculatePercentile } from '../utils/metricCalculators';
 import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
@@ -117,7 +115,7 @@ export class MetricsService {
     } catch (error) {
       const errorMessage = `Failed to fetch metric with ID: ${id}`;
       showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: null, error: errorMessage };
+      return { data: {} as IMetric, error: errorMessage };
     }
   }
 
@@ -134,7 +132,7 @@ export class MetricsService {
     try {
       // Fetch metric definition for validation
       const metricResponse = await this.getMetricById(metricId);
-      if (metricResponse.error) return { data: null, error: metricResponse.error };
+      if (metricResponse.error) return { data: {} as ICompanyMetric, error: metricResponse.error };
 
       const metric = metricResponse.data;
 
@@ -142,7 +140,7 @@ export class MetricsService {
       if (!validateCompanyMetricValue(value, metric)) {
         const errorMessage = 'Invalid metric value';
         showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-        return { data: null, error: errorMessage };
+        return { data: {} as ICompanyMetric, error: errorMessage };
       }
 
       const response = await api.post<ICompanyMetric>(
@@ -159,7 +157,7 @@ export class MetricsService {
     } catch (error) {
       const errorMessage = 'Failed to save company metric';
       showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: null, error: errorMessage };
+      return { data: {} as ICompanyMetric, error: errorMessage };
     }
   }
 
@@ -201,7 +199,7 @@ export class MetricsService {
     } catch (error) {
       const errorMessage = 'Failed to fetch benchmark data';
       showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: null, error: errorMessage };
+      return { data: {} as IBenchmark, error: errorMessage };
     }
   }
 

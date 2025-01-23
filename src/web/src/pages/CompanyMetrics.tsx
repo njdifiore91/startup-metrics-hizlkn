@@ -68,7 +68,7 @@ const CompanyMetrics: React.FC = () => {
   } = useCompanyMetrics();
 
   // Local state
-  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<ICompanyMetric | undefined>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch metrics on mount
@@ -88,18 +88,18 @@ const CompanyMetrics: React.FC = () => {
   /**
    * Handles metric submission with enhanced validation and error handling
    */
-  const handleMetricSubmit = useCallback(async (metricData: ICompanyMetric) => {
+  const handleMetricSubmit = useCallback(() => {
     setIsSubmitting(true);
     try {
       if (selectedMetric) {
-        await updateMetric(selectedMetric.id, metricData);
+        updateMetric(selectedMetric.id, selectedMetric);
         showToast('Metric updated successfully', ToastType.SUCCESS);
       } else {
-        await createMetric(metricData);
+        createMetric(selectedMetric as ICompanyMetric);
         showToast('Metric created successfully', ToastType.SUCCESS);
       }
-      setSelectedMetric(null);
-    } catch (error) {
+      setSelectedMetric(undefined);
+    } catch (error: any) {
       showToast(
         error.message || 'Failed to save metric',
         ToastType.ERROR
@@ -120,7 +120,7 @@ const CompanyMetrics: React.FC = () => {
    * Handles form cancellation
    */
   const handleCancel = useCallback(() => {
-    setSelectedMetric(null);
+    setSelectedMetric(undefined);
   }, []);
 
   /**

@@ -1,4 +1,4 @@
-import { Chart, ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
+import { ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
 import { chartColors } from '../config/chart';
 import { IBenchmark, BenchmarkPercentile } from '../interfaces/IBenchmark';
 import memoize from 'lodash/memoize';
@@ -120,15 +120,11 @@ export const prepareBenchmarkData = memoize((
 
 /**
  * Generates enhanced chart options with accessibility features
- * @param chartType - Type of chart to configure
  * @param customOptions - Additional chart options
- * @param accessibilityConfig - Accessibility-specific configuration
  * @returns Enhanced Chart.js configuration
  */
 export const generateChartOptions = (
-  chartType: ChartType,
-  customOptions: Partial<ChartOptions> = {},
-  accessibilityConfig: { announceOnRender?: boolean; description?: string } = {}
+  customOptions: Partial<ChartOptions> = {}
 ): ChartOptions => {
   const baseOptions: ChartOptions = {
     ...DEFAULT_CHART_OPTIONS,
@@ -136,8 +132,7 @@ export const generateChartOptions = (
       ...DEFAULT_CHART_OPTIONS.plugins,
       accessibility: {
         enabled: true,
-        announceOnRender: accessibilityConfig.announceOnRender ?? true,
-        description: accessibilityConfig.description
+        announceOnRender: true
       }
     },
     scales: {
@@ -145,7 +140,7 @@ export const generateChartOptions = (
         beginAtZero: true,
         grid: {
           color: chartColors.secondary + '20',
-          drawBorder: false
+          display: false
         },
         ticks: {
           font: {
@@ -202,7 +197,7 @@ export const formatMetricValue = (
   );
 
   if (metricType === 'percentage' && !options.style) {
-    formattedValue = `${formattedValue}${formatter.suffix}`;
+    formattedValue = `${formattedValue}%`;
   }
 
   return formattedValue;

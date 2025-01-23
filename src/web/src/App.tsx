@@ -15,6 +15,9 @@ import Layout from './components/layout/Layout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
+// Store
+import { store } from './store';
+
 // Lazy-loaded route components
 const Login = React.lazy(() => import('./pages/Login'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -31,13 +34,6 @@ const ROUTES = {
   COMPANY_METRICS: '/company-metrics',
   REPORTS: '/reports',
   SETTINGS: '/settings'
-} as const;
-
-// Error messages
-const ERROR_MESSAGES = {
-  ROUTE_ERROR: 'An error occurred while loading this page',
-  AUTH_ERROR: 'Authentication failed',
-  NETWORK_ERROR: 'Network connection lost'
 } as const;
 
 // Analytics configuration

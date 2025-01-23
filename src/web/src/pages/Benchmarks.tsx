@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { debounce } from 'lodash'; // v4.17.21
 import { ErrorBoundary } from 'react-error-boundary'; // v4.0.0
-import { analytics } from '@segment/analytics-next'; // v1.51.0
+import { Analytics } from '@segment/analytics-next'; // v1.51.0
 
 // Internal imports
 import MetricSelector from '../components/metrics/MetricSelector';
@@ -15,6 +15,11 @@ import { useToast, ToastType } from '../hooks/useToast';
 import { REVENUE_RANGES } from '../config/constants';
 import { handleApiError } from '../utils/errorHandlers';
 import { setSelectedMetric, setSelectedRevenueRange } from '../store/benchmarkSlice';
+
+// Initialize analytics with settings
+const analytics = new Analytics({
+  writeKey: process.env.VITE_SEGMENT_WRITE_KEY || ''
+});
 
 // Error Fallback Component
 const ErrorFallback: React.FC<{ error: Error; resetErrorBoundary: () => void }> = ({ 
@@ -39,7 +44,7 @@ const Benchmarks: React.FC = () => {
   // Hooks
   const { showToast } = useToast();
   const { metrics, loading: metricsLoading, error: metricsError } = useMetrics();
-  const { benchmarks, loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
+  const { loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
 
   // Local state
   const [selectedMetricId, setSelectedMetricId] = useState<string>('');
@@ -49,7 +54,7 @@ const Benchmarks: React.FC = () => {
 
   // Memoized selected metric
   const selectedMetric = useMemo(() => 
-    metrics.find(m => m.id === selectedMetricId),
+    metrics?.find((m: IMetric) => m.id === selectedMetricId),
     [metrics, selectedMetricId]
   );
 
@@ -168,7 +173,7 @@ const Benchmarks: React.FC = () => {
 
         {(metricsError || benchmarksError) && (
           <div className="error-container" role="alert">
-            {metricsError || benchmarksError}
+            <div>{metricsError || benchmarksError}</div>
           </div>
         )}
 

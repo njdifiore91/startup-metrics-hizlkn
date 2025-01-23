@@ -42,18 +42,6 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
   const cancelRef = useRef<() => void>();
   const { showToast } = useToast();
 
-  // Progress tracking handler
-  const handleProgress = useCallback((currentProgress: number) => {
-    setProgress(currentProgress);
-    onProgress?.(currentProgress);
-
-    // Update ARIA live region for screen readers
-    const liveRegion = document.getElementById('export-progress');
-    if (liveRegion) {
-      liveRegion.textContent = `Export progress: ${currentProgress}%`;
-    }
-  }, [onProgress]);
-
   // Export handler with enhanced error handling
   const handleExport = useCallback(async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();

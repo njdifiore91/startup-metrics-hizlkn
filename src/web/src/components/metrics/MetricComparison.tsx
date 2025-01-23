@@ -8,7 +8,7 @@ import BenchmarkChart from '../charts/BenchmarkChart';
 import { useBenchmarks } from '../../hooks/useBenchmarks';
 import { formatMetricValue } from '../../utils/chartHelpers';
 import { ToastType, useToast } from '../../hooks/useToast';
-import { CHART_CONSTANTS } from '../../config/constants';
+import { CHART_CONSTANTS, RevenueRange } from '../../config/constants';
 
 // Types and Interfaces
 interface ComparisonResult {
@@ -24,7 +24,7 @@ interface MetricComparisonProps {
   /** Metric to be compared with validation rules */
   metric: IMetric;
   /** Selected revenue range for benchmark comparison */
-  revenueRange: string;
+  revenueRange: RevenueRange;
   /** Company's metric value for comparison with validation */
   companyValue?: number;
   /** Callback for comparison completion with result data */

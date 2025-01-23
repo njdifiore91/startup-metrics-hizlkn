@@ -160,26 +160,28 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         </Button>
       </div>
 
-      <style jsx>{`
-        .report-generator {
-          padding: var(--spacing-md);
-          border-radius: var(--border-radius-md);
-          background-color: var(--color-background);
-        }
-
-        .export-controls {
-          display: flex;
-          gap: var(--spacing-md);
-          align-items: flex-end;
-        }
-
-        @media (max-width: 768px) {
-          .export-controls {
-            flex-direction: column;
-            align-items: stretch;
+      <style>
+        {`
+          .report-generator {
+            padding: var(--spacing-md);
+            border-radius: var(--border-radius-md);
+            background-color: var(--color-background);
           }
-        }
-      `}</style>
+
+          .export-controls {
+            display: flex;
+            gap: var(--spacing-md);
+            align-items: flex-end;
+          }
+
+          @media (max-width: 768px) {
+            .export-controls {
+              flex-direction: column;
+              align-items: stretch;
+            }
+          }
+        `}
+      </style>
     </div>
   );
 };
