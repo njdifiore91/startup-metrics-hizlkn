@@ -1,17 +1,10 @@
 import React, { useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFocusWithin } from '@react-aria/interactions';
-import { Analytics } from '@segment/analytics-next';
-import { AnalyticsBrowser } from '@segment/analytics-next';
 import { useAuth } from '@/hooks/useAuth';
 import GoogleLoginButton from '@/components/auth/GoogleLoginButton';
 import { Card } from '@/components/common/Card';
 import logo from '../assets/images/logo.svg';
-
-// Initialize analytics outside component
-const analytics = new Analytics({
-  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
-});
 
 /**
  * Login page component that implements secure Google OAuth authentication
@@ -22,33 +15,17 @@ const Login: React.FC = () => {
   const { isAuthenticated, error } = useAuth();
   const { focusWithinProps } = useFocusWithin({});
 
-  // Initialize analytics
-  // const analyticsInstance = analytics.default.load({
-  //   writeKey: import.meta.env.REACT_APP_SEGMENT_WRITE_KEY || '',
-  // });
-  const analyticsInstance = AnalyticsBrowser.load({
-    writeKey: import.meta.env.REACT_APP_SEGMENT_WRITE_KEY || '',
-  });
-
   // Handle successful authentication
   const handleLoginSuccess = useCallback(() => {
-    analyticsInstance.track('Login Success', {
-      method: 'Google OAuth',
-      timestamp: new Date().toISOString(),
-    });
     navigate('/dashboard');
-  }, [navigate, analyticsInstance]);
+  }, [navigate]);
 
   // Handle authentication errors
   const handleLoginError = useCallback(
     (error: { code: string; message: string }) => {
-      analyticsInstance.track('Login Error', {
-        error_code: error.code,
-        error_message: error.message,
-        timestamp: new Date().toISOString(),
-      });
+      console.error('Login error:', error);
     },
-    [analyticsInstance]
+    []
   );
 
   // Redirect if already authenticated
@@ -57,14 +34,6 @@ const Login: React.FC = () => {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
-
-  // Remove the clearError usage in useEffect
-  useEffect(() => {
-    return () => {
-      // Remove clearError call since it's not available
-      // Just let the error state be cleaned up naturally on unmount
-    };
-  }, [error]);
 
   return (
     <div className="loginContainer" {...focusWithinProps} role="main" aria-labelledby="login-title">

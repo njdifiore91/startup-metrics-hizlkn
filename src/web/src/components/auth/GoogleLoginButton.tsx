@@ -4,10 +4,10 @@
  * @version 1.0.0
  */
 
-import React, { forwardRef, useCallback, useEffect, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect } from 'react';
 import { debounce } from 'lodash'; // v4.17.21
 import { useAuth } from '../../hooks/useAuth';
-import Button, { ButtonProps } from '../common/Button';
+import Button from '../common/Button';
 import { IUser } from '@/interfaces/IUser';
 
 /**
@@ -20,24 +20,18 @@ export interface GoogleLoginButtonProps {
   disabled?: boolean;
   testId?: string;
 }
+
 /**
  * Google Login Button Component
  * Implements Google's branding guidelines and accessibility standards
  */
-export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
-  className,
-  onSuccess,
-  onError,
-  disabled = false,
-  testId = 'google-login-button',
-}) => {
-  const { login, isLoading, error } = useAuth();
-  const buttonRef = useRef<HTMLButtonElement>(null);
+const GoogleLoginButton = forwardRef<HTMLButtonElement, GoogleLoginButtonProps>(
+  (props, ref) => {
+    const { className, onSuccess, onError, disabled = false, testId = 'google-login-button' } = props;
+    const { login, isLoading, error } = useAuth();
 
-  // Debounced login handler to prevent multiple rapid clicks
-  const handleGoogleLogin = useCallback(
-    debounce(
-      async () => {
+    const debouncedLogin = useCallback(
+      debounce(async () => {
         if (disabled || isLoading) return;
 
         try {
@@ -52,120 +46,113 @@ export const GoogleLoginButton: React.FC<GoogleLoginButtonProps> = ({
             message: error.message || 'Authentication failed',
           });
         }
-      },
-      300,
-      { leading: true, trailing: false }
-    ),
-    [login, disabled, isLoading, onSuccess, onError]
-  );
+      }, 300, { leading: true, trailing: false }),
+      [login, disabled, isLoading, onSuccess, onError]
+    );
 
-  // Clean up debounce on unmount
-  useEffect(() => {
-    return () => {
-      handleGoogleLogin.cancel();
-    };
-  }, [handleGoogleLogin]);
+    // Clean up debounce on unmount
+    useEffect(() => {
+      return () => {
+        debouncedLogin.cancel();
+      };
+    }, [debouncedLogin]);
 
-  // Error effect handler
-  useEffect(() => {
-    if (error) {
-      onError?.({
-        code: error.code,
-        message: error.message,
-      });
-    }
-  }, [error, onError]);
+    // Error effect handler
+    useEffect(() => {
+      if (error) {
+        onError?.({
+          code: error.code,
+          message: error.message,
+        });
+      }
+    }, [error, onError]);
 
-  // Button props configuration
-  const buttonProps: Omit<ButtonProps, 'children'> = {
-    type: 'button',
-    disabled: disabled || isLoading,
-    onClick: handleGoogleLogin,
-    className: `google-login-button ${className || ''}`,
-    ariaLabel: 'Sign in with Google',
-    'data-testid': testId,
-    role: 'button',
-    tabIndex: disabled ? -1 : 0,
-  };
+    return (
+      <button
+        ref={ref}
+        type="button"
+        disabled={disabled || isLoading}
+        onClick={debouncedLogin}
+        className={`google-login-button ${className || ''}`}
+        aria-label="Sign in with Google"
+        data-testid={testId}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+      >
+        <div className="google-button-content">
+          <GoogleIcon className="google-icon" />
+          <span className="google-button-text">
+            {isLoading ? 'Signing in...' : 'Sign in with Google'}
+          </span>
+        </div>
 
-  // Enhanced Button component with ref support
-  const EnhancedButton = forwardRef<HTMLButtonElement, ButtonProps>((props) => (
-    <Button {...props} />
-  ));
-  EnhancedButton.displayName = 'EnhancedButton';
-
-  return (
-    <EnhancedButton {...buttonProps} ref={buttonRef}>
-      <div className="google-button-content">
-        <GoogleIcon className="google-icon" />
-        <span className="google-button-text">
-          {isLoading ? 'Signing in...' : 'Sign in with Google'}
-        </span>
-      </div>
-
-      <style>{`
-        .google-login-button {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          width: 100%;
-          max-width: 320px;
-          height: 40px;
-          border-radius: 4px;
-          background-color: #ffffff;
-          border: 1px solid #dadce0;
-          color: #3c4043;
-          font-family: var(--font-family-primary);
-          font-size: 14px;
-          font-weight: 500;
-          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
-          transition: all 0.2s ease-in-out;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .google-login-button:hover:not(:disabled) {
-          background-color: #f8f9fa;
-          box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
-        }
-
-        .google-login-button:active:not(:disabled) {
-          background-color: #f1f3f4;
-          box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3);
-        }
-
-        .google-login-button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .google-button-content {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        }
-
-        .google-icon {
-          width: 18px;
-          height: 18px;
-        }
-
-        .google-button-text {
-          font-family: var(--font-family-primary);
-          font-weight: 500;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
+        <style>{`
           .google-login-button {
-            transition: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            margin: 0 auto;
+            max-width: 320px;
+            height: 40px;
+            border-radius: 4px;
+            background-color: #ffffff;
+            border: 1px solid #dadce0;
+            color: #3c4043;
+            font-family: var(--font-family-primary);
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+            transition: all 0.2s ease-in-out;
+            position: relative;
+            overflow: hidden;
           }
-        }
-      `}</style>
-    </EnhancedButton>
-  );
-};
+
+          .google-login-button:hover:not(:disabled) {
+            background-color: #f8f9fa;
+            box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+          }
+
+          .google-login-button:active:not(:disabled) {
+            background-color: #f1f3f4;
+            box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3);
+          }
+
+          .google-login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
+
+          .google-button-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+          }
+
+          .google-icon {
+            width: 18px;
+            height: 18px;
+          }
+
+          .google-button-text {
+            font-family: var(--font-family-primary);
+            font-weight: 500;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .google-login-button {
+              transition: none;
+            }
+          }
+        `}</style>
+      </button>
+    );
+  }
+);
+
+GoogleLoginButton.displayName = 'GoogleLoginButton';
 
 // Google Icon SVG component
 const GoogleIcon: React.FC<{ className?: string }> = ({ className }) => (

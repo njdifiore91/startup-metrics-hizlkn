@@ -1,14 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import tsconfigPaths from 'vite-tsconfig-paths';
-import autoprefixer from 'autoprefixer';
-import cssnano from 'cssnano';
+import path from 'path';
 
+// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    tsconfigPaths()
-  ],
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     port: 3000,
     strictPort: true,
@@ -31,6 +32,9 @@ export default defineConfig({
       },
     },
   },
+  define: {
+    'process.env': process.env,
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,
@@ -40,6 +44,17 @@ export default defineConfig({
           vendor: ['react', 'react-dom'],
         },
       },
+    },
+  },
+  experimental: {
+    renderBuiltUrl(filename: string, { hostType }) {
+      if (hostType === 'html') {
+        // Replace environment variables in HTML
+        if (filename.includes('%VITE_GOOGLE_CLIENT_ID%')) {
+          return process.env.VITE_GOOGLE_CLIENT_ID || '';
+        }
+      }
+      return filename;
     },
   },
 });
