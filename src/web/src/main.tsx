@@ -47,10 +47,7 @@ const initializeMonitoring = async () => {
 
 // Error fallback component
 const ErrorFallback = ({ error }: { error: Error }) => {
-  const formattedError = handleApiError(error as any, {
-    showToast: false,
-    logError: true,
-  });
+  const formattedError = handleApiError(error as any);
 
   return (
     <div
