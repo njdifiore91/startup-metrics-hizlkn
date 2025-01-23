@@ -94,7 +94,7 @@ const retryCondition = (error: any): boolean => {
  * Includes security headers, validation, and CSRF protection
  */
 export const apiConfig: IApiConfig = {
-  baseURL: `${API_CONFIG.API_BASE_URL}/api/${API_CONFIG.API_VERSION}`,
+  baseURL: API_CONFIG.API_BASE_URL,
   timeout: API_CONFIG.API_TIMEOUT,
   headers: DEFAULT_HEADERS,
   validateStatus,

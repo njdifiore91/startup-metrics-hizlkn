@@ -15,11 +15,6 @@ const Login: React.FC = () => {
   const { isAuthenticated, error } = useAuth();
   const { focusWithinProps } = useFocusWithin({});
 
-  // Handle successful authentication
-  const handleLoginSuccess = useCallback(() => {
-    navigate('/dashboard');
-  }, [navigate]);
-
   // Handle authentication errors
   const handleLoginError = useCallback(
     (error: { code: string; message: string }) => {
@@ -47,7 +42,6 @@ const Login: React.FC = () => {
         <p className="subtitle">Sign in to access your startup benchmarking dashboard</p>
 
         <GoogleLoginButton
-          onSuccess={handleLoginSuccess}
           onError={handleLoginError}
           testId="google-login-button"
         />

@@ -28,7 +28,21 @@ const configureApp = (): Application => {
   const app = express();
 
   // Security middleware
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.google.com", "https://*.gstatic.com", "https://*.googleapis.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        frameSrc: ["https://accounts.google.com", "https://*.google.com"],
+        connectSrc: ["'self'", "http://localhost:8000", "https://*.google.com", "https://*.googleapis.com"]
+      }
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  }));
 
   // CORS configuration
   app.use(cors());

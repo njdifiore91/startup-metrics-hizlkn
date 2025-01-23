@@ -56,7 +56,7 @@ interface UseAuthReturn {
   isAuthenticated: boolean;
   sessionStatus: SessionStatus;
   //login: () => Promise<void>;
-  login: () => Promise<AuthResponse>;
+  login: () => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<string>;
   validateSession: () => Promise<boolean>;
@@ -118,7 +118,7 @@ export const useAuth = (): UseAuthReturn => {
   /**
    * Handles Google OAuth login with rate limiting and security measures
    */
-  const login = useCallback(async (): Promise<AuthResponse> => {
+  const login = useCallback(async (): Promise<void> => {
     try {
       // Check for auth attempts rate limiting
       const now = Date.now();
@@ -138,27 +138,12 @@ export const useAuth = (): UseAuthReturn => {
       dispatch(authActions.setLoading(true));
       dispatch(authActions.setError(null));
 
-      // Initialize Google Auth if needed
-      await authService.initializeGoogleAuth();
+      // Initiate Google OAuth flow
+      await authService.loginWithGoogle();
 
-      // Perform login
-      const response = await authService.loginWithGoogle();
-
-      // Update auth state
-      dispatch(authActions.setUser(response.user));
-      dispatch(
-        authActions.setTokens({
-          token: response.token,
-          refreshToken: response.refreshToken,
-          expiration: new Date(response.expiresAt),
-        })
-      );
-
-      // Reset auth attempts on successful login
+      // Reset auth attempts
       authAttemptsRef.current.count = 0;
       authAttemptsRef.current.locked = false;
-
-      return response;
     } catch (error) {
       authAttemptsRef.current.count++;
       authAttemptsRef.current.lastAttempt = Date.now();

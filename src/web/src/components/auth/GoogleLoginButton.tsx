@@ -15,7 +15,6 @@ import { IUser } from '@/interfaces/IUser';
  */
 export interface GoogleLoginButtonProps {
   className?: string;
-  onSuccess?: (response: { token: string; user: IUser }) => void;
   onError?: (error: { code: string; message: string }) => void;
   disabled?: boolean;
   testId?: string;
@@ -27,7 +26,7 @@ export interface GoogleLoginButtonProps {
  */
 const GoogleLoginButton = forwardRef<HTMLButtonElement, GoogleLoginButtonProps>(
   (props, ref) => {
-    const { className, onSuccess, onError, disabled = false, testId = 'google-login-button' } = props;
+    const { className, onError, disabled = false, testId = 'google-login-button' } = props;
     const { login, isLoading, error } = useAuth();
 
     const debouncedLogin = useCallback(
@@ -35,11 +34,7 @@ const GoogleLoginButton = forwardRef<HTMLButtonElement, GoogleLoginButtonProps>(
         if (disabled || isLoading) return;
 
         try {
-          const response = await login();
-          onSuccess?.({
-            token: response.token,
-            user: response.user,
-          });
+          await login();
         } catch (error: any) {
           onError?.({
             code: error.code || 'AUTH_ERROR',
@@ -47,7 +42,7 @@ const GoogleLoginButton = forwardRef<HTMLButtonElement, GoogleLoginButtonProps>(
           });
         }
       }, 300, { leading: true, trailing: false }),
-      [login, disabled, isLoading, onSuccess, onError]
+      [login, disabled, isLoading, onError]
     );
 
     // Clean up debounce on unmount
@@ -82,7 +77,7 @@ const GoogleLoginButton = forwardRef<HTMLButtonElement, GoogleLoginButtonProps>(
         <div className="google-button-content">
           <GoogleIcon className="google-icon" />
           <span className="google-button-text">
-            {isLoading ? 'Signing in...' : 'Sign in with Google'}
+            {isLoading ? 'Redirecting to Google...' : 'Sign in with Google'}
           </span>
         </div>
 
