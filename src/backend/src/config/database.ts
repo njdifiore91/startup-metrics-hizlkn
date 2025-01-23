@@ -1,12 +1,13 @@
-import { Sequelize, Options, ConnectionError } from 'sequelize'; // sequelize version: ^6.31.0
+import { Sequelize, Options, ConnectionError, Model as SequelizeModel, DataTypes as SequelizeDataTypes } from 'sequelize'; // sequelize version: ^6.31.0
 import type { ProcessEnv } from '../types/environment';
 
 /**
  * Generates SSL configuration for database connection with enhanced security
  * @returns SSL configuration object with TLS 1.3 and certificate validation
  */
-const getSSLConfig = (): object => {
-  const sslEnabled = import.meta.env.DATABASE_SSL === 'true';
+
+const getSSLConfig = (): object | boolean => {
+  const sslEnabled = process.env.DATABASE_SSL === 'true';
   if (!sslEnabled) return false;
 
   return {
@@ -34,11 +35,9 @@ const getPoolConfig = (): Options['pool'] => ({
   min: import.meta.env.NODE_ENV === 'production' ? 5 : 1,
   idle: parseInt(import.meta.env.DATABASE_IDLE_TIMEOUT || '10000'),
   acquire: 60000,
-  evict: 1000,
-  handleLibraryUnavailable: true,
-  validate: async (connection: any) => {
+  validate: (connection: unknown): boolean => {
     try {
-      await connection.query('SELECT 1');
+      (connection as any).query('SELECT 1');
       return true;
     } catch {
       return false;
@@ -53,8 +52,8 @@ const getPoolConfig = (): Options['pool'] => ({
 const handleConnectionError = async (error: ConnectionError): Promise<void> => {
   console.error(`Database connection error at ${new Date().toISOString()}:`, {
     message: error.message,
-    code: error.parent?.code,
-    stack: import.meta.env.NODE_ENV !== 'production' ? error.stack : undefined
+    code: (error as any).parent?.code,
+    stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
   });
 
   // Implement exponential backoff for retries
@@ -96,7 +95,7 @@ const DATABASE_CONFIG: Options = {
     max: 5,
     timeout: 5000
   },
-  isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+  isolationLevel: 'READ COMMITTED'
 };
 
 /**
@@ -116,25 +115,26 @@ class SequelizeInstance extends Sequelize {
     this.isConnected = false;
     this.retryCount = 0;
 
-    // Set up connection event handlers
-    this.afterConnect(() => {
+    // Initialize connection
+    this.initializeConnection();
+  }
+
+  private async initializeConnection(): Promise<void> {
+    try {
+      console.log('Attempting database connection...');
+      await this.authenticate();
       this.isConnected = true;
       console.log('Database connection established successfully');
-    });
+    } catch (error) {
+      await handleConnectionError(error as ConnectionError);
+    }
 
-    this.beforeDisconnect(() => {
-      this.isConnected = false;
+    // Set up disconnect handler
+    process.on('SIGTERM', async () => {
       console.log('Database connection closing');
+      this.isConnected = false;
+      await this.close();
     });
-
-    // Handle connection errors
-    this.authenticate()
-      .then(() => {
-        this.isConnected = true;
-      })
-      .catch(async (error: ConnectionError) => {
-        await handleConnectionError(error);
-      });
   }
 
   /**
@@ -151,6 +151,20 @@ class SequelizeInstance extends Sequelize {
       return false;
     }
   }
+
+  /**
+   * Closes the database connection gracefully
+   */
+  public async close(): Promise<void> {
+    try {
+      await super.close();
+      this.isConnected = false;
+      console.log('Database connection closed successfully');
+    } catch (error) {
+      console.error('Error closing database connection:', error);
+      throw error;
+    }
+  }
 }
 
 // Initialize and export Sequelize instance
@@ -160,5 +174,8 @@ const sequelize = new SequelizeInstance(
 );
 
 export default sequelize;
-export const { Model, DataTypes } = Sequelize;
+export const { Model, DataTypes } = { 
+  Model: SequelizeModel, 
+  DataTypes: SequelizeDataTypes 
+};
 export const validateConnection = sequelize.validateConnection.bind(sequelize);

@@ -7,11 +7,13 @@
 /**
  * Standard structure for error codes used throughout the application
  */
-export type ErrorCode = {
-  code: string;
+export type ErrorCode = string;
+
+export interface ErrorInfo {
+  code: ErrorCode;
   message: string;
   httpStatus: number;
-};
+}
 
 /**
  * Authentication and authorization related error codes
@@ -20,22 +22,22 @@ export type ErrorCode = {
 export const AUTH_ERRORS = {
   UNAUTHORIZED: {
     code: 'AUTH_001',
-    message: 'Please log in again',
+    message: 'Unauthorized access',
     httpStatus: 401
   },
   INVALID_TOKEN: {
     code: 'AUTH_002',
-    message: 'Invalid authentication token',
+    message: 'Invalid token',
     httpStatus: 401
   },
   TOKEN_EXPIRED: {
     code: 'AUTH_003',
-    message: 'Authentication token has expired',
+    message: 'Token expired',
     httpStatus: 401
   },
   INSUFFICIENT_PERMISSIONS: {
-    code: 'AUTH_004',
-    message: 'Insufficient permissions to perform this action',
+    code: 'AUTH_002',
+    message: 'Insufficient permissions',
     httpStatus: 403
   }
 } as const;
@@ -47,7 +49,7 @@ export const AUTH_ERRORS = {
 export const VALIDATION_ERRORS = {
   INVALID_REQUEST: {
     code: 'VAL_001',
-    message: 'Invalid request format',
+    message: 'Invalid request data',
     httpStatus: 400
   },
   MISSING_REQUIRED_FIELD: {
@@ -72,20 +74,25 @@ export const VALIDATION_ERRORS = {
  * HTTP Status: 404 Not Found, 409 Conflict, 429 Too Many Requests
  */
 export const BUSINESS_ERRORS = {
-  RESOURCE_NOT_FOUND: {
+  RATE_LIMIT_EXCEEDED: {
     code: 'BUS_001',
-    message: 'Requested resource was not found',
+    message: 'Rate limit exceeded',
+    httpStatus: 429
+  },
+  INVALID_INPUT: {
+    code: 'BUS_002',
+    message: 'Invalid input data',
+    httpStatus: 400
+  },
+  RESOURCE_NOT_FOUND: {
+    code: 'BUS_003',
+    message: 'Resource not found',
     httpStatus: 404
   },
-  DUPLICATE_ENTRY: {
-    code: 'BUS_002',
-    message: 'Resource already exists',
-    httpStatus: 409
-  },
-  RATE_LIMIT_EXCEEDED: {
-    code: 'BUS_003',
-    message: 'Please try again later',
-    httpStatus: 429
+  OPERATION_FAILED: {
+    code: 'BUS_004',
+    message: 'Operation failed',
+    httpStatus: 500
   }
 } as const;
 

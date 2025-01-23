@@ -8,6 +8,8 @@ import {
 } from '../constants/errorCodes';
 import type { ErrorCode } from '../constants/errorCodes';
 
+export type ErrorCode = string;
+
 /**
  * Enhanced custom error class with correlation tracking and metadata
  */
@@ -16,19 +18,22 @@ export class AppError extends Error {
   public readonly details?: any;
   public readonly correlationId?: string;
   public readonly timestamp: Date;
+  public readonly httpStatus: number;
 
   constructor(
     errorCode: ErrorCode,
     message: string,
     details?: any,
-    correlationId?: string
+    correlationId?: string,
+    httpStatus: number = 500
   ) {
     super(message);
-    this.name = this.constructor.name;
+    this.name = 'AppError';
     this.errorCode = errorCode;
     this.details = details;
     this.correlationId = correlationId;
     this.timestamp = new Date();
+    this.httpStatus = httpStatus;
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -36,59 +41,34 @@ export class AppError extends Error {
 /**
  * Global error handling middleware with monitoring and environment-aware responses
  */
-export const handleError = (
-  error: Error,
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Response => {
-  // Extract correlation ID from request context
-  const correlationId = req.headers['x-correlation-id'] as string;
-
-  // Determine error type and code
-  let errorResponse: AppError;
+export const handleError = (error: Error | AppError, res: Response): void => {
   if (error instanceof AppError) {
-    errorResponse = error;
+    logger.error('Application error', {
+      code: error.errorCode,
+      message: error.message,
+      httpStatus: error.httpStatus,
+      correlationId: error.correlationId
+    });
+
+    res.status(error.httpStatus).json({
+      status: 'error',
+      code: error.errorCode,
+      message: error.message,
+      correlationId: error.correlationId
+    });
   } else {
-    // Map unknown errors to system error
-    errorResponse = new AppError(
-      SYSTEM_ERRORS.INTERNAL_SERVER_ERROR,
-      error.message || 'An unexpected error occurred',
-      error,
-      correlationId
-    );
+    logger.error('Unhandled error', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      status: 'error',
+      code: 'INTERNAL_ERROR',
+      message: 'An unexpected error occurred'
+    });
   }
-
-  // Log error with appropriate level and context
-  const logMetadata = {
-    correlationId,
-    error,
-    path: req.path,
-    method: req.method,
-    ip: req.ip,
-    errorCode: errorResponse.errorCode.code
-  };
-
-  if (errorResponse.errorCode.httpStatus >= 500) {
-    logger.error('Server error occurred', logMetadata);
-  } else {
-    logger.warn('Client error occurred', logMetadata);
-  }
-
-  // Set retry strategy headers based on error type
-  if (errorResponse.errorCode === BUSINESS_ERRORS.RATE_LIMIT_EXCEEDED) {
-    res.set('Retry-After', '60');
-  }
-
-  // Format error response based on environment
-  const formattedResponse = formatErrorResponse(
-    errorResponse,
-    import.meta.env.NODE_ENV || 'development'
-  );
-
-  return res
-    .status(errorResponse.errorCode.httpStatus)
-    .json(formattedResponse);
 };
 
 /**
@@ -100,7 +80,7 @@ export const formatErrorResponse = (
 ): object => {
   const baseResponse = {
     status: 'error',
-    code: error.errorCode.code,
+    code: error.errorCode,
     message: error.errorCode.message,
     correlationId: error.correlationId,
     timestamp: error.timestamp.toISOString()
@@ -141,24 +121,24 @@ export const formatErrorResponse = (
 // Error type guards for error categorization
 export const isAuthError = (error: AppError): boolean => {
   return Object.values(AUTH_ERRORS).some(
-    (authError) => authError.code === error.errorCode.code
+    (authError) => authError.code === error.errorCode
   );
 };
 
 export const isValidationError = (error: AppError): boolean => {
   return Object.values(VALIDATION_ERRORS).some(
-    (valError) => valError.code === error.errorCode.code
+    (valError) => valError.code === error.errorCode
   );
 };
 
 export const isBusinessError = (error: AppError): boolean => {
   return Object.values(BUSINESS_ERRORS).some(
-    (busError) => busError.code === error.errorCode.code
+    (busError) => busError.code === error.errorCode
   );
 };
 
 export const isSystemError = (error: AppError): boolean => {
   return Object.values(SYSTEM_ERRORS).some(
-    (sysError) => sysError.code === error.errorCode.code
+    (sysError) => sysError.code === error.errorCode
   );
 };

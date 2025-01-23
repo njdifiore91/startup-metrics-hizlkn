@@ -54,6 +54,21 @@ export const METRIC_VALIDATION_RULES = {
     errorMessage: 'Ratio must be between 0 and 1000 with up to 3 decimal places',
     sanitization: 'trim',
     allowNegative: false
+  },
+
+  PERCENTAGE: {
+    decimalPrecision: 2,
+    min: 0,
+    max: 100
+  },
+
+  NAME: {
+    minLength: 3,
+    maxLength: 100
+  },
+
+  DESCRIPTION: {
+    maxLength: 500
   }
 } as const;
 
@@ -68,7 +83,7 @@ export const USER_VALIDATION_RULES = {
     format: /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
     errorMessage: 'Please enter a valid email address',
     sanitization: 'trim|lowercase',
-    maxLength: 254, // RFC 5321 compliant
+    maxLength: 255, // RFC 5321 compliant
     minLength: 5
   },
 
@@ -80,11 +95,11 @@ export const USER_VALIDATION_RULES = {
     preventCommonPasswords: true,
     saltRounds: 10,
     minLength: 8,
-    maxLength: 128,
-    requiresSpecialChar: true,
-    requiresNumber: true,
-    requiresUppercase: true,
-    requiresLowercase: true
+    maxLength: 100,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecialChars: true
   },
 
   NAME: {
@@ -94,7 +109,7 @@ export const USER_VALIDATION_RULES = {
     errorMessage: 'Name must be 2-50 characters and can contain letters, numbers, spaces, hyphens and apostrophes',
     sanitization: 'trim',
     minLength: 2,
-    maxLength: 50
+    maxLength: 100
   }
 } as const;
 

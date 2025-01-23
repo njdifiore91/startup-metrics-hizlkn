@@ -1,13 +1,15 @@
-import { Model, DataTypes, Sequelize } from 'sequelize'; // v6.31.0
+import { Model, DataTypes, Sequelize, ModelAttributes, InitOptions } from 'sequelize'; // v6.31.0
 import { Table, Column, Index } from 'sequelize-typescript'; // v2.1.0
 import { IBenchmarkData } from '../interfaces/IBenchmarkData';
-import { RevenueRange } from '../types/metric';
 
 // Model constants
 const MODEL_NAME = 'BenchmarkData';
 const TABLE_NAME = 'benchmark_data';
 const MIN_SAMPLE_SIZE = 30;
 const MIN_CONFIDENCE_LEVEL = 0.95;
+
+// Revenue range type
+export type RevenueRange = '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
 
 /**
  * Sequelize model for storing benchmark data with comprehensive validation,
@@ -24,7 +26,7 @@ const MIN_CONFIDENCE_LEVEL = 0.95;
     { fields: ['source_id'], name: 'idx_benchmark_source' }
   ]
 })
-export class BenchmarkData extends Model<IBenchmarkData> implements IBenchmarkData {
+export class BenchmarkData extends Model<IBenchmarkData> {
   @Column({
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
@@ -148,6 +150,26 @@ export class BenchmarkData extends Model<IBenchmarkData> implements IBenchmarkDa
   isStatisticallySignificant!: boolean;
 
   @Column({
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    field: 'is_seasonally_adjusted'
+  })
+  isSeasonallyAdjusted!: boolean;
+
+  @Column({
+    type: DataTypes.DECIMAL(3, 2),
+    allowNull: false,
+    defaultValue: 1.0,
+    field: 'data_quality_score',
+    validate: {
+      min: 0,
+      max: 1
+    }
+  })
+  dataQualityScore!: number;
+
+  @Column({
     type: DataTypes.DATE,
     allowNull: false
   })
@@ -169,29 +191,27 @@ export class BenchmarkData extends Model<IBenchmarkData> implements IBenchmarkDa
    * Initializes the BenchmarkData model with Sequelize including validation and indexing
    * @param sequelize - Sequelize instance
    */
-  public static init(sequelize: Sequelize): void {
-    super.init(
-      {
-        // Model attributes are defined in the class decorators
-      },
-      {
-        sequelize,
-        modelName: MODEL_NAME,
-        tableName: TABLE_NAME,
-        timestamps: true,
-        paranoid: true,
-        hooks: {
-          beforeValidate: (instance: BenchmarkData) => {
-            instance.validatePercentiles();
-          },
-          beforeSave: (instance: BenchmarkData) => {
-            instance.isStatisticallySignificant = 
-              instance.sampleSize >= MIN_SAMPLE_SIZE && 
-              instance.confidenceLevel >= MIN_CONFIDENCE_LEVEL;
-          }
+  public static initialize(sequelize: Sequelize): void {
+    const attributes: ModelAttributes = {};
+    const options: InitOptions = {
+      sequelize,
+      modelName: MODEL_NAME,
+      tableName: TABLE_NAME,
+      timestamps: true,
+      paranoid: true,
+      hooks: {
+        beforeValidate: (instance: BenchmarkData) => {
+          instance.validatePercentiles();
+        },
+        beforeSave: (instance: BenchmarkData) => {
+          instance.isStatisticallySignificant = 
+            instance.sampleSize >= MIN_SAMPLE_SIZE && 
+            instance.confidenceLevel >= MIN_CONFIDENCE_LEVEL;
         }
       }
-    );
+    };
+
+    super.init(attributes, options);
   }
 
   /**

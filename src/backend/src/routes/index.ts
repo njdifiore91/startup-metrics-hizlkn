@@ -4,11 +4,12 @@
  * @version 1.0.0
  */
 
-import express, { Router } from 'express'; // ^4.18.2
+import express, { Router, Request, Response, NextFunction } from 'express'; // ^4.18.2
 import cors from 'cors'; // ^2.8.5
 import helmet from 'helmet'; // ^7.0.0
 import compression from 'compression'; // ^1.7.4
-import { withCorrelationId } from 'correlation-id'; // ^3.1.0
+import { getId } from 'correlation-id'; // ^3.1.0
+import crypto from 'crypto';
 
 // Import route modules
 import authRoutes from './authRoutes';
@@ -17,9 +18,7 @@ import benchmarkRoutes from './benchmarkRoutes';
 import companyMetricsRoutes from './companyMetricsRoutes';
 
 // Import middleware
-import requestLogger from '../middleware/requestLogger';
-import rateLimiter from '../middleware/rateLimiter';
-import errorHandler from '../middleware/errorHandler';
+import { errorHandler } from '../middleware/errorHandler';
 
 // Initialize router
 const router = express.Router();
@@ -45,7 +44,6 @@ const securityHeaders = helmet({
   crossOriginOpenerPolicy: true,
   crossOriginResourcePolicy: { policy: 'same-site' },
   dnsPrefetchControl: { allow: false },
-  expectCt: { enforce: true, maxAge: 30 },
   frameguard: { action: 'deny' },
   hidePoweredBy: true,
   hsts: {
@@ -73,19 +71,18 @@ const corsOptions = {
   maxAge: 86400 // 24 hours
 };
 
+// Correlation ID middleware
+const correlationMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
+  req.headers['x-correlation-id'] = correlationId;
+  next();
+};
+
 // Apply global middleware
 router.use(compression()); // Compress responses
 router.use(securityHeaders); // Apply security headers
 router.use(cors(corsOptions)); // Apply CORS
-router.use(withCorrelationId()); // Add correlation ID tracking
-router.use(requestLogger); // Log all requests
-router.use(rateLimiter); // Apply rate limiting
-
-// Mount API routes
-router.use('/api/v1/auth', authRoutes);
-router.use('/api/v1/metrics', metricsRoutes);
-router.use('/api/v1/benchmarks', benchmarkRoutes);
-router.use('/api/v1/company-metrics', companyMetricsRoutes);
+router.use(correlationMiddleware); // Add correlation ID tracking
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -95,6 +92,12 @@ router.get('/health', (req, res) => {
     version: import.meta.env.npm_package_version
   });
 });
+
+// Mount API routes
+router.use('/auth', authRoutes);
+router.use('/metrics', metricsRoutes);
+router.use('/benchmarks', benchmarkRoutes);
+router.use('/company-metrics', companyMetricsRoutes);
 
 // Apply error handling middleware last
 router.use(errorHandler);

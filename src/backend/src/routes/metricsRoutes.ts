@@ -9,11 +9,16 @@ import compression from 'compression'; // ^1.7.4
 import cors from 'cors'; // ^2.8.5
 import rateLimit from 'express-rate-limit'; // ^6.7.0
 import { metricsController } from '../controllers/metricsController';
-import { authenticate, authorize } from '../middleware/auth';
-import validateRequest from '../middleware/validator';
-import { metricSchemas } from '../validators/metricsValidator';
+import { createAuthMiddleware } from '../middleware/auth';
+import { validateRequest } from '../middleware/validator';
+import { createMetricSchema, updateMetricSchema } from '../validators/metricsValidator';
 import { errorHandler } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
+import { GoogleAuthProvider } from '../services/googleAuthProvider';
+import { USER_ROLES } from '../constants/roles';
+
+// Initialize auth middleware with Google auth provider
+const { authenticate, authorize } = createAuthMiddleware(new GoogleAuthProvider());
 
 // Constants for rate limiting and caching
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
@@ -70,22 +75,8 @@ router.get(
   API_VERSION,
   standardLimiter,
   authenticate,
-  authorize(['USER', 'ANALYST', 'ADMIN']),
-  async (req: Request, res: Response) => {
-    const startTime = process.hrtime();
-    
-    try {
-      await metricsController.getMetrics(req, res);
-      
-      // Calculate and set response time header
-      const [seconds, nanoseconds] = process.hrtime(startTime);
-      const responseTime = seconds * 1000 + nanoseconds / 1e6;
-      res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
-    } catch (error) {
-      logger.error('Error in GET /metrics', { error, path: req.path });
-      throw error;
-    }
-  }
+  authorize(USER_ROLES.USER),
+  metricsController.getMetrics[1]
 );
 
 // GET /v1/metrics/:id - Retrieve single metric by ID
@@ -93,21 +84,8 @@ router.get(
   `${API_VERSION}/:id`,
   standardLimiter,
   authenticate,
-  authorize(['USER', 'ANALYST', 'ADMIN']),
-  async (req: Request, res: Response) => {
-    const startTime = process.hrtime();
-    
-    try {
-      await metricsController.getMetricById(req, res);
-      
-      const [seconds, nanoseconds] = process.hrtime(startTime);
-      const responseTime = seconds * 1000 + nanoseconds / 1e6;
-      res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
-    } catch (error) {
-      logger.error('Error in GET /metrics/:id', { error, path: req.path });
-      throw error;
-    }
-  }
+  authorize(USER_ROLES.USER),
+  metricsController.getMetricById[1]
 );
 
 // POST /v1/metrics - Create new metric
@@ -115,22 +93,9 @@ router.post(
   API_VERSION,
   writeLimiter,
   authenticate,
-  authorize(['ADMIN']),
-  validateRequest(metricSchemas.createMetricSchema),
-  async (req: Request, res: Response) => {
-    const startTime = process.hrtime();
-    
-    try {
-      await metricsController.createMetric(req, res);
-      
-      const [seconds, nanoseconds] = process.hrtime(startTime);
-      const responseTime = seconds * 1000 + nanoseconds / 1e6;
-      res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
-    } catch (error) {
-      logger.error('Error in POST /metrics', { error, path: req.path });
-      throw error;
-    }
-  }
+  authorize(USER_ROLES.ADMIN),
+  validateRequest(createMetricSchema),
+  metricsController.createMetric[1]
 );
 
 // PUT /v1/metrics/:id - Update existing metric
@@ -138,22 +103,9 @@ router.put(
   `${API_VERSION}/:id`,
   writeLimiter,
   authenticate,
-  authorize(['ADMIN']),
-  validateRequest(metricSchemas.updateMetricSchema),
-  async (req: Request, res: Response) => {
-    const startTime = process.hrtime();
-    
-    try {
-      await metricsController.updateMetric(req, res);
-      
-      const [seconds, nanoseconds] = process.hrtime(startTime);
-      const responseTime = seconds * 1000 + nanoseconds / 1e6;
-      res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
-    } catch (error) {
-      logger.error('Error in PUT /metrics/:id', { error, path: req.path });
-      throw error;
-    }
-  }
+  authorize(USER_ROLES.ADMIN),
+  validateRequest(updateMetricSchema),
+  ...metricsController.updateMetric
 );
 
 // Apply error handling middleware last
