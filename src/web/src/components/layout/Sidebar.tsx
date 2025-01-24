@@ -5,7 +5,8 @@
  */
 
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Drawer, IconButton, useMediaQuery, Box } from '@mui/material';
+import { Drawer, IconButton } from '@mui/material';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { Theme, useTheme } from '@mui/material/styles';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { Navigation } from './Navigation';
@@ -28,20 +29,39 @@ interface SidebarProps {
   onError?: (error: Error) => void;
   className?: string;
   ariaLabel?: string;
-  isMobile?: boolean;
 }
 
 const StyledDrawer = styled(Drawer)`
-  width: var(--spacing-xxl);
+  width: ${DRAWER_WIDTH}px;
   flex-shrink: 0;
   white-space: nowrap;
 
   & .MuiDrawer-paper {
-    width: var(--spacing-xxl);
+    width: ${DRAWER_WIDTH}px;
     box-sizing: border-box;
-    background-color: var(--color-primary);
-    color: var(--color-surface);
-    transition: var(--transition-fast);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border-right: 1px solid var(--border-color-light);
+    transition: width ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0, 0.6, 1);
+    overflow-x: hidden;
+  }
+
+  &.collapsed {
+    width: ${COLLAPSED_WIDTH}px;
+
+    & .MuiDrawer-paper {
+      width: ${COLLAPSED_WIDTH}px;
+    }
+  }
+
+  @media (max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE}) {
+    &.collapsed {
+      width: 0;
+
+      & .MuiDrawer-paper {
+        width: 0;
+      }
+    }
   }
 `;
 
@@ -51,26 +71,12 @@ const DrawerHeader = styled.div`
   justify-content: flex-end;
   padding: var(--spacing-sm);
   min-height: 64px;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background-color: inherit;
-  border-bottom: 1px solid var(--color-surface);
+  border-bottom: 1px solid var(--border-color-light);
 `;
 
-const ToggleButton = styled.button`
-  width: var(--spacing-lg);
-  height: var(--spacing-lg);
-  margin: 0 var(--spacing-xs);
-  border: none;
-  border-radius: 50%;
-  background-color: var(--color-surface);
-  color: var(--color-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition-fast);
+const ToggleButton = styled(IconButton)`
+  margin-right: var(--spacing-xs);
+  color: var(--color-text);
 
   &:hover {
     background-color: var(--color-background);
@@ -86,38 +92,25 @@ const ToggleButton = styled.button`
  * Enhanced Sidebar component with accessibility and performance optimizations
  */
 export const Sidebar: React.FC<SidebarProps> = React.memo(
-  ({
-    isOpen,
-    onToggle,
-    onError,
-    className,
-    ariaLabel = 'Main Sidebar Navigation',
-    isMobile = false,
-  }) => {
-    const theme = useTheme<Theme>();
-    const { validateSession, isAuthenticated } = useAuth();
+  ({ isOpen, onToggle, onError, className, ariaLabel = 'Main Sidebar Navigation' }) => {
+    const theme = useTheme();
+    const { isAuthenticated } = useAuth();
+    const isMobile = useMediaQuery(`(max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE})`);
     const sidebarRef = useRef<HTMLDivElement>(null);
 
     // Handle keyboard shortcuts
     useEffect(() => {
-      const handleKeyPress = async (event: KeyboardEvent) => {
+      const handleKeyPress = (event: KeyboardEvent) => {
         const isMod = event.metaKey || event.ctrlKey;
         if (isMod && event.key === 'b') {
           event.preventDefault();
-          try {
-            const isValid = await validateSession();
-            if (isValid) {
-              onToggle();
-            }
-          } catch (error) {
-            onError?.(error as Error);
-          }
+          onToggle();
         }
       };
 
       window.addEventListener('keydown', handleKeyPress);
       return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [onToggle, validateSession, onError]);
+    }, [onToggle]);
 
     // Handle focus management
     useEffect(() => {
@@ -128,18 +121,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
       }
     }, [isOpen]);
 
-    // Memoized toggle handler
-    const handleToggle = useCallback(async () => {
-      try {
-        const isValid = await validateSession();
-        if (isValid) {
-          onToggle();
-        }
-      } catch (error) {
-        onError?.(error as Error);
-      }
-    }, [onToggle, validateSession, onError]);
-
     if (!isAuthenticated) {
       return null;
     }
@@ -149,55 +130,25 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
         ref={sidebarRef}
         variant={isMobile ? 'temporary' : 'permanent'}
         open={isOpen}
-        className={className}
+        className={`${className} ${!isOpen ? 'collapsed' : ''}`}
         aria-label={ariaLabel}
         role="navigation"
-        onClose={isMobile ? handleToggle : undefined}
+        onClose={isMobile ? onToggle : undefined}
         ModalProps={{
-          keepMounted: true, // Better mobile performance
-        }}
-        PaperProps={{
-          sx: {
-            width: isOpen ? `${DRAWER_WIDTH}px` : `${COLLAPSED_WIDTH}px`,
-            overflowX: 'hidden',
-            backgroundColor: theme.palette.primary.main,
-            color: theme.palette.primary.contrastText,
-            transition: `width ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0, 0.6, 1)`,
-            borderRight: `1px solid ${theme.palette.divider}`,
-            [`@media (max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE})`]: {
-              width: isOpen ? `${DRAWER_WIDTH}px` : '0px',
-            },
-          },
-        }}
-        sx={{
-          width: isOpen ? `${DRAWER_WIDTH}px` : `${COLLAPSED_WIDTH}px`,
-          flexShrink: 0,
-          whiteSpace: 'nowrap',
-          transition: `width ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0, 0.6, 1)`,
-          direction: theme.direction,
+          keepMounted: true,
         }}
       >
         <DrawerHeader>
           <ToggleButton
-            onClick={handleToggle}
+            onClick={onToggle}
             aria-label={isOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}
             aria-expanded={isOpen}
             aria-controls="sidebar-content"
+            size="small"
           >
-            {document.dir === 'rtl' ? (
-              isOpen ? (
-                <ChevronRight />
-              ) : (
-                <ChevronLeft />
-              )
-            ) : isOpen ? (
-              <ChevronLeft />
-            ) : (
-              <ChevronRight />
-            )}
+            {isOpen ? <ChevronLeft /> : <ChevronRight />}
           </ToggleButton>
         </DrawerHeader>
-
         <div id="sidebar-content" role="region" aria-label={ariaLabel}>
           <Navigation
             isCollapsed={!isOpen}

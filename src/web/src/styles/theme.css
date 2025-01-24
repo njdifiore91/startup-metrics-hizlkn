@@ -47,32 +47,13 @@ h3 {
   margin-bottom: var(--spacing-md);
 }
 
-h4, h5, h6 {
+h4,
+h5,
+h6 {
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
   line-height: var(--line-height-tight);
   margin-bottom: var(--spacing-md);
-}
-
-/* Theme Classes */
-.theme-light {
-  --color-primary: #151e2d;
-  --color-secondary: #46608C;
-  --color-accent: #168947;
-  --color-background: #DBEAAC;
-  --color-text: #0D3330;
-  --focus-ring-color: rgba(22, 137, 71, 0.5);
-  --focus-ring-width: 3px;
-}
-
-.theme-dark {
-  --color-primary: #DBEAAC;
-  --color-secondary: #46608C;
-  --color-accent: #168947;
-  --color-background: #151e2d;
-  --color-text: #FFFFFF;
-  --focus-ring-color: rgba(219, 234, 172, 0.5);
-  --focus-ring-width: 3px;
 }
 
 /* Focus Management */
@@ -138,13 +119,25 @@ h4, h5, h6 {
 }
 
 /* Utility Classes */
-.text-primary { color: var(--color-primary); }
-.text-secondary { color: var(--color-secondary); }
-.text-accent { color: var(--color-accent); }
+.text-primary {
+  color: var(--color-primary);
+}
+.text-secondary {
+  color: var(--color-secondary);
+}
+.text-accent {
+  color: var(--color-accent);
+}
 
-.bg-primary { background-color: var(--color-primary); }
-.bg-secondary { background-color: var(--color-secondary); }
-.bg-accent { background-color: var(--color-accent); }
+.bg-primary {
+  background-color: var(--color-primary);
+}
+.bg-secondary {
+  background-color: var(--color-secondary);
+}
+.bg-accent {
+  background-color: var(--color-accent);
+}
 
 /* Responsive Breakpoints */
 @media screen and (max-width: var(--breakpoint-mobile)) {
@@ -152,9 +145,15 @@ h4, h5, h6 {
     font-size: var(--font-size-sm);
   }
 
-  h1 { font-size: var(--font-size-xl); }
-  h2 { font-size: var(--font-size-lg); }
-  h3 { font-size: var(--font-size-md); }
+  h1 {
+    font-size: var(--font-size-xl);
+  }
+  h2 {
+    font-size: var(--font-size-lg);
+  }
+  h3 {
+    font-size: var(--font-size-md);
+  }
 }
 
 /* Reduced Motion */

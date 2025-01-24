@@ -9,6 +9,8 @@ import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { AnalyticsBrowser } from '@segment/analytics-next';
 import { METRIC_TYPES, REVENUE_RANGES } from '../config/constants';
 import { RevenueRange } from '../store/benchmarkSlice';
+import { IconButton, Collapse } from '@mui/material';
+import { ExpandMore, ExpandLess } from '@mui/icons-material';
 
 // Styled Components
 const DashboardContainer = styled.div`
@@ -16,6 +18,50 @@ const DashboardContainer = styled.div`
   flex-direction: column;
   gap: var(--spacing-lg);
   padding: var(--spacing-lg);
+`;
+
+const FilterContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-background-light);
+  border-radius: var(--border-radius-md);
+`;
+
+const FilterHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  border-bottom: ${({ isExpanded }: { isExpanded: boolean }) =>
+    isExpanded ? '1px solid var(--border-color-light)' : 'none'};
+`;
+
+const FilterTitle = styled.h2`
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-text);
+`;
+
+const FilterSection = styled.div`
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  align-items: center;
+  padding: var(--spacing-md);
+`;
+
+const StyledSelect = styled.select`
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-color-light);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  min-width: 150px;
+
+  &:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+  }
 `;
 
 const MetricsGrid = styled.div`
@@ -27,16 +73,6 @@ const MetricsGrid = styled.div`
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
   }
-`;
-
-const FilterSection = styled.div`
-  display: flex;
-  gap: var(--spacing-md);
-  flex-wrap: wrap;
-  align-items: center;
-  padding: var(--spacing-md);
-  background-color: var(--color-background-light);
-  border-radius: var(--border-radius-md);
 `;
 
 const ComparisonSection = styled.div`
@@ -84,6 +120,8 @@ const Dashboard: React.FC = () => {
     loadingStates: {},
     lastUpdated: {},
   });
+
+  const [isFilterExpanded, setIsFilterExpanded] = useState(true);
 
   // Custom Hooks
   const {
@@ -217,35 +255,54 @@ const Dashboard: React.FC = () => {
     };
   }, [filteredMetrics.length]);
 
+  const toggleFilter = () => {
+    setIsFilterExpanded((prev) => !prev);
+  };
+
   return (
     <ErrorBoundary>
       <Layout>
         <DashboardContainer>
-          <FilterSection role="search" aria-label="Metric filters">
-            <select
-              value={state.selectedCategory}
-              onChange={(e) => handleCategoryChange(e.target.value as MetricCategory)}
-              aria-label="Select metric category"
-            >
-              {Object.values(METRIC_TYPES).map((category) => (
-                <option key={category} value={category}>
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
-                </option>
-              ))}
-            </select>
+          <FilterContainer role="search" aria-label="Metric filters">
+            <FilterHeader isExpanded={isFilterExpanded}>
+              <FilterTitle>Dashboard Options</FilterTitle>
+              <IconButton
+                onClick={toggleFilter}
+                aria-label={isFilterExpanded ? 'Collapse options' : 'Expand options'}
+                aria-expanded={isFilterExpanded}
+                size="small"
+              >
+                {isFilterExpanded ? <ExpandLess /> : <ExpandMore />}
+              </IconButton>
+            </FilterHeader>
+            <Collapse in={isFilterExpanded}>
+              <FilterSection>
+                <StyledSelect
+                  value={state.selectedCategory}
+                  onChange={(e) => handleCategoryChange(e.target.value as MetricCategory)}
+                  aria-label="Select metric category"
+                >
+                  {Object.values(METRIC_TYPES).map((category) => (
+                    <option key={category} value={category}>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </option>
+                  ))}
+                </StyledSelect>
 
-            <select
-              value={state.revenueRange}
-              onChange={(e) => handleRevenueRangeChange(e.target.value)}
-              aria-label="Select revenue range"
-            >
-              {VALID_REVENUE_RANGES.map((range) => (
-                <option key={range} value={range}>
-                  {range}
-                </option>
-              ))}
-            </select>
-          </FilterSection>
+                <StyledSelect
+                  value={state.revenueRange}
+                  onChange={(e) => handleRevenueRangeChange(e.target.value)}
+                  aria-label="Select revenue range"
+                >
+                  {VALID_REVENUE_RANGES.map((range) => (
+                    <option key={range} value={range}>
+                      {range}
+                    </option>
+                  ))}
+                </StyledSelect>
+              </FilterSection>
+            </Collapse>
+          </FilterContainer>
 
           <MetricsGrid role="grid" aria-label="Metrics grid">
             {filteredMetrics.map((metric) => (
