@@ -64,10 +64,10 @@ declare global {
  * Enhanced response structure from authentication endpoints
  */
 interface IAuthResponse {
-  data(arg0: string, data: any): unknown;
   user: IUser;
   accessToken: string;
   refreshToken: string;
+  data?: any;
 }
 
 /**
@@ -196,8 +196,9 @@ export class AuthService {
 
   /**
    * Initiates Google OAuth login flow using URL redirect
+   * @returns Promise<IAuthResponse> Authentication response with user and tokens
    */
-  public async loginWithGoogle(): Promise<void> {
+  public async loginWithGoogle(): Promise<IAuthResponse> {
     try {
       this.checkRateLimit();
       const params = new URLSearchParams({
@@ -210,6 +211,9 @@ export class AuthService {
       });
 
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+      // This is a redirect, so we won't actually return anything
+      // TypeScript needs a return statement though
+      return {} as IAuthResponse;
     } catch (error) {
       console.error('Login error:', error);
       throw new Error('Failed to initiate Google login');
@@ -249,7 +253,7 @@ export class AuthService {
       // Initialize API client with new token
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
-      // Emit state change event
+      // Emit state change event with complete auth data
       window.dispatchEvent(new CustomEvent('auth-state-change', {
         detail: {
           isAuthenticated: true,
@@ -260,7 +264,13 @@ export class AuthService {
         }
       }));
 
-      return response.data;
+      // Return complete auth response
+      return {
+        user,
+        accessToken: token,
+        refreshToken,
+        data: response.data
+      };
     } catch (error) {
       if (error instanceof AxiosError) {
         if (error.response?.status === 429 && retryCount < 3) {
@@ -564,6 +574,25 @@ export class AuthService {
     const baseDelay = 1000; // 1 second
     const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
     await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  /**
+   * Gets the current token's expiration date
+   * @returns Date object representing token expiration or null if no token
+   */
+  public getTokenExpiration(): Date | null {
+    const token = this.getStoredTokens()?.token;
+    if (!token) return null;
+
+    try {
+      // Decode the JWT token to get expiration
+      const base64Payload = token.split('.')[1];
+      const payload = JSON.parse(atob(base64Payload));
+      return payload.exp ? new Date(payload.exp * 1000) : null;
+    } catch (error) {
+      console.error('Error getting token expiration:', error);
+      return null;
+    }
   }
 }
 

@@ -13,7 +13,7 @@ import type { RootState } from '../store';
 
 // Constants for security and session management
 const TOKEN_REFRESH_INTERVAL = 300000; // 5 minutes
-const SESSION_VALIDATION_INTERVAL = 60000; // 1 minute
+const SESSION_VALIDATION_INTERVAL = 300000; // Changed from 1 minute to 5 minutes
 const MAX_AUTH_ATTEMPTS = 3;
 const AUTH_ATTEMPT_TIMEOUT = 300000; // 5 minutes
 
@@ -110,13 +110,25 @@ export const useAuth = (): UseAuthReturn => {
       try {
         const tokens = authService.getStoredTokens();
         if (tokens) {
-          const isValid = await authService.validateSession();
-          if (isValid) {
+          // Check if token is close to expiration before validating
+          const tokenExpiration = authService.getTokenExpiration();
+          const now = Date.now();
+          const timeUntilExpiry = tokenExpiration ? tokenExpiration.getTime() - now : 0;
+          
+          // Only validate if token is close to expiry or expiration time unknown
+          if (!tokenExpiration || timeUntilExpiry <= TOKEN_REFRESH_INTERVAL) {
+            const isValid = await authService.validateSession();
+            if (isValid) {
+              dispatch(authActions.setAuthenticated(true));
+              dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
+            } else {
+              // Clear invalid tokens
+              authService.logout().catch(console.error);
+            }
+          } else {
+            // Token is still valid, just update the state
             dispatch(authActions.setAuthenticated(true));
             dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
-          } else {
-            // Clear invalid tokens
-            authService.logout().catch(console.error);
           }
         }
       } catch (error) {
@@ -157,6 +169,8 @@ export const useAuth = (): UseAuthReturn => {
 
       dispatch(authActions.setLoading(true));
       await authService.loginWithGoogle();
+      // Note: The actual state update will happen in the useEffect hook
+      // when we receive the auth-state-change event after the OAuth callback
       
       // Reset attempts on success
       authAttemptsRef.current.count = 0;
@@ -195,7 +209,27 @@ export const useAuth = (): UseAuthReturn => {
     }
   }, [dispatch]);
 
-  // Return the hook interface
+  // Enhanced logout function with navigation
+  const handleLogout = useCallback(async () => {
+    try {
+      await authService.logout();
+      // Update Redux state
+      dispatch(authActions.setUser(null));
+      dispatch(authActions.setAuthenticated(false));
+      dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+      // Force navigation to login page
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Still clear state even if server call fails
+      dispatch(authActions.setUser(null));
+      dispatch(authActions.setAuthenticated(false));
+      dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+      window.location.href = '/login';
+    }
+  }, [dispatch]);
+
+  // Return the hook interface with the enhanced logout
   return {
     user,
     isLoading,
@@ -203,7 +237,7 @@ export const useAuth = (): UseAuthReturn => {
     isAuthenticated,
     sessionStatus,
     login,
-    logout: authService.logout.bind(authService),
+    logout: handleLogout,
     refreshToken: authService.refreshAuthToken.bind(authService),
     validateSession: authService.validateSession.bind(authService),
     updateUserSettings: authService.updateUserSettings.bind(authService),
