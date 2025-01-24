@@ -90,24 +90,38 @@ declare module '@mui/material/styles' {
  */
 export const theme = createMuiTheme({
   palette: {
+    mode: 'light',
     primary: {
       main: '#151e2d',
+      light: '#2c3b54',
+      dark: '#0c111b',
       contrastText: '#ffffff',
     },
     secondary: {
       main: '#46608C',
+      light: '#6b82ac',
+      dark: '#31436c',
+      contrastText: '#ffffff',
     },
     error: {
       main: '#dc3545',
+      light: '#e35d6a',
+      dark: '#b02a37',
     },
     warning: {
       main: '#ffc107',
+      light: '#ffcd39',
+      dark: '#cc9a06',
     },
     success: {
       main: '#28a745',
+      light: '#33c755',
+      dark: '#1e7e34',
     },
     info: {
       main: '#17a2b8',
+      light: '#1fc8e3',
+      dark: '#117a8b',
     },
     background: {
       default: '#DBEAAC',
@@ -220,18 +234,25 @@ export const theme = createMuiTheme({
     MuiCssBaseline: {
       styleOverrides: {
         ':root': {
-          // Custom CSS variables
+          // Brand Colors
           '--color-primary': '#151e2d',
+          '--color-primary-light': '#2c3b54',
+          '--color-primary-dark': '#0c111b',
           '--color-secondary': '#46608C',
+          '--color-secondary-light': '#6b82ac',
+          '--color-secondary-dark': '#31436c',
           '--color-accent': '#168947',
+          '--color-accent-light': '#1ea55b',
+          '--color-accent-dark': '#0f6332',
           '--color-background': '#DBEAAC',
+          '--color-surface': '#ffffff',
           '--color-text': '#0D3330',
           '--color-error': '#dc3545',
           '--color-warning': '#ffc107',
           '--color-success': '#28a745',
           '--color-info': '#17a2b8',
-          '--color-surface': '#ffffff',
           '--color-overlay': 'rgba(0, 0, 0, 0.5)',
+          // Custom CSS variables
           '--font-family-primary': 'Inter, sans-serif',
           '--font-family-monospace': 'monospace',
           '--font-size-xs': '12px',
@@ -266,6 +287,13 @@ export const theme = createMuiTheme({
           '--z-index-header': '50',
           '--z-index-tooltip': '75',
           '--z-index-base': '1',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#ffffff',
         },
       },
     },

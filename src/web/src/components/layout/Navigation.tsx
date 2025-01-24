@@ -78,16 +78,17 @@ const DEFAULT_SPACING = 2; // Default spacing in rem
 // Styled Components
 const StyledNavigation = styled('nav')<StyledNavigationProps>`
   width: ${({ isCollapsed }) => (isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH)};
-  height: 100vh;
-  background-color: ${({ theme }) => theme.palette.primary.main};
-  color: ${({ theme }) => theme.palette.primary.contrastText};
+  height: calc(100vh - 64px);
+  background-color: var(--color-surface);
+  color: var(--color-text);
   transition: width 0.3s ease;
   overflow-x: hidden;
   overflow-y: auto;
   position: fixed;
   left: 0;
-  top: ${UI_CONSTANTS.HEADER_HEIGHT};
-  z-index: 1000;
+  top: 64px;
+  z-index: var(--z-index-fixed);
+  border-right: 1px solid var(--border-color-light);
 
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     width: ${({ isCollapsed }) => (isCollapsed ? '0' : UI_CONSTANTS.SIDEBAR_WIDTH)};
@@ -99,26 +100,37 @@ const StyledNavigation = styled('nav')<StyledNavigationProps>`
   }
 
   &::-webkit-scrollbar-track {
-    background: ${({ theme }) => theme.palette.primary.light};
+    background: var(--color-background);
   }
 
   &::-webkit-scrollbar-thumb {
-    background: ${({ theme }) => theme.palette.primary.dark};
+    background: var(--border-color-normal);
     border-radius: 3px;
   }
 `;
 
 const StyledListItem = styled(ListItem)<StyledListItemProps>`
   padding: ${DEFAULT_SPACING}rem;
-  color: ${({ active, theme }) => (active ? theme.palette.secondary.main : 'inherit')};
+  color: ${({ active }) => (active ? 'var(--color-accent)' : 'var(--color-text)')};
+  margin: var(--spacing-xs) 0;
+  border-radius: var(--border-radius-sm);
 
   &:hover {
-    background-color: ${({ theme }) => theme.palette.primary.light};
+    background-color: var(--color-background);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
   }
 
   .MuiListItemIcon-root {
     color: inherit;
     min-width: 40px;
+  }
+
+  .MuiListItemText-root {
+    margin-left: var(--spacing-sm);
   }
 `;
 
@@ -266,14 +278,6 @@ export const Navigation: React.FC<NavigationProps> = ({
     );
   };
 
-  const handleBackNavigation = () => {
-    if (isCollapsed) {
-      navigate('/');
-    } else {
-      navigate(-1);
-    }
-  };
-
   return (
     <StyledNavigation
       isCollapsed={isCollapsed}
@@ -284,9 +288,6 @@ export const Navigation: React.FC<NavigationProps> = ({
       <List component="nav" aria-label={ariaLabel}>
         {filteredNavItems.map(renderNavItem)}
       </List>
-      {!isMobile && (
-        <div onClick={handleBackNavigation}>{isCollapsed ? <ChevronRight /> : <ChevronLeft />}</div>
-      )}
     </StyledNavigation>
   );
 };

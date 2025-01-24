@@ -16,12 +16,9 @@ const Login: React.FC = () => {
   const { focusWithinProps } = useFocusWithin({});
 
   // Handle authentication errors
-  const handleLoginError = useCallback(
-    (error: { code: string; message: string }) => {
-      console.error('Login error:', error);
-    },
-    []
-  );
+  const handleLoginError = useCallback((error: { code: string; message: string }) => {
+    console.error('Login error:', error);
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -41,10 +38,7 @@ const Login: React.FC = () => {
 
         <p className="subtitle">Sign in to access your startup benchmarking dashboard</p>
 
-        <GoogleLoginButton
-          onError={handleLoginError}
-          testId="google-login-button"
-        />
+        <GoogleLoginButton onError={handleLoginError} testId="google-login-button" />
 
         {error && (
           <div className="errorMessage" role="alert" aria-live="polite">
@@ -70,6 +64,10 @@ const Login: React.FC = () => {
           width: 100%;
           max-width: 400px;
           text-align: center;
+          background-color: var(--color-surface);
+          border-radius: 8px;
+          box-shadow: var(--shadow-md);
+          padding: var(--spacing-lg);
         }
 
         .logo {
@@ -81,7 +79,7 @@ const Login: React.FC = () => {
         .title {
           font-size: var(--font-size-xl);
           font-weight: var(--font-weight-bold);
-          color: var(--color-primary);
+          color: var(--color-text);
           margin-bottom: var(--spacing-sm);
         }
 
