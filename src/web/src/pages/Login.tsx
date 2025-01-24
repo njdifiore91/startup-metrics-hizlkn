@@ -53,7 +53,6 @@ const Login: React.FC = () => {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          min-height: 100vh;
           padding: var(--spacing-md);
           background-color: var(--color-background);
           outline: none;
