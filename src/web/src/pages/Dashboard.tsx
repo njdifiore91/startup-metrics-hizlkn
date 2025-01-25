@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import styled from '@emotion/styled';
-import Layout from '../components/layout/Layout';
 import { MetricCard } from '../components/metrics/MetricCard';
 import { useMetrics } from '../hooks/useMetrics';
 import { useBenchmarks } from '../hooks/useBenchmarks';
@@ -261,75 +260,73 @@ const Dashboard: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <Layout>
-        <DashboardContainer>
-          <FilterContainer role="search" aria-label="Metric filters">
-            <FilterHeader isExpanded={isFilterExpanded}>
-              <FilterTitle>Dashboard Options</FilterTitle>
-              <IconButton
-                onClick={toggleFilter}
-                aria-label={isFilterExpanded ? 'Collapse options' : 'Expand options'}
-                aria-expanded={isFilterExpanded}
-                size="small"
+      <DashboardContainer>
+        <FilterContainer role="search" aria-label="Metric filters">
+          <FilterHeader isExpanded={isFilterExpanded}>
+            <FilterTitle>Dashboard Options</FilterTitle>
+            <IconButton
+              onClick={toggleFilter}
+              aria-label={isFilterExpanded ? 'Collapse options' : 'Expand options'}
+              aria-expanded={isFilterExpanded}
+              size="small"
+            >
+              {isFilterExpanded ? <ExpandLess /> : <ExpandMore />}
+            </IconButton>
+          </FilterHeader>
+          <Collapse in={isFilterExpanded}>
+            <FilterSection>
+              <StyledSelect
+                value={state.selectedCategory}
+                onChange={(e) => handleCategoryChange(e.target.value as MetricCategory)}
+                aria-label="Select metric category"
               >
-                {isFilterExpanded ? <ExpandLess /> : <ExpandMore />}
-              </IconButton>
-            </FilterHeader>
-            <Collapse in={isFilterExpanded}>
-              <FilterSection>
-                <StyledSelect
-                  value={state.selectedCategory}
-                  onChange={(e) => handleCategoryChange(e.target.value as MetricCategory)}
-                  aria-label="Select metric category"
-                >
-                  {Object.values(METRIC_TYPES).map((category) => (
-                    <option key={category} value={category}>
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
-                    </option>
-                  ))}
-                </StyledSelect>
+                {Object.values(METRIC_TYPES).map((category) => (
+                  <option key={category} value={category}>
+                    {category.charAt(0).toUpperCase() + category.slice(1)}
+                  </option>
+                ))}
+              </StyledSelect>
 
-                <StyledSelect
-                  value={state.revenueRange}
-                  onChange={(e) => handleRevenueRangeChange(e.target.value)}
-                  aria-label="Select revenue range"
-                >
-                  {VALID_REVENUE_RANGES.map((range) => (
-                    <option key={range} value={range}>
-                      {range}
-                    </option>
-                  ))}
-                </StyledSelect>
-              </FilterSection>
-            </Collapse>
-          </FilterContainer>
+              <StyledSelect
+                value={state.revenueRange}
+                onChange={(e) => handleRevenueRangeChange(e.target.value)}
+                aria-label="Select revenue range"
+              >
+                {VALID_REVENUE_RANGES.map((range) => (
+                  <option key={range} value={range}>
+                    {range}
+                  </option>
+                ))}
+              </StyledSelect>
+            </FilterSection>
+          </Collapse>
+        </FilterContainer>
 
-          <MetricsGrid role="grid" aria-label="Metrics grid">
-            {filteredMetrics.map((metric) => (
-              <MetricCard
-                key={metric.id}
-                metric={metric}
-                value={Number(metric.valueType)}
-                selected={state.selectedMetric?.id === metric.id}
-                onClick={() => handleMetricSelect(metric)}
-                testId={`metric-card-${metric.id}`}
-              />
-            ))}
-          </MetricsGrid>
+        <MetricsGrid role="grid" aria-label="Metrics grid">
+          {filteredMetrics.map((metric) => (
+            <MetricCard
+              key={metric.id}
+              metric={metric}
+              value={Number(metric.valueType)}
+              selected={state.selectedMetric?.id === metric.id}
+              onClick={() => handleMetricSelect(metric)}
+              testId={`metric-card-${metric.id}`}
+            />
+          ))}
+        </MetricsGrid>
 
-          {state.selectedMetric && (
-            <ComparisonSection role="region" aria-label="Benchmark comparison">
-              {/* Benchmark comparison content */}
-            </ComparisonSection>
-          )}
+        {state.selectedMetric && (
+          <ComparisonSection role="region" aria-label="Benchmark comparison">
+            {/* Benchmark comparison content */}
+          </ComparisonSection>
+        )}
 
-          {(metricsError || benchmarksError) && (
-            <div role="alert" className="error-container">
-              {metricsError || benchmarksError}
-            </div>
-          )}
-        </DashboardContainer>
-      </Layout>
+        {(metricsError || benchmarksError) && (
+          <div role="alert" className="error-container">
+            {metricsError || benchmarksError}
+          </div>
+        )}
+      </DashboardContainer>
     </ErrorBoundary>
   );
 };

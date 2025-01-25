@@ -1,6 +1,7 @@
 .profileMenu {
   position: relative;
   display: inline-block;
+  z-index: 1300;
 }
 
 .avatar {
@@ -16,6 +17,8 @@
   justify-content: center;
   font-size: 1.2rem;
   font-weight: 600;
+  position: relative;
+  z-index: 1301;
 }
 
 .menu {
@@ -27,12 +30,14 @@
   border-radius: 0.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   min-width: 200px;
-  z-index: 50;
+  z-index: 1302;
 }
 
 .userInfo {
   padding: 1rem;
   border-bottom: 1px solid #e2e8f0;
+  position: relative;
+  z-index: 1302;
 }
 
 .userName {
@@ -55,6 +60,8 @@
   color: #4a5568;
   cursor: pointer;
   font-size: 0.875rem;
+  position: relative;
+  z-index: 1302;
 }
 
 .menuItem:hover {
@@ -69,7 +76,7 @@
   border-radius: 0.5rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   padding: 1rem;
-  z-index: 50;
+  z-index: 1400;
   border: 1px solid #e2e8f0;
 }
 

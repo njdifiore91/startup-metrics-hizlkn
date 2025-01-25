@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import {
@@ -15,7 +15,6 @@ import {
   Collapse,
   useMediaQuery,
   Theme,
-  useTheme,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -30,16 +29,10 @@ import {
   ExpandMore,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
-import { UI_CONSTANTS } from '../../config/constants';
 import { hasPermission, FEATURES, USER_ROLES, type UserRole } from '@/constants/roles';
 
-interface IUser {
-  id: string;
-  role: string;
-  permissions: string[];
-  name?: string;
-  email?: string;
-}
+// Constants
+const MOBILE_BREAKPOINT = '768px';
 
 interface NavigationProps {
   isCollapsed: boolean;
@@ -58,64 +51,20 @@ interface NavItem {
   ariaLabel?: string;
 }
 
-interface StyledNavigationProps {
-  isCollapsed: boolean;
-  theme: Theme;
-}
-
-interface StyledListItemProps {
-  active?: boolean;
-  theme: Theme;
-  onClick?: () => void;
-  'aria-label'?: string;
-  'aria-expanded'?: boolean;
-  'aria-current'?: 'page' | undefined;
-}
-
-// Constants
-const MOBILE_BREAKPOINT = '768px'; // Mobile breakpoint from UI_CONSTANTS
-const DEFAULT_SPACING = 2; // Default spacing in rem
-
-// Styled Components
-const StyledNavigation = styled('nav')<StyledNavigationProps>`
-  width: ${({ isCollapsed }) => (isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH)};
-  height: calc(100vh - 64px);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  transition: width 0.3s ease;
-  overflow-x: hidden;
-  overflow-y: auto;
-  position: fixed;
-  left: 0;
-  top: 64px;
-  z-index: var(--z-index-fixed);
-  border-right: 1px solid var(--border-color-light);
-
-  @media (max-width: ${MOBILE_BREAKPOINT}) {
-    width: ${({ isCollapsed }) => (isCollapsed ? '0' : UI_CONSTANTS.SIDEBAR_WIDTH)};
-  }
-
-  /* Scrollbar styling */
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: var(--color-background);
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--border-color-normal);
-    border-radius: 3px;
-  }
-`;
+const StyledList = styled(List)`
+  padding: var(--spacing-sm);
+  position: relative;
+  z-index: 1;
+` as typeof List;
 
 const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   color: ${({ active }) => (active ? 'var(--color-accent)' : 'var(--color-text)')};
   margin: var(--spacing-xs) 0;
   border-radius: var(--border-radius-sm);
   cursor: pointer;
+  position: relative;
+  z-index: 2;
 
   &:hover {
     background-color: var(--color-background);
@@ -136,6 +85,11 @@ const StyledListItem = styled(ListItem)<{ active?: boolean }>`
   }
 `;
 
+const StyledCollapse = styled(Collapse)`
+  position: relative;
+  z-index: 3;
+`;
+
 // Updated Navigation Items Configuration based on roles and permissions
 const getNavItems = (userRole: UserRole): NavItem[] => [
   {
@@ -148,14 +102,14 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
       {
         id: 'benchmarks',
         label: 'Benchmark Data',
-        path: '/dashboard/benchmarks',
+        path: '/benchmarks',
         icon: <AssessmentIcon />,
         visible: hasPermission(userRole, FEATURES.benchmarkData, 'read'),
       },
       {
-        id: 'company-data',
+        id: 'company-metrics',
         label: 'Company Data',
-        path: '/dashboard/company-data',
+        path: '/company-metrics',
         icon: <TimelineIcon />,
         visible: hasPermission(userRole, FEATURES.companyData, 'read'),
       },
@@ -195,6 +149,13 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
     visible: hasPermission(userRole, FEATURES.profile, 'read'),
   },
   {
+    id: 'settings',
+    label: 'Settings',
+    path: '/settings',
+    icon: <SettingsIcon />,
+    visible: hasPermission(userRole, FEATURES.users, 'read'),
+  },
+  {
     id: 'admin',
     label: 'Administration',
     path: '/admin',
@@ -209,7 +170,7 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
         visible: hasPermission(userRole, FEATURES.users, 'full'),
       },
       {
-        id: 'settings',
+        id: 'system-settings',
         label: 'System Settings',
         path: '/admin/settings',
         icon: <SettingsIcon />,
@@ -279,27 +240,20 @@ export const Navigation: React.FC<NavigationProps> = ({
           )}
         </StyledListItem>
         {hasChildren && (
-          <Collapse in={isExpanded && !isCollapsed} timeout="auto" unmountOnExit>
+          <StyledCollapse in={isExpanded && !isCollapsed} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
               {visibleChildren.map((child) => renderNavItem(child, level + 1))}
             </List>
-          </Collapse>
+          </StyledCollapse>
         )}
       </React.Fragment>
     );
   };
 
   return (
-    <StyledNavigation
-      isCollapsed={isCollapsed}
-      theme={theme}
-      aria-label={ariaLabel}
-      role="navigation"
-    >
-      <List component="nav" aria-label={ariaLabel}>
-        {filteredNavItems.map((item) => renderNavItem(item))}
-      </List>
-    </StyledNavigation>
+    <StyledList aria-label={ariaLabel}>
+      {filteredNavItems.map((item) => renderNavItem(item))}
+    </StyledList>
   );
 };
 

@@ -28,6 +28,7 @@ const Benchmarks = React.lazy(() => import('./pages/Benchmarks'));
 const CompanyMetrics = React.lazy(() => import('./pages/CompanyMetrics'));
 const Reports = React.lazy(() => import('./pages/Reports'));
 const Settings = React.lazy(() => import('./pages/Settings'));
+const Profile = React.lazy(() => import('./pages/Profile'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const GoogleCallback = React.lazy(() => import('./pages/GoogleCallback'));
 
@@ -39,6 +40,7 @@ const ROUTES = {
   COMPANY_METRICS: '/company-metrics',
   REPORTS: '/reports',
   SETTINGS: '/settings',
+  PROFILE: '/profile',
   GOOGLE_CALLBACK: '/auth/google/callback',
 } as const;
 
@@ -181,6 +183,7 @@ const AppContent: React.FC = () => {
               <Route path={ROUTES.COMPANY_METRICS} element={<CompanyMetrics />} />
               <Route path={ROUTES.REPORTS} element={<Reports />} />
               <Route path={ROUTES.SETTINGS} element={<Settings />} />
+              <Route path={ROUTES.PROFILE} element={<Profile />} />
             </Route>
 
             {/* Default Route */}

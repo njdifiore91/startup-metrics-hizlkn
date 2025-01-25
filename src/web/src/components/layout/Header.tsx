@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom'; // v6.0.0
+import { useSelector } from 'react-redux';
 import { useMetrics } from '../../hooks/useMetrics';
 import ProfileMenu from '../user/ProfileMenu';
 import { Button } from '../common/Button';
 import ErrorBoundary from '../common/ErrorBoundary';
 import logo from '../../assets/images/logo.svg';
+import { RootState } from '../../store';
 import '../../styles/theme.css';
 
 interface HeaderProps {
@@ -17,6 +19,7 @@ const Header: React.FC<HeaderProps> = memo(
   ({ className = '', testId = 'main-header', onThemeChange }) => {
     const navigate = useNavigate();
     const { loading } = useMetrics();
+    const isSidebarOpen = useSelector((state: RootState) => state.ui.isSidebarOpen);
 
     // Handle logo click navigation
     const handleLogoClick = useCallback(
@@ -122,13 +125,16 @@ const Header: React.FC<HeaderProps> = memo(
               align-items: center;
               justify-content: space-between;
               padding: 0 var(--spacing-lg);
-              z-index: var(--z-index-fixed);
+              z-index: 1200;
               box-shadow: var(--shadow-sm);
             }
 
             .logo-section {
               display: flex;
               align-items: center;
+              margin-left: var(--spacing-md);
+              position: relative;
+              z-index: 1201;
             }
 
             .logo-container {
@@ -138,6 +144,7 @@ const Header: React.FC<HeaderProps> = memo(
               padding: var(--spacing-sm);
               border-radius: var(--border-radius-sm);
               transition: background-color var(--transition-fast);
+              background-color: var(--color-background);
             }
 
             .logo-container:hover {
@@ -159,6 +166,9 @@ const Header: React.FC<HeaderProps> = memo(
               display: flex;
               align-items: center;
               gap: var(--spacing-md);
+              margin-left: auto;
+              position: relative;
+              z-index: 1201;
             }
 
             .theme-toggle {

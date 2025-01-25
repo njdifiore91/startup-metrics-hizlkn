@@ -3,19 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { AnalyticsBrowser } from '@segment/analytics-next';
 import Button from '../components/common/Button';
-import Layout from '../components/layout/Layout';
+import ErrorBoundary from '../components/common/ErrorBoundary';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store';
 
 // Styled components with CSS variables
 const NotFoundContainer = styled.div`
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+`;
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 200px);
-  padding: var(--spacing-xl);
   text-align: center;
-  background-color: var(--color-background);
-  transition: all var(--transition-fast);
+  background-color: var(--color-background-light);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color-light);
 
   @media (max-width: 768px) {
     padding: var(--spacing-lg);
@@ -23,15 +33,16 @@ const NotFoundContainer = styled.div`
 `;
 
 const ErrorCode = styled.h1`
-  font-size: var(--font-size-xxl);
+  font-size: 8rem;
   font-weight: var(--font-weight-bold);
   color: var(--color-primary);
   margin-bottom: var(--spacing-md);
   font-family: var(--font-family-primary);
   animation: fadeIn 0.5s ease-in;
+  line-height: 1;
 
   @media (max-width: 768px) {
-    font-size: var(--font-size-xl);
+    font-size: 6rem;
   }
 `;
 
@@ -45,6 +56,19 @@ const ErrorMessage = styled.p`
 
   @media (max-width: 768px) {
     font-size: var(--font-size-md);
+  }
+`;
+
+const StyledButton = styled(Button)`
+  background-color: var(--color-primary);
+  color: white;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--border-radius-md);
+  transition: background-color var(--transition-fast);
+
+  &:hover {
+    background-color: var(--color-primary-dark);
   }
 `;
 
@@ -86,23 +110,25 @@ const NotFound: React.FC = React.memo(() => {
   }, [navigate]);
 
   return (
-    <Layout>
+    <ErrorBoundary>
       <NotFoundContainer role="main" aria-labelledby="error-title">
-        <ErrorCode id="error-title" tabIndex={0}>
-          404
-        </ErrorCode>
-        <ErrorMessage>The page you're looking for doesn't exist or has been moved.</ErrorMessage>
-        <Button
-          variant="primary"
-          size="large"
-          onClick={handleBackToDashboard}
-          ariaLabel="Return to dashboard"
-          role="link"
-        >
-          Return to Dashboard
-        </Button>
+        <ContentContainer>
+          <ErrorCode id="error-title" tabIndex={0}>
+            404
+          </ErrorCode>
+          <ErrorMessage>The page you're looking for doesn't exist or has been moved.</ErrorMessage>
+          <StyledButton
+            variant="primary"
+            size="large"
+            onClick={handleBackToDashboard}
+            ariaLabel="Return to dashboard"
+            role="link"
+          >
+            Return to Dashboard
+          </StyledButton>
+        </ContentContainer>
       </NotFoundContainer>
-    </Layout>
+    </ErrorBoundary>
   );
 });
 

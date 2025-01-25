@@ -3,6 +3,7 @@ import authReducer from './authSlice';
 import metricsReducer from './metricsSlice';
 import benchmarkReducer from './benchmarkSlice';
 import companyMetricsReducer from './companyMetricsSlice';
+import uiReducer from './uiSlice';
 import { Dispatch, AnyAction, Middleware } from 'redux';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 
@@ -68,6 +69,7 @@ const rootReducer = combineReducers({
   metrics: metricsReducer,
   benchmarks: benchmarkReducer,
   companyMetrics: companyMetricsReducer,
+  ui: uiReducer,
 });
 
 /**
@@ -119,7 +121,7 @@ if (import.meta.env.NODE_ENV === 'development') {
   store.subscribe(() => {
     const state = store.getState();
     // Validate state structure
-    const requiredSlices = ['auth', 'metrics', 'benchmarks', 'companyMetrics'];
+    const requiredSlices = ['auth', 'metrics', 'benchmarks', 'companyMetrics', 'ui'];
     requiredSlices.forEach((slice) => {
       if (!isValidStateSlice(state, slice)) {
         console.error(`Missing required state slice: ${slice}`);

@@ -12,8 +12,7 @@ import type { IUser } from '../interfaces/IUser';
 import type { RootState } from '../store';
 
 // Constants for security and session management
-const TOKEN_REFRESH_INTERVAL = 300000; // 5 minutes
-const SESSION_VALIDATION_INTERVAL = 300000; // Changed from 1 minute to 5 minutes
+const REFRESH_BEFORE_EXPIRY = 300000; // Refresh 5 minutes before token expires
 const MAX_AUTH_ATTEMPTS = 3;
 const AUTH_ATTEMPT_TIMEOUT = 300000; // 5 minutes
 
@@ -68,6 +67,8 @@ interface UseAuthReturn {
 export const useAuth = (): UseAuthReturn => {
   const dispatch = useDispatch();
   const authService = new AuthService();
+  const lastRefreshTime = useRef<number>(Date.now());
+  const lastValidationTime = useRef<number>(Date.now());
   const authAttemptsRef = useRef<AuthAttempt>({
     count: 0,
     lastAttempt: 0,
@@ -116,7 +117,7 @@ export const useAuth = (): UseAuthReturn => {
           const timeUntilExpiry = tokenExpiration ? tokenExpiration.getTime() - now : 0;
           
           // Only validate if token is close to expiry or expiration time unknown
-          if (!tokenExpiration || timeUntilExpiry <= TOKEN_REFRESH_INTERVAL) {
+          if (!tokenExpiration || timeUntilExpiry <= REFRESH_BEFORE_EXPIRY) {
             const isValid = await authService.validateSession();
             if (isValid) {
               dispatch(authActions.setAuthenticated(true));
@@ -229,7 +230,44 @@ export const useAuth = (): UseAuthReturn => {
     }
   }, [dispatch]);
 
-  // Return the hook interface with the enhanced logout
+  // Coordinated refresh based on token expiration
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const setupRefreshTimer = () => {
+      const tokenExpiration = authService.getTokenExpiration();
+      if (!tokenExpiration) return null;
+
+      const now = Date.now();
+      const timeUntilExpiry = tokenExpiration.getTime() - now;
+      const refreshTime = timeUntilExpiry - REFRESH_BEFORE_EXPIRY; // Refresh 5 min before expiry
+      
+      // If token is already close to expiring, refresh immediately
+      if (refreshTime <= 0) {
+        authService.refreshAuthToken().catch(console.error);
+        return null;
+      }
+
+      // Set timer to refresh before token expires
+      return setTimeout(async () => {
+        try {
+          await authService.refreshAuthToken();
+          // Setup next refresh timer after successful refresh
+          setupRefreshTimer();
+        } catch (error) {
+          console.error('Token refresh failed:', error);
+        }
+      }, refreshTime);
+    };
+
+    const refreshTimer = setupRefreshTimer();
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [isAuthenticated, authService]);
+
+  // Return the hook interface
   return {
     user,
     isLoading,

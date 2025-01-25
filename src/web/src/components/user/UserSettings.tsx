@@ -6,8 +6,152 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UpdateUserSettingsParams, useAuth } from '../../hooks/useAuth';
-import { Card } from '../common/Card';
+import styled from '@emotion/styled';
+import { UpdateUserSettingsParams, useAuth } from '@/hooks/useAuth';
+import { Card } from '@/components/common/Card';
+import {
+  Person as PersonIcon,
+  Security as SecurityIcon,
+  Tune as TuneIcon,
+  Email as EmailIcon,
+  Notifications as NotificationsIcon,
+  Shield as ShieldIcon,
+} from '@mui/icons-material';
+
+// Styled Components
+const StyledCard = styled(Card)`
+  background: var(--color-surface);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: transform 0.2s ease-in-out;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+`;
+
+const SectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+
+  h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-primary);
+  }
+
+  svg {
+    color: var(--color-primary);
+    font-size: 24px;
+  }
+`;
+
+const Field = styled.div`
+  margin-bottom: var(--spacing-lg);
+
+  label {
+    display: block;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .value {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+    padding: var(--spacing-sm) 0;
+  }
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  transition: border-color 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-light);
+  }
+`;
+
+const CheckboxGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+`;
+
+const CheckboxLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: var(--color-background-hover);
+  }
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  svg {
+    color: var(--color-text-secondary);
+    font-size: 20px;
+  }
+`;
+
+const Actions = styled.div`
+  display: flex;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xl);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+`;
+
+const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--border-radius-sm);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  ${({ variant = 'primary' }) =>
+    variant === 'primary'
+      ? `
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+
+    &:hover {
+      background-color: var(--color-primary-dark);
+    }
+    `
+      : `
+    background-color: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+
+    &:hover {
+      background-color: var(--color-background-hover);
+    }
+    `}
+`;
 
 // Interfaces
 interface UserSettingsProps {
@@ -51,13 +195,25 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
 
   // Format last login date with localization
   const formatLastLogin = useCallback(
-    (date: Date): string => {
-      return new Intl.DateTimeFormat(preferences.language, {
-        dateStyle: 'full',
-        timeStyle: 'long',
-      }).format(date);
+    (timestamp: string | number | Date): string => {
+      try {
+        const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+        return new Intl.DateTimeFormat('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+          timeZoneName: 'short'
+        }).format(date);
+      } catch (error) {
+        console.error('Date formatting error:', error);
+        return 'Never logged in';
+      }
     },
-    [preferences.language]
+    []
   );
 
   // Handle preference updates
@@ -140,139 +296,140 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
 
   return (
     <div className={`user-settings ${className || ''}`}>
-      {/* Profile Section */}
-      <Card
-        elevation="medium"
-        className="user-settings__section"
-        aria-label={t('settings.profile.title')}
-      >
-        <h2>{t('settings.profile.title')}</h2>
-        <div className="user-settings__field">
-          <label>{t('settings.profile.email')}</label>
-          <div className="user-settings__value">{user.email}</div>
-        </div>
-        <div className="user-settings__field">
-          <label>{t('settings.profile.name')}</label>
-          <div className="user-settings__value">{user.name}</div>
-        </div>
-        <div className="user-settings__field">
-          <label>{t('settings.profile.lastLogin')}</label>
-          <div className="user-settings__value">{formatLastLogin(user.lastLoginAt)}</div>
-        </div>
-      </Card>
+      <StyledCard elevation="medium" className="section">
+        <SectionHeader>
+          <PersonIcon />
+          <h2>Profile Information</h2>
+        </SectionHeader>
+        <Field>
+          <label>Email</label>
+          <div className="value">{user.email}</div>
+        </Field>
+        <Field>
+          <label>Name</label>
+          <div className="value">{user.name}</div>
+        </Field>
+        <Field>
+          <label>Last Login</label>
+          <div className="value">{formatLastLogin(user.lastLoginAt)}</div>
+        </Field>
+      </StyledCard>
 
-      {/* Security Section */}
-      <Card
-        elevation="medium"
-        className="user-settings__section"
-        aria-label={t('settings.security.title')}
-      >
-        <h2>{t('settings.security.title')}</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="user-settings__field">
-            <label htmlFor="twoFactor">{t('settings.security.2fa')}</label>
-            <div className="user-settings__toggle">
+      <StyledCard elevation="medium" className="section">
+        <SectionHeader>
+          <SecurityIcon />
+          <h2>Security Settings</h2>
+        </SectionHeader>
+        <Field>
+          <CheckboxLabel>
+            <input
+              type="checkbox"
+              checked={preferences.twoFactorEnabled}
+              onChange={handle2FAToggle}
+            />
+            <span>Two-Factor Authentication</span>
+          </CheckboxLabel>
+          <div className="description">
+            Enable two-factor authentication for enhanced account security
+          </div>
+        </Field>
+      </StyledCard>
+
+      <StyledCard elevation="medium" className="section">
+        <SectionHeader>
+          <TuneIcon />
+          <h2>Preferences</h2>
+        </SectionHeader>
+        <Field>
+          <label htmlFor="theme">Theme</label>
+          <Select
+            id="theme"
+            value={preferences.theme}
+            onChange={(e) => handlePreferenceChange('theme', e.target.value)}
+          >
+            <option value="system">System Default</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </Select>
+        </Field>
+        <Field>
+          <label htmlFor="language">Language</label>
+          <Select
+            id="language"
+            value={preferences.language}
+            onChange={(e) => handlePreferenceChange('language', e.target.value)}
+          >
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+          </Select>
+        </Field>
+        <Field>
+          <label>Notifications</label>
+          <CheckboxGroup>
+            <CheckboxLabel>
               <input
                 type="checkbox"
-                id="twoFactor"
-                checked={preferences.twoFactorEnabled}
-                onChange={handle2FAToggle}
-                aria-describedby="twoFactorDescription"
+                checked={preferences.notifications.email}
+                onChange={(e) =>
+                  handlePreferenceChange('notifications', {
+                    ...preferences.notifications,
+                    email: e.target.checked,
+                  })
+                }
               />
-              <span id="twoFactorDescription" className="user-settings__description">
-                {t('settings.security.2faDescription')}
-              </span>
-            </div>
-          </div>
-        </form>
-      </Card>
+              <EmailIcon />
+              <span>Email Notifications</span>
+            </CheckboxLabel>
+            <CheckboxLabel>
+              <input
+                type="checkbox"
+                checked={preferences.notifications.browser}
+                onChange={(e) =>
+                  handlePreferenceChange('notifications', {
+                    ...preferences.notifications,
+                    browser: e.target.checked,
+                  })
+                }
+              />
+              <NotificationsIcon />
+              <span>Browser Notifications</span>
+            </CheckboxLabel>
+            <CheckboxLabel>
+              <input
+                type="checkbox"
+                checked={preferences.notifications.security}
+                onChange={(e) =>
+                  handlePreferenceChange('notifications', {
+                    ...preferences.notifications,
+                    security: e.target.checked,
+                  })
+                }
+              />
+              <ShieldIcon />
+              <span>Security Alerts</span>
+            </CheckboxLabel>
+          </CheckboxGroup>
+        </Field>
+      </StyledCard>
 
-      {/* Preferences Section */}
-      <Card
-        elevation="medium"
-        className="user-settings__section"
-        aria-label={t('settings.preferences.title')}
-      >
-        <h2>{t('settings.preferences.title')}</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="user-settings__field">
-            <label htmlFor="theme">{t('settings.preferences.theme')}</label>
-            <select
-              id="theme"
-              value={preferences.theme}
-              onChange={(e) => handlePreferenceChange('theme', e.target.value)}
-            >
-              <option value="light">{t('settings.preferences.themeLight')}</option>
-              <option value="dark">{t('settings.preferences.themeDark')}</option>
-              <option value="system">{t('settings.preferences.themeSystem')}</option>
-            </select>
-          </div>
+      <Actions>
+        <Button variant="primary" onClick={handleSubmit}>
+          Save Changes
+        </Button>
+        <Button variant="secondary" onClick={logout}>
+          Logout
+        </Button>
+      </Actions>
 
-          <div className="user-settings__field">
-            <label htmlFor="language">{t('settings.preferences.language')}</label>
-            <select
-              id="language"
-              value={preferences.language}
-              onChange={(e) => handlePreferenceChange('language', e.target.value)}
-            >
-              {SUPPORTED_LANGUAGES.map((lang) => (
-                <option key={lang} value={lang}>
-                  {t(`languages.${lang}`)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="user-settings__field">
-            <label>{t('settings.preferences.notifications')}</label>
-            <div className="user-settings__checkboxes">
-              {Object.keys(preferences.notifications).map((key) => (
-                <label key={key} className="user-settings__checkbox">
-                  <input
-                    type="checkbox"
-                    checked={
-                      preferences.notifications[key as keyof typeof preferences.notifications]
-                    }
-                    onChange={(e) =>
-                      handlePreferenceChange('notifications', {
-                        ...preferences.notifications,
-                        [key]: e.target.checked,
-                      })
-                    }
-                  />
-                  {t(`settings.preferences.notifications.${key}`)}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {errors.submit && (
-            <div className="user-settings__error" role="alert">
-              {errors.submit}
-            </div>
-          )}
-
-          <div className="user-settings__actions">
-            <button type="submit" className="button button--primary" disabled={!isEditing}>
-              {t('common.save')}
-            </button>
-            <button type="button" className="button button--secondary" onClick={logout}>
-              {t('common.logout')}
-            </button>
-          </div>
-        </form>
-      </Card>
-
-      {/* Session Warning Modal */}
       {showSessionWarning && (
-        <div
-          className="user-settings__warning"
-          role="alertdialog"
-          aria-labelledby="sessionWarningTitle"
-        >
-          <h3 id="sessionWarningTitle">{t('settings.session.warningTitle')}</h3>
-          <p>{t('settings.session.warningMessage')}</p>
-          <button onClick={() => setShowSessionWarning(false)}>{t('common.continue')}</button>
+        <div className="warning-modal" role="alertdialog">
+          <h3>Session Warning</h3>
+          <p>Your session is about to expire. Would you like to continue?</p>
+          <Button variant="primary" onClick={() => setShowSessionWarning(false)}>
+            Continue Session
+          </Button>
         </div>
       )}
 

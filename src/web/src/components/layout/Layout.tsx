@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect, memo } from 'react';
+import React, { useCallback, useEffect, memo, useState } from 'react';
 import styled from '@emotion/styled';
+import { useDispatch, useSelector } from 'react-redux';
 import Header from './Header';
 import Footer from './Footer';
 import Sidebar from './Sidebar';
@@ -7,6 +8,8 @@ import ErrorBoundary from '../common/ErrorBoundary';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
 import { useLocation } from 'react-router-dom';
+import { RootState } from '../../store';
+import { toggleSidebar } from '../../store/uiSlice';
 
 // Layout Props Interface
 interface LayoutProps {
@@ -29,9 +32,8 @@ const LayoutContainer = styled.div<{ direction: 'ltr' | 'rtl' }>`
   overflow-x: hidden;
 `;
 
-const MainContent = styled.main<{ sidebarOpen: boolean; isLoginPage?: boolean }>`
+const MainContent = styled.main<{ isLoginPage?: boolean }>`
   flex: 1;
-  margin-inline-start: ${(props) => (!props.isLoginPage ? (props.sidebarOpen ? '240px' : '64px') : '0')};
   margin-top: 64px;
   padding: var(--spacing-lg);
   transition: margin-inline-start 0.3s ease;
@@ -40,7 +42,6 @@ const MainContent = styled.main<{ sidebarOpen: boolean; isLoginPage?: boolean }>
   min-height: calc(100vh - 128px);
 
   @media (max-width: 768px) {
-    margin-inline-start: 0;
     padding: var(--spacing-md);
   }
 `;
@@ -62,13 +63,14 @@ const SkipLink = styled.a`
 
 // Layout Component
 const Layout: React.FC<LayoutProps> = memo(({ children, className = '', direction = 'ltr' }) => {
-  // State Management
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const { validateSession, sessionStatus } = useAuth();
+  const dispatch = useDispatch();
+  const { validateSession } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const { showToast } = useToast();
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  
+  const isSidebarOpen = useSelector((state: RootState) => state.ui.isSidebarOpen);
 
   // Session Monitoring
   useEffect(() => {
@@ -98,9 +100,9 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
   }, []);
 
   // Sidebar Toggle Handler
-  const toggleSidebar = useCallback(() => {
-    setSidebarOpen((prev) => !prev);
-  }, []);
+  const handleSidebarToggle = useCallback(() => {
+    dispatch(toggleSidebar());
+  }, [dispatch]);
 
   // Error Handler
   const handleError = useCallback((error: Error) => {
@@ -120,14 +122,14 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
             break;
           }
           case 'm':
-            toggleSidebar();
+            handleSidebarToggle();
             break;
           default:
             break;
         }
       }
     },
-    [toggleSidebar]
+    [handleSidebarToggle]
   );
 
   useEffect(() => {
@@ -154,8 +156,8 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
         {/* Sidebar Component */}
         {!isLoginPage && (
           <Sidebar
-            isOpen={sidebarOpen}
-            onToggle={toggleSidebar}
+            isOpen={isSidebarOpen}
+            onToggle={handleSidebarToggle}
             onError={handleError}
             ariaLabel="Main navigation sidebar"
           />
@@ -164,11 +166,13 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
         {/* Main Content Area */}
         <MainContent
           id="main-content"
-          sidebarOpen={sidebarOpen}
           isLoginPage={isLoginPage}
           role="main"
           aria-label="Main content"
           tabIndex={-1}
+          style={{
+            marginLeft: !isLoginPage ? (isSidebarOpen ? '240px' : '64px') : '0',
+          }}
         >
           <ErrorBoundary onError={handleError}>{children}</ErrorBoundary>
         </MainContent>

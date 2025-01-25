@@ -103,7 +103,6 @@ const RATE_LIMIT = {
 export class AuthService {
   private googleAuth: GoogleAuth | null = null;
   private currentUser: IUser | null = null;
-  private refreshTimer: NodeJS.Timeout | null = null;
   private isAuthenticated: boolean = false;
   private token: string = '';
   private refreshToken: string = '';
@@ -112,7 +111,6 @@ export class AuthService {
 
   constructor() {
     this.initializeRateLimiter();
-    this.setupTokenRefresh();
     // Initialize Google Auth in the background
     this.initializeGoogleAuth().catch(error => {
       console.warn('Background Google Auth initialization failed:', error);
@@ -299,11 +297,6 @@ export class AuthService {
       if (this.googleAuth) {
         await this.googleAuth.signOut();
       }
-
-      if (this.refreshTimer) {
-        clearInterval(this.refreshTimer);
-        this.refreshTimer = null;
-      }
     } catch (error) {
       console.error('Logout failed:', error);
       // Still clear local state even if server call fails
@@ -450,11 +443,6 @@ export class AuthService {
         tokenExpiration: this.tokenExpiration
       }
     }));
-
-    // Set up token refresh if authenticated
-    if (isAuthenticated && !this.refreshTimer) {
-      this.setupTokenRefresh();
-    }
   }
 
   /**
@@ -468,35 +456,6 @@ export class AuthService {
     this.isAuthenticated = false;
     this.currentUser = null;
     api.defaults.headers.common['Authorization'] = '';
-  }
-
-  private setupTokenRefresh(): void {
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer);
-    }
-
-    // Only set up refresh timer if we have tokens
-    const tokens = this.getStoredTokens();
-    if (!tokens) {
-      return;
-    }
-
-    this.refreshTimer = setInterval(async () => {
-      try {
-        const tokens = this.getStoredTokens();
-        if (!tokens) {
-          clearInterval(this.refreshTimer!);
-          this.refreshTimer = null;
-          return;
-        }
-        await this.refreshAuthToken();
-      } catch (error) {
-        console.error('Token refresh failed:', error);
-        // Clear refresh timer on error
-        clearInterval(this.refreshTimer!);
-        this.refreshTimer = null;
-      }
-    }, AUTH_CONFIG.REFRESH_INTERVAL);
   }
 
   private handleUserChange(googleUser: GoogleUser): void {

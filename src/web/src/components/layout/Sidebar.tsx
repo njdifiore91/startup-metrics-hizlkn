@@ -35,6 +35,7 @@ const StyledDrawer = styled(Drawer)`
   width: ${DRAWER_WIDTH}px;
   flex-shrink: 0;
   white-space: nowrap;
+  z-index: 1100;
 
   & .MuiDrawer-paper {
     width: ${DRAWER_WIDTH}px;
@@ -44,6 +45,8 @@ const StyledDrawer = styled(Drawer)`
     border-right: 1px solid var(--border-color-light);
     transition: width ${TRANSITION_DURATION}ms cubic-bezier(0.4, 0, 0.6, 1);
     overflow-x: hidden;
+    margin-top: var(--header-height);
+    height: calc(100% - var(--header-height));
   }
 
   &.collapsed {
@@ -70,13 +73,17 @@ const DrawerHeader = styled.div`
   align-items: center;
   justify-content: flex-end;
   padding: var(--spacing-sm);
-  min-height: 64px;
+  min-height: 48px;
   border-bottom: 1px solid var(--border-color-light);
+  background-color: var(--color-surface);
 `;
 
 const ToggleButton = styled(IconButton)`
-  margin-right: var(--spacing-xs);
   color: var(--color-text);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--border-radius-sm);
+  transition: background-color 0.2s ease;
 
   &:hover {
     background-color: var(--color-background);
@@ -85,6 +92,31 @@ const ToggleButton = styled(IconButton)`
   &:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const NavigationContainer = styled.div`
+  height: calc(100% - 48px);
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Scrollbar styling */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--color-background);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-color-normal);
+    border-radius: 3px;
   }
 `;
 
@@ -149,14 +181,14 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
             {isOpen ? <ChevronLeft /> : <ChevronRight />}
           </ToggleButton>
         </DrawerHeader>
-        <div id="sidebar-content" role="region" aria-label={ariaLabel}>
+        <NavigationContainer id="sidebar-content" role="region" aria-label={ariaLabel}>
           <Navigation
             isCollapsed={!isOpen}
             theme={theme}
             ariaLabel={ariaLabel}
             onNavigationError={onError}
           />
-        </div>
+        </NavigationContainer>
       </StyledDrawer>
     );
   }
