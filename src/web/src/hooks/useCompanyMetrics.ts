@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react'; // v18.2.0
+import { useCallback, useEffect, useRef, useMemo } from 'react'; // v18.2.0
 import * as yup from 'yup'; // v1.0.0
 import sanitizeHtml from 'sanitize-html'; // v2.11.0
+import { debounce } from 'lodash'; // Add lodash for debouncing
+import { AxiosError } from 'axios'; // Add AxiosError for error handling
 
 // Internal imports
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
@@ -17,6 +19,15 @@ import {
   deleteCompanyMetric,
 } from '../store/companyMetricsSlice';
 
+// Cache configuration
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const DEBOUNCE_DELAY = 500; // 500ms delay for debouncing
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
 // Validation schema for metric data
 const metricDataSchema = yup.object().shape({
   value: yup.number().required('Metric value is required'),
@@ -31,6 +42,7 @@ const metricDataSchema = yup.object().shape({
 export const useCompanyMetrics = () => {
   const dispatch = useAppDispatch();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const cacheRef = useRef<Map<string, CacheEntry<any>>>(new Map());
 
   // Selectors
   const metrics = useAppSelector(selectAllMetrics);
@@ -39,54 +51,117 @@ export const useCompanyMetrics = () => {
   );
   const error = useAppSelector(selectError);
 
-  // Cleanup function for request cancellation
+  // Cache management
+  const clearExpiredCache = useCallback(() => {
+    const now = Date.now();
+    for (const [key, entry] of cacheRef.current.entries()) {
+      if (now - entry.timestamp > CACHE_TTL) {
+        cacheRef.current.delete(key);
+      }
+    }
+  }, []);
+
+  // Cleanup function for request cancellation and cache
   useEffect(() => {
+    const intervalId = setInterval(clearExpiredCache, CACHE_TTL);
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      clearInterval(intervalId);
     };
-  }, []);
+  }, [clearExpiredCache]);
 
   /**
-   * Fetches all company metrics with caching and deduplication
+   * Debounced fetch metrics implementation
    */
-  const fetchMetrics = useCallback(async () => {
-    try {
-      // Cancel any pending requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      abortControllerRef.current = new AbortController();
+  const debouncedFetchMetrics = useMemo(
+    () =>
+      debounce(async () => {
+        try {
+          // Check cache first
+          const cacheKey = 'all_metrics';
+          const cachedData = cacheRef.current.get(cacheKey);
+          
+          if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+            return cachedData.data;
+          }
 
-      await dispatch(fetchCompanyMetrics()).unwrap();
-    } catch (error) {
-      console.error('Error fetching metrics:', error);
-    }
-  }, [dispatch]);
+          // Cancel any pending requests
+          if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+          }
+          abortControllerRef.current = new AbortController();
 
-  /**
-   * Fetches a specific company metric by ID with validation
-   */
-  const fetchMetricById = useCallback(
-    async (id: string) => {
-      try {
-        if (!id) {
-          throw new Error('Metric ID is required');
+          const result = await dispatch(fetchCompanyMetrics()).unwrap();
+          
+          // Cache the result
+          cacheRef.current.set(cacheKey, {
+            data: result,
+            timestamp: Date.now(),
+          });
+
+          return result;
+        } catch (error) {
+          if (error instanceof AxiosError && error.response?.status === 404) {
+            // Return empty array for 404s
+            return [];
+          }
+          console.error('Error fetching metrics:', error);
+          // Don't throw the error, just return empty array
+          return [];
         }
-
-        // Cancel any pending requests
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-        abortControllerRef.current = new AbortController();
-
-        await dispatch(fetchCompanyMetricById(id)).unwrap();
-      } catch (error) {
-        console.error('Error fetching metric:', error);
-      }
-    },
+      }, DEBOUNCE_DELAY),
     [dispatch]
+  );
+
+  /**
+   * Debounced fetch metric by ID implementation
+   */
+  const debouncedFetchMetricById = useMemo(
+    () =>
+      debounce(async (id: string) => {
+        try {
+          if (!id) {
+            throw new Error('Metric ID is required');
+          }
+
+          // Check cache first
+          const cacheKey = `metric_${id}`;
+          const cachedData = cacheRef.current.get(cacheKey);
+          
+          if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+            return cachedData.data;
+          }
+
+          // Cancel any pending requests
+          if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+          }
+          abortControllerRef.current = new AbortController();
+
+          const result = await dispatch(fetchCompanyMetricById(id)).unwrap();
+          
+          // Cache the result
+          cacheRef.current.set(cacheKey, {
+            data: result,
+            timestamp: Date.now(),
+          });
+
+          return result;
+        } catch (error) {
+          console.error('Error fetching metric:', error);
+          throw error;
+        }
+      }, DEBOUNCE_DELAY),
+    [dispatch]
+  );
+
+  // Public methods that use the debounced implementations
+  const fetchMetrics = useCallback(() => debouncedFetchMetrics(), [debouncedFetchMetrics]);
+  const fetchMetricById = useCallback(
+    (id: string) => debouncedFetchMetricById(id),
+    [debouncedFetchMetricById]
   );
 
   /**

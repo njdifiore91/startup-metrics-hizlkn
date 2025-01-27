@@ -68,8 +68,8 @@ const configureApp = (): Application => {
   // API routes - Note this comes before the general routes
   app.use('/api/v1', router);
 
-  // Metrics route
-  app.use('/api/metrics', metricsRouter);
+  // Mount metrics routes directly
+  app.use(metricsRouter);
 
   // Root route
   app.get('/', (req: Request, res: Response) => {

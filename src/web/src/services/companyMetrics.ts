@@ -7,6 +7,7 @@
 // External imports
 import { debounce } from 'lodash';
 import { AxiosError } from 'axios';
+import { store } from '../store';
 
 // Internal imports
 import { api } from './api';
@@ -16,8 +17,8 @@ import { IMetric } from '../interfaces/IMetric';
 
 // Constants
 const API_ENDPOINTS = {
-  BASE: '/api/v1/company/metrics',
-  BY_ID: (id: string) => `/api/v1/company/metrics/${id}`,
+  BASE: '/api/v1/metrics',
+  BY_ID: (id: string) => `/api/v1/metrics/${id}`,
 } as const;
 
 const CACHE_CONFIG = {
@@ -78,6 +79,18 @@ class CompanyMetricsService {
   private cache: Map<CacheKey, CacheEntry<ICompanyMetric | ICompanyMetric[]>> = new Map();
 
   /**
+   * Get the current user's ID from Redux store
+   */
+  private getCurrentUserId(): string {
+    const state = store.getState();
+    const user = state.auth.user;
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+    return user.id;
+  }
+
+  /**
    * Retrieves all company metrics for the authenticated user
    * @returns Promise<ICompanyMetric[]> Array of company metrics
    */
@@ -90,21 +103,28 @@ class CompanyMetricsService {
         return cached;
       }
 
-      const response = await api.get<ICompanyMetric[]>(API_ENDPOINTS.BASE);
-      const metrics = response.data;
+      const userId = this.getCurrentUserId();
+      const response = await api.get<{ data: ICompanyMetric[] }>(`${API_ENDPOINTS.BASE}/user/${userId}`);
+      const metrics = response.data.data || [];
 
-      // Validate each metric
-      metrics.forEach((metric) => {
-        const validation = validateMetricData(metric);
-        if (!validation.isValid) {
-          console.warn('Invalid metric data:', validation.errors);
-        }
-      });
+      // Validate each metric if we have any
+      if (Array.isArray(metrics)) {
+        metrics.forEach((metric) => {
+          const validation = validateMetricData(metric);
+          if (!validation.isValid) {
+            console.warn('Invalid metric data:', validation.errors);
+          }
+        });
+      }
 
       this.setCachedData(cacheKey, metrics);
       return metrics;
     } catch (error) {
-      if (error instanceof AxiosError && error.response) {
+      if (error instanceof AxiosError) {
+        if (error.response?.status === 404) {
+          // Return empty array for 404s
+          return [];
+        }
         throw handleApiError(error as AxiosError<ApiError>);
       }
       throw error;

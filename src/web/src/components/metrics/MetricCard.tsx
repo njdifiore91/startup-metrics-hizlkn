@@ -2,7 +2,7 @@ import React from 'react';
 import classnames from 'classnames';
 import styled from '@emotion/styled';
 import { Card } from '../common/Card';
-import { IMetric, MetricCategory } from '../../interfaces/IMetric';
+import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { formatMetricValue } from '../../utils/numberFormatters';
 
 const StyledCard = styled(Card)<{ isSelected: boolean; isInteractive: boolean }>`
@@ -71,15 +71,14 @@ const Description = styled.div`
 `;
 
 interface MetricCardProps {
-  metric: IMetric;
-  value: number;
-  selected?: boolean;
-  onClick?: () => void;
+  metric: ICompanyMetric;
+  onEdit?: () => void;
+  onDelete?: (id: string) => Promise<void>;
   className?: string;
   testId?: string;
 }
 
-const getCategoryColor = (category: MetricCategory): string => {
+const getCategoryColor = (category: string): string => {
   switch (category) {
     case 'financial':
       return 'var(--color-primary)';
@@ -93,50 +92,72 @@ const getCategoryColor = (category: MetricCategory): string => {
 };
 
 const MetricCard: React.FC<MetricCardProps> = React.memo(
-  ({ metric, value, selected = false, onClick, className, testId = 'metric-card' }) => {
+  ({ metric, onEdit, onDelete, className, testId = 'metric-card' }) => {
     const formattedValue = React.useMemo(() => {
       try {
-        return formatMetricValue(value, metric.valueType, metric.validationRules.precision || 2, {
-          ariaLabel: `${metric.name}: ${value}`,
-        });
+        return formatMetricValue(
+          metric.value,
+          metric.metric.valueType,
+          metric.metric.validationRules.precision || 2,
+          {
+            ariaLabel: `${metric.metric.name}: ${metric.value}`,
+          }
+        );
       } catch (error) {
         console.error('Error formatting metric value:', error);
         return 'Error';
       }
-    }, [value, metric]);
+    }, [metric]);
 
     const handleKeyDown = React.useCallback(
       (event: React.KeyboardEvent) => {
-        if (onClick && (event.key === 'Enter' || event.key === ' ')) {
+        if (onEdit && (event.key === 'Enter' || event.key === ' ')) {
           event.preventDefault();
-          onClick();
+          onEdit();
         }
       },
-      [onClick]
+      [onEdit]
     );
+
+    const handleDelete = React.useCallback(async () => {
+      if (onDelete && window.confirm('Are you sure you want to delete this metric?')) {
+        await onDelete(metric.id);
+      }
+    }, [metric.id, onDelete]);
 
     const cardClasses = classnames('metric-card', className);
 
     return (
       <StyledCard
         className={cardClasses}
-        onClick={onClick}
-        elevation={selected ? 'medium' : 'low'}
-        interactive={!!onClick}
+        onClick={onEdit}
+        elevation="low"
+        interactive={!!onEdit}
         testId={testId}
-        role="button"
-        ariaLabel={`${metric.name} metric card${selected ? ', selected' : ''}`}
-        isSelected={selected}
-        isInteractive={!!onClick}
+        role={onEdit ? 'button' : undefined}
+        ariaLabel={`${metric.metric.name} metric card`}
+        isSelected={false}
+        isInteractive={!!onEdit}
       >
         <CardContent>
-          <Title>{metric.name}</Title>
+          <Title>{metric.metric.name}</Title>
           <Value
-            categoryColor={getCategoryColor(metric.category)}
+            categoryColor={getCategoryColor(metric.metric.category)}
             dangerouslySetInnerHTML={{ __html: formattedValue }}
           />
-          <Category>{metric.category.toUpperCase()}</Category>
-          {metric.description && <Description>{metric.description}</Description>}
+          <Category>{metric.metric.category.toUpperCase()}</Category>
+          {metric.metric.description && <Description>{metric.metric.description}</Description>}
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+              aria-label="Delete metric"
+            >
+              Delete
+            </button>
+          )}
         </CardContent>
       </StyledCard>
     );

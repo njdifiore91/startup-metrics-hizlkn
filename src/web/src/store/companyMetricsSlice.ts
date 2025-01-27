@@ -64,30 +64,28 @@ const createErrorConfig = () => {
 
 // Helper function to handle errors
 const handleMetricError = (error: unknown) => {
-  const config = createErrorConfig();
+  if (error instanceof AxiosError) {
+    const errorMessage = error.response?.data?.message || error.message;
+    return {
+      message: errorMessage,
+      code: error.response?.data?.code || error.code || 'UNKNOWN_ERROR',
+      details: error.response?.data?.details || error.response?.data
+    };
+  }
 
-  const axiosError: AxiosError<ApiError> = {
-    isAxiosError: true,
-    name: 'AxiosError',
-    message: error instanceof Error ? error.message : 'An unknown error occurred',
-    toJSON: () => ({}),
-    config,
-    response: {
-      data: {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'An unknown error occurred',
-        code: 'UNKNOWN_ERROR',
-        details: {},
-        timestamp: new Date().toISOString(),
-      },
-      status: 500,
-      statusText: 'Internal Server Error',
-      headers: config.headers,
-      config,
-    },
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      code: 'UNKNOWN_ERROR',
+      details: error.stack
+    };
+  }
+
+  return {
+    message: 'Failed to process your request',
+    code: 'UNKNOWN_ERROR',
+    details: error
   };
-
-  return handleApiError(axiosError);
 };
 
 // Async thunks
@@ -122,8 +120,14 @@ export const fetchCompanyMetrics = createAsyncThunk(
       }
 
       const metrics = await companyMetricsService.getCompanyMetrics();
+      if (!metrics || metrics.length === 0) {
+        return []; // Return empty array if no metrics found
+      }
       return metrics;
     } catch (error) {
+      if (error instanceof AxiosError && error.response?.status === 404) {
+        return []; // Return empty array for 404s
+      }
       return rejectWithValue(handleMetricError(error));
     }
   }

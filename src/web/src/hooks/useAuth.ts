@@ -66,14 +66,13 @@ interface UseAuthReturn {
  */
 export const useAuth = (): UseAuthReturn => {
   const dispatch = useDispatch();
-  const authService = new AuthService();
-  const lastRefreshTime = useRef<number>(Date.now());
-  const lastValidationTime = useRef<number>(Date.now());
-  const authAttemptsRef = useRef<AuthAttempt>({
-    count: 0,
-    lastAttempt: 0,
-    locked: false,
-  });
+  const authServiceRef = useRef<AuthService>();
+  
+  // Initialize auth service only once
+  if (!authServiceRef.current) {
+    authServiceRef.current = new AuthService();
+  }
+  const authService = authServiceRef.current;
 
   // Select auth state from Redux store with proper typing
   const user = useSelector((state: RootState) => state.auth.user);
@@ -84,6 +83,7 @@ export const useAuth = (): UseAuthReturn => {
 
   // Listen for auth state changes
   useEffect(() => {
+    let mounted = true;
     const handleAuthStateChange = (event: CustomEvent<{
       isAuthenticated: boolean;
       user: IUser;
@@ -91,6 +91,7 @@ export const useAuth = (): UseAuthReturn => {
       refreshToken: string;
       tokenExpiration: Date;
     }>) => {
+      if (!mounted) return;
       const { isAuthenticated, user, token, refreshToken, tokenExpiration } = event.detail;
       
       // Update Redux store
@@ -106,166 +107,44 @@ export const useAuth = (): UseAuthReturn => {
 
     window.addEventListener('auth-state-change', handleAuthStateChange as EventListener);
     
-    // Check for existing auth on mount
+    // Check for existing auth on mount only
     const checkExistingAuth = async () => {
+      if (!mounted) return;
       try {
         const tokens = authService.getStoredTokens();
         if (tokens) {
-          // Check if token is close to expiration before validating
           const tokenExpiration = authService.getTokenExpiration();
           const now = Date.now();
           const timeUntilExpiry = tokenExpiration ? tokenExpiration.getTime() - now : 0;
           
-          // Only validate if token is close to expiry or expiration time unknown
           if (!tokenExpiration || timeUntilExpiry <= REFRESH_BEFORE_EXPIRY) {
             const isValid = await authService.validateSession();
-            if (isValid) {
+            if (isValid && mounted) {
               dispatch(authActions.setAuthenticated(true));
               dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
-            } else {
-              // Clear invalid tokens
+            } else if (mounted) {
               authService.logout().catch(console.error);
             }
-          } else {
-            // Token is still valid, just update the state
+          } else if (mounted) {
             dispatch(authActions.setAuthenticated(true));
             dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
           }
         }
       } catch (error) {
         console.error('Failed to check existing auth:', error);
-        // Clear any invalid state
-        authService.logout().catch(console.error);
+        if (mounted) {
+          authService.logout().catch(console.error);
+        }
       }
     };
-    
+
     checkExistingAuth();
 
     return () => {
+      mounted = false;
       window.removeEventListener('auth-state-change', handleAuthStateChange as EventListener);
     };
-  }, [dispatch]);
-
-  console.log('useAuth hook state:', {
-    isLoading,
-    isAuthenticated,
-    sessionStatus,
-    hasUser: !!user,
-    hasError: !!error,
-  });
-
-  // Login function with rate limit handling
-  const login = useCallback(async (): Promise<void> => {
-    try {
-      if (authAttemptsRef.current.locked) {
-        const now = Date.now();
-        const timeSinceLastAttempt = now - authAttemptsRef.current.lastAttempt;
-        if (timeSinceLastAttempt < AUTH_ATTEMPT_TIMEOUT) {
-          throw new Error(`Please wait ${Math.ceil((AUTH_ATTEMPT_TIMEOUT - timeSinceLastAttempt) / 1000)} seconds before trying again`);
-        }
-        // Reset if timeout has passed
-        authAttemptsRef.current.locked = false;
-        authAttemptsRef.current.count = 0;
-      }
-
-      dispatch(authActions.setLoading(true));
-      await authService.loginWithGoogle();
-      // Note: The actual state update will happen in the useEffect hook
-      // when we receive the auth-state-change event after the OAuth callback
-      
-      // Reset attempts on success
-      authAttemptsRef.current.count = 0;
-      authAttemptsRef.current.locked = false;
-    } catch (error) {
-      console.error('Login failed:', error);
-      
-      // Handle rate limiting
-      if (error instanceof Error && error.message.includes('429')) {
-        authAttemptsRef.current.count++;
-        authAttemptsRef.current.lastAttempt = Date.now();
-        
-        if (authAttemptsRef.current.count >= MAX_AUTH_ATTEMPTS) {
-          authAttemptsRef.current.locked = true;
-          dispatch(authActions.setError({
-            code: 'RATE_LIMIT',
-            message: 'Too many attempts. Please try again later.',
-            details: { error }
-          }));
-        } else {
-          dispatch(authActions.setError({
-            code: 'RATE_LIMIT',
-            message: 'Please wait a moment before trying again.',
-            details: { error }
-          }));
-        }
-      } else {
-        dispatch(authActions.setError({
-          code: 'LOGIN_FAILED',
-          message: error instanceof Error ? error.message : 'Failed to login with Google',
-          details: { error }
-        }));
-      }
-    } finally {
-      dispatch(authActions.setLoading(false));
-    }
-  }, [dispatch]);
-
-  // Enhanced logout function with navigation
-  const handleLogout = useCallback(async () => {
-    try {
-      await authService.logout();
-      // Update Redux state
-      dispatch(authActions.setUser(null));
-      dispatch(authActions.setAuthenticated(false));
-      dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
-      // Force navigation to login page
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Still clear state even if server call fails
-      dispatch(authActions.setUser(null));
-      dispatch(authActions.setAuthenticated(false));
-      dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
-      window.location.href = '/login';
-    }
-  }, [dispatch]);
-
-  // Coordinated refresh based on token expiration
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const setupRefreshTimer = () => {
-      const tokenExpiration = authService.getTokenExpiration();
-      if (!tokenExpiration) return null;
-
-      const now = Date.now();
-      const timeUntilExpiry = tokenExpiration.getTime() - now;
-      const refreshTime = timeUntilExpiry - REFRESH_BEFORE_EXPIRY; // Refresh 5 min before expiry
-      
-      // If token is already close to expiring, refresh immediately
-      if (refreshTime <= 0) {
-        authService.refreshAuthToken().catch(console.error);
-        return null;
-      }
-
-      // Set timer to refresh before token expires
-      return setTimeout(async () => {
-        try {
-          await authService.refreshAuthToken();
-          // Setup next refresh timer after successful refresh
-          setupRefreshTimer();
-        } catch (error) {
-          console.error('Token refresh failed:', error);
-        }
-      }, refreshTime);
-    };
-
-    const refreshTimer = setupRefreshTimer();
-
-    return () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
-    };
-  }, [isAuthenticated, authService]);
+  }, []); // Only run on mount
 
   // Return the hook interface
   return {
@@ -274,10 +153,34 @@ export const useAuth = (): UseAuthReturn => {
     error,
     isAuthenticated,
     sessionStatus,
-    login,
-    logout: handleLogout,
-    refreshToken: authService.refreshAuthToken.bind(authService),
-    validateSession: authService.validateSession.bind(authService),
-    updateUserSettings: authService.updateUserSettings.bind(authService),
+    login: useCallback(async () => {
+      try {
+        await authService.loginWithGoogle();
+      } catch (error) {
+        console.error('Login failed:', error);
+        throw error;
+      }
+    }, [authService]),
+    logout: useCallback(async () => {
+      try {
+        await authService.logout();
+        dispatch(authActions.setUser(null));
+        dispatch(authActions.setAuthenticated(false));
+        dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+        window.location.href = '/login';
+      } catch (error) {
+        console.error('Logout failed:', error);
+        dispatch(authActions.setUser(null));
+        dispatch(authActions.setAuthenticated(false));
+        dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+        window.location.href = '/login';
+      }
+    }, [authService, dispatch]),
+    refreshToken: useCallback(() => authService.refreshAuthToken(), [authService]),
+    validateSession: useCallback(() => authService.validateSession(), [authService]),
+    updateUserSettings: useCallback(
+      (params: UpdateUserSettingsParams) => authService.updateUserSettings(params),
+      [authService]
+    ),
   };
 };

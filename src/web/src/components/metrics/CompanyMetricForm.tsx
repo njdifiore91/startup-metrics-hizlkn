@@ -1,11 +1,17 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
+import { debounce } from 'lodash';
 import { Input } from '../common/Input';
 import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
+import { useMetrics } from '../../hooks/useMetrics';
 import { AxiosError } from 'axios';
 import { useAuth } from '../../hooks/useAuth';
+import * as yup from 'yup';
+import LoadingSpinner from '../common/LoadingSpinner';
+import { useAppDispatch } from '../../store';
+import { fetchMetrics } from '../../store/metricsSlice';
 
 interface ApiError {
   errors: Array<{
@@ -13,6 +19,18 @@ interface ApiError {
     message: string;
   }>;
 }
+
+// Constants
+const VALIDATION_DEBOUNCE = 500; // 500ms delay for validation
+
+// Local validation schema
+const validationSchema = yup.object().shape({
+  value: yup
+    .number()
+    .required('Value is required')
+    .min(0, 'Value must be positive'),
+  metricId: yup.string().required('Metric type is required'),
+});
 
 // Styled components with enterprise-ready styling
 const StyledForm = styled.form`
@@ -104,171 +122,193 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
   onCancel,
   isSubmitting,
 }) => {
-  // Get user info
-  const { user } = useAuth();
-
-  // Initialize form with react-hook-form
   const {
     register,
     handleSubmit,
     formState: { errors, isDirty },
     reset,
-    setError,
+    watch,
   } = useForm<FormValues>({
     defaultValues: {
-      value: initialData?.value ?? 0,
-      metricId: initialData?.metricId ?? '',
-      metadata: initialData?.metadata ?? {},
+      value: initialData?.value || 0,
+      metricId: initialData?.metricId || '',
+      metadata: initialData?.metadata || {},
     },
+    mode: 'onChange', // Enable validation on change
   });
 
-  // Get company metrics operations
+  const { user } = useAuth();
   const { createMetric, updateMetric } = useCompanyMetrics();
+  const { metrics, loading, error } = useMetrics();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const dispatch = useAppDispatch();
 
-  // Reset form when initialData changes
+  // Fetch metrics when component mounts
   useEffect(() => {
-    if (initialData) {
-      reset({
-        value: initialData.value,
-        metricId: initialData.metricId,
-        metadata: initialData.metadata ?? {},
+    dispatch(fetchMetrics());
+  }, [dispatch]);
+
+  // Memoized form values for validation
+  const formValues = watch();
+  
+  // Debounced validation function
+  const validateField = useMemo(
+    () =>
+      debounce(async (name: string, value: any) => {
+        try {
+          await validationSchema.validateAt(name, { [name]: value });
+        } catch (error) {
+          // Validation error is handled by react-hook-form
+          console.debug(`Validation error for ${name}:`, error);
+        }
+      }, VALIDATION_DEBOUNCE),
+    []
+  );
+
+  // Watch for value changes and trigger debounced validation
+  useEffect(() => {
+    if (isDirty) {
+      Object.entries(formValues).forEach(([name, value]) => {
+        validateField(name, value);
       });
     }
-  }, [initialData, reset]);
+  }, [formValues, isDirty, validateField]);
 
-  // Form submission handler
+  // Memoized metric options from database
+  const metricOptions = useMemo(() => {
+    if (!metrics) return [];
+    return metrics
+      .filter(metric => metric.isActive)
+      .map(metric => ({
+        value: metric.id,
+        label: metric.name
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [metrics]);
+
   const onSubmit = useCallback(
-    async (formData: FormValues) => {
+    async (data: FormValues) => {
       try {
-        if (isNaN(formData.value)) {
-          setError('value', {
-            type: 'manual',
-            message: 'Please enter a valid number',
-          });
-          return;
-        }
+        // Validate all fields before submission
+        await validationSchema.validate(data, { abortEarly: false });
 
         const now = new Date().toISOString();
-        let metricData: ICompanyMetric;
+        const metricData: Omit<ICompanyMetric, 'id'> = {
+          value: data.value,
+          metricId: data.metricId,
+          userId: user?.id || '',
+          timestamp: now,
+          isActive: true,
+          metadata: data.metadata,
+          metric: {
+            id: data.metricId,
+            name: metricOptions.find(opt => opt.value === data.metricId)?.label || '',
+            description: '',
+            category: 'financial',
+            valueType: 'number',
+            validationRules: {},
+            isActive: true,
+            displayOrder: 0,
+            tags: [],
+            metadata: {},
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          lastModified: now,
+          createdAt: now,
+        };
 
-        if (initialData) {
-          // Update existing metric
-          metricData = {
-            ...initialData,
-            value: Number(formData.value),
-            metadata: formData.metadata ?? {},
-            lastModified: now,
-          };
+        if (initialData?.id) {
           await updateMetric(initialData.id, metricData);
         } else {
-          if (!user?.id) {
-            throw new Error('User not authenticated');
-          }
-          // Create new metric
-          metricData = {
-            id: '', // Will be set by the server
-            userId: user.id,
-            value: Number(formData.value),
-            metricId: formData.metricId,
-            metadata: formData.metadata ?? {},
-            timestamp: now,
-            isActive: true,
-            metric: {
-              id: formData.metricId,
-              name: '', // Will be populated by the server
-              description: '', // Will be populated by the server
-              category: 'financial', // Default category, will be updated by server
-              valueType: 'number', // Default type, will be updated by server
-              validationRules: {}, // Will be populated by server
-              isActive: true,
-              displayOrder: 0,
-              tags: [],
-              metadata: {},
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-            lastModified: now,
-            createdAt: now,
-          };
           await createMetric(metricData);
         }
-        await onSubmitSuccess(metricData);
+
+        reset(); // Reset form after successful submission
+        await onSubmitSuccess(metricData as ICompanyMetric);
       } catch (error) {
-        // Handle validation errors
-        if (error instanceof AxiosError && error.response?.data?.errors) {
-          const apiError = error.response.data as ApiError;
-          apiError.errors.forEach((err) => {
-            setError(err.field as keyof FormValues, {
-              type: 'manual',
-              message: err.message,
-            });
+        if (error instanceof yup.ValidationError) {
+          // Handle validation errors
+          error.inner.forEach((err) => {
+            console.error(`Validation error: ${err.path} - ${err.message}`);
           });
+        } else {
+          console.error('Error submitting metric:', error);
         }
       }
     },
-    [initialData, createMetric, updateMetric, onSubmitSuccess, setError, user]
+    [initialData?.id, user?.id, createMetric, updateMetric, onSubmitSuccess, reset]
   );
 
-  // Handle form cancellation
-  const handleCancel = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      onCancel();
-    },
-    [onCancel]
-  );
+  if (authLoading || loading.all_metrics) {
+    return (
+      <div className="flex justify-center items-center h-48">
+        <LoadingSpinner size="32px" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="text-center p-4">
+        <p className="text-red-500">Please log in to access metrics</p>
+      </div>
+    );
+  }
+
+  if (error.all_metrics) {
+    return (
+      <div className="text-center p-4">
+        <p className="text-red-500">Error loading metrics: {error.all_metrics}</p>
+      </div>
+    );
+  }
 
   return (
-    <StyledForm
-      onSubmit={handleSubmit(onSubmit)}
-      aria-label={initialData ? 'Edit metric' : 'Add new metric'}
-      noValidate
-    >
-      {isSubmitting && (
-        <StyledLoadingOverlay role="status" aria-label="Submitting form">
-          <span>Loading...</span>
-        </StyledLoadingOverlay>
-      )}
-
+    <StyledForm onSubmit={handleSubmit(onSubmit)} noValidate>
       <Input
-        label="Metric Value"
+        label="Value"
         type="number"
-        defaultValue={initialData?.value ?? 0}
+        error={errors.value?.message}
         {...register('value', {
-          required: 'Value is required',
-          min: {
-            value: 0,
-            message: 'Value must be positive',
-          },
           valueAsNumber: true,
         })}
-        error={errors.value?.message}
-        disabled={isSubmitting}
-        aria-describedby={errors.value ? 'value-error' : undefined}
-        inputMode="decimal"
-        step={0.01}
       />
 
-      {!initialData && (
-        <Input
-          label="Metric ID"
-          {...register('metricId', {
-            required: 'Metric ID is required',
-          })}
-          error={errors.metricId?.message}
-          disabled={isSubmitting}
-          aria-describedby={errors.metricId ? 'metricId-error' : undefined}
-        />
-      )}
+      <div className="form-group">
+        <label htmlFor="metricId">Metric Type</label>
+        <select
+          id="metricId"
+          className={`form-control ${errors.metricId ? 'is-invalid' : ''}`}
+          {...register('metricId')}
+          disabled={Boolean(loading.all_metrics)}
+        >
+          <option value="">Select a metric type</option>
+          {metricOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {errors.metricId && (
+          <div className="invalid-feedback">{errors.metricId.message}</div>
+        )}
+      </div>
 
       <StyledButtonContainer>
-        <StyledButton type="button" onClick={handleCancel} disabled={isSubmitting}>
+        <StyledButton type="button" onClick={onCancel}>
           Cancel
         </StyledButton>
         <StyledButton type="submit" variant="primary" disabled={isSubmitting || !isDirty}>
-          {isSubmitting ? 'Saving...' : initialData ? 'Update' : 'Create'}
+          {initialData ? 'Update' : 'Create'} Metric
         </StyledButton>
       </StyledButtonContainer>
+
+      {isSubmitting && (
+        <StyledLoadingOverlay>
+          <span className="loading-spinner" />
+        </StyledLoadingOverlay>
+      )}
     </StyledForm>
   );
 };

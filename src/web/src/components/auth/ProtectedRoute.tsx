@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-import React, { FC, PropsWithChildren, useEffect, memo } from 'react';
+import React, { FC, PropsWithChildren, useEffect, memo, useRef } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingSpinner from '../common/LoadingSpinner';
@@ -63,13 +63,32 @@ const validateUserRole = (
 const ProtectedRoute: FC<ProtectedRouteProps> = memo(
   ({ children, allowedRoles, redirectPath = DEFAULT_REDIRECT }) => {
     const { isAuthenticated, isLoading, user, validateSession } = useAuth();
+    const validationTimeoutRef = useRef<NodeJS.Timeout>();
 
-    // Validate session on mount and when authentication state changes
+    // Validate session only on mount
     useEffect(() => {
-      if (isAuthenticated) {
-        validateSession();
-      }
-    }, [isAuthenticated, validateSession]);
+      let mounted = true;
+
+      const validateAuth = async () => {
+        if (!isAuthenticated || !mounted) return;
+
+        // Only validate on initial mount
+        try {
+          await validateSession();
+        } catch (error) {
+          console.error('Session validation failed:', error);
+        }
+      };
+
+      validateAuth();
+
+      return () => {
+        mounted = false;
+        if (validationTimeoutRef.current) {
+          clearTimeout(validationTimeoutRef.current);
+        }
+      };
+    }, []); // Only run on mount
 
     // Show loading spinner while authenticating
     if (isLoading) {

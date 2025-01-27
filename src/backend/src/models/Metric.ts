@@ -1,32 +1,18 @@
 import { Model, DataTypes } from 'sequelize';
 import sequelize from '../config/database';
+import { MetricType, ValueType, Frequency } from '../interfaces/IMetric';
 
-export interface IMetric {
-  id: string;
-  companyId: string;
-  revenue: number;
-  employees: number;
-  customers: number;
-  churnRate: number;
-  growthRate: number;
-  category: string;
-  industry: string;
-  date: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export class Metric extends Model<IMetric> implements IMetric {
+export class Metric extends Model {
   public id!: string;
-  public companyId!: string;
-  public revenue!: number;
-  public employees!: number;
-  public customers!: number;
-  public churnRate!: number;
-  public growthRate!: number;
-  public category!: string;
-  public industry!: string;
-  public date!: Date;
+  public name!: string;
+  public displayName!: string;
+  public description!: string;
+  public type!: MetricType;
+  public valueType!: ValueType;
+  public frequency!: Frequency;
+  public unit?: string;
+  public precision!: number;
+  public isActive!: boolean;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
 }
@@ -37,50 +23,56 @@ Metric.init(
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
+      allowNull: false
     },
-    companyId: {
-      type: DataTypes.UUID,
+    name: {
+      type: DataTypes.STRING(100),
       allowNull: false,
+      unique: true
     },
-    revenue: {
-      type: DataTypes.DECIMAL(20, 2),
-      allowNull: false,
+    displayName: {
+      type: DataTypes.STRING(100),
+      allowNull: false
     },
-    employees: {
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: false
+    },
+    type: {
+      type: DataTypes.ENUM(...Object.values(MetricType)),
+      allowNull: false
+    },
+    valueType: {
+      type: DataTypes.ENUM(...Object.values(ValueType)),
+      allowNull: false
+    },
+    frequency: {
+      type: DataTypes.ENUM(...Object.values(Frequency)),
+      allowNull: false
+    },
+    unit: {
+      type: DataTypes.STRING(50),
+      allowNull: true
+    },
+    precision: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      defaultValue: 2
     },
-    customers: {
-      type: DataTypes.INTEGER,
+    isActive: {
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-    },
-    churnRate: {
-      type: DataTypes.DECIMAL(5, 2),
-      allowNull: false,
-    },
-    growthRate: {
-      type: DataTypes.DECIMAL(6, 2),
-      allowNull: false,
-    },
-    category: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    industry: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    date: {
-      type: DataTypes.DATE,
-      allowNull: false,
+      defaultValue: true
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      defaultValue: DataTypes.NOW
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
+      defaultValue: DataTypes.NOW
     }
   },
   {

@@ -36,11 +36,11 @@ export const API_CONFIG: IApiConfig = {
   API_VERSION: 'v1',
   API_ENDPOINTS: {
     AUTH: '/auth',
-    METRICS: '/metrics',
-    BENCHMARKS: '/benchmarks',
-    COMPANY_METRICS: '/company-metrics',
-    EXPORTS: '/exports',
-    USERS: '/users',
+    METRICS: '/api/v1/metrics',
+    BENCHMARKS: '/api/v1/benchmarks',
+    COMPANY_METRICS: '/api/v1/company-metrics',
+    EXPORTS: '/api/v1/exports',
+    USERS: '/api/v1/users',
   },
   ERROR_LOGGING_ENABLED: import.meta.env.MODE === 'development',
 } as const;

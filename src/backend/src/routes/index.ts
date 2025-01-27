@@ -95,7 +95,6 @@ router.get('/health', (req, res) => {
 
 // Mount API routes
 router.use('/auth', authRoutes);
-router.use('/metrics', metricsRoutes);
 router.use('/benchmarks', benchmarkRoutes);
 router.use('/company-metrics', companyMetricsRoutes);
 

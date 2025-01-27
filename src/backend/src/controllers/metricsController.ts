@@ -244,16 +244,17 @@ const updateMetric = asyncHandler(async (req: Request, res: Response): Promise<v
 });
 
 /**
- * Get metrics for a specific company
+ * Get metrics for a specific user
  */
-export const getCompanyMetrics = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const getCompanyMetrics = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const correlationId = `user-metrics-${req.params.userId}-${Date.now()}`;
+  logger.setCorrelationId(correlationId);
+
   try {
-    const { companyId } = req.params;
-    if (!companyId) {
+    const startTime = process.hrtime();
+    const userId = req.params.userId;
+
+    if (!userId) {
       throw new AppError(
         VALIDATION_ERRORS.MISSING_REQUIRED.message,
         VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
@@ -261,20 +262,41 @@ export const getCompanyMetrics = async (
       );
     }
 
-    const metrics = await metricsService.getMetricsForCompany(companyId);
-    
+    // Get metrics for the user's company
+    const metrics = await metricsService.getMetricsForCompany(userId);
+
+    // Calculate response time
+    const [seconds, nanoseconds] = process.hrtime(startTime);
+    const responseTime = seconds * 1000 + nanoseconds / 1e6;
+
+    // Set cache headers
+    res.set('Cache-Control', `public, max-age=${CACHE_DURATION}`);
+    res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
+    res.set('X-Correlation-ID', correlationId);
+
     res.json({
-      status: 'success',
-      data: metrics
+      data: metrics,
+      meta: {
+        responseTime,
+        correlationId
+      }
+    });
+
+    logger.info('User metrics retrieved successfully', {
+      correlationId,
+      userId,
+      count: metrics.length,
+      responseTime
     });
   } catch (error) {
-    logger.error('Failed to get company metrics:', { 
-      error: error instanceof Error ? error.message : 'Unknown error',
-      companyId: req.params.companyId
+    logger.error('Error retrieving user metrics', {
+      correlationId,
+      userId: req.params.userId,
+      error
     });
-    next(error);
+    throw error;
   }
-};
+});
 
 /**
  * Get benchmark metrics for a specific industry

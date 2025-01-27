@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, forwardRef } from 'react';
 import styled from 'styled-components';
 import { useFormContext, RegisterOptions, UseFormRegister, FieldValues } from 'react-hook-form';
 import '../../styles/variables.css';
@@ -118,7 +118,7 @@ const ScreenReaderOnly = styled.span`
   border: 0;
 `;
 
-export const Input = React.memo(
+export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({
     name,
     id,
@@ -140,8 +140,7 @@ export const Input = React.memo(
     step,
     validation,
     ...rest
-  }: InputProps) => {
-    const inputRef = useRef<HTMLInputElement>(null);
+  }, ref) => {
     const errorRef = useRef<HTMLSpanElement>(null);
     const inputId = id || `input-${name}`;
     const formContext = useFormContext();
@@ -176,7 +175,7 @@ export const Input = React.memo(
         </StyledLabel>
 
         <StyledInput
-          ref={inputRef}
+          ref={ref}
           id={inputId}
           type={type}
           value={value}

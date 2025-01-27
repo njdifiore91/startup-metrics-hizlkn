@@ -64,27 +64,27 @@ const writeLimiter = rateLimit({
   legacyHeaders: false
 });
 
+// API version prefix for all metric routes
+const API_VERSION = '/api/v1/metrics';
+
 // Health check endpoint (no auth required)
-router.get('/health', (req: Request, res: Response) => {
+router.get(`${API_VERSION}/health`, (req: Request, res: Response) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString()
   });
 });
 
-// API version prefix for all metric routes
-const API_VERSION = '/v1/metrics';
-
-// GET /v1/metrics - Retrieve all metrics with filtering
+// User metrics routes
 router.get(
-  API_VERSION,
+  `${API_VERSION}/user/:userId`,
   standardLimiter,
   authenticate,
   authorize(USER_ROLES.USER),
-  metricsController.getMetrics[1]
+  getCompanyMetrics
 );
 
-// GET /v1/metrics/:id - Retrieve single metric by ID
+// GET /api/v1/metrics/:id - Retrieve single metric by ID
 router.get(
   `${API_VERSION}/:id`,
   standardLimiter,
@@ -93,32 +93,28 @@ router.get(
   metricsController.getMetricById[1]
 );
 
-// POST /v1/metrics - Create new metric
+// POST /api/v1/metrics - Create new metric
 router.post(
   API_VERSION,
   writeLimiter,
   authenticate,
-  authorize(USER_ROLES.ADMIN),
+  authorize(USER_ROLES.USER),
   validateRequest(createMetricSchema),
   metricsController.createMetric[1]
 );
 
-// PUT /v1/metrics/:id - Update existing metric
+// PUT /api/v1/metrics/:id - Update existing metric
 router.put(
   `${API_VERSION}/:id`,
   writeLimiter,
   authenticate,
-  authorize(USER_ROLES.ADMIN),
+  authorize(USER_ROLES.USER),
   validateRequest(updateMetricSchema),
-  ...metricsController.updateMetric
+  updateCompanyMetrics
 );
 
-// Company metrics routes
-router.get('/company/:companyId', getCompanyMetrics);
-router.post('/company/:companyId', updateCompanyMetrics);
-
 // Industry benchmark routes
-router.get('/benchmarks/:industry', getBenchmarkMetrics);
+router.get(`${API_VERSION}/benchmarks/:industry`, getBenchmarkMetrics);
 
 // Apply error handling middleware last
 router.use(errorHandler);

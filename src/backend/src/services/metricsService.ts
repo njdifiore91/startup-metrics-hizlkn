@@ -1,18 +1,20 @@
 import { Op } from 'sequelize'; // v6.31.0
-import Big from 'big.js'; // v6.2.1
+import { Big } from 'big.js'; // v6.2.1
 import { caching } from 'cache-manager'; // v5.2.0
 import { IMetric } from '../interfaces/IMetric';
-import Metric from '../models/Metric';
+import { Metric } from '../models/Metric';
 import { MetricCategory, isValidMetricCategory } from '../constants/metricTypes';
 import { ValidationError, NotFoundError, DuplicateError } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { AppError } from '../utils/AppError';
 import { BUSINESS_ERRORS } from '../constants/errorCodes';
+import { CompanyMetric } from '../models/CompanyMetric';
+import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 
 // Constants for service configuration
 const DEFAULT_METRIC_LIMIT = 100;
 const METRIC_CACHE_TTL = 900; // 15 minutes in seconds
-const CALCULATION_PRECISION = 20;
+const CALCULATION_PRECISION = 4;
 const MAX_BULK_OPERATIONS = 1000;
 
 // Configure cache manager
@@ -27,6 +29,19 @@ const metricCache = caching({
  * Service class for managing metric operations with enhanced validation and caching
  */
 export class MetricsService {
+  private cache: any;
+
+  constructor() {
+    this.initializeCache();
+  }
+
+  private async initializeCache() {
+    this.cache = await caching('memory', {
+      max: 100,
+      ttl: METRIC_CACHE_TTL
+    });
+  }
+
   /**
    * Creates a new metric with comprehensive validation
    * @param metricData - The metric data to create
@@ -207,26 +222,52 @@ export class MetricsService {
   }
 
   /**
-   * Get metrics for a specific company
+   * Get metrics for a specific user
    */
-  async getMetricsForCompany(companyId: string): Promise<Metric[]> {
+  async getMetricsForCompany(companyId: string): Promise<ICompanyMetric[]> {
     try {
-      const metrics = await Metric.findAll({
-        where: { companyId },
+      if (!companyId) {
+        throw new AppError('Company ID is required', 400);
+      }
+
+      const metrics = await CompanyMetric.findAll({
+        where: {
+          companyId,
+          isActive: true
+        },
+        include: [{
+          model: Metric,
+          as: 'metric',
+          required: false,
+          attributes: [
+            'id',
+            'name',
+            'displayName',
+            'description',
+            'type',
+            'valueType',
+            'frequency',
+            'unit',
+            'precision',
+            'isActive'
+          ]
+        }],
         order: [['date', 'DESC']]
       });
 
-      return metrics;
+      if (!metrics || metrics.length === 0) {
+        logger.info(`No metrics found for company ${companyId}`);
+        return [];
+      }
+
+      // Convert to plain objects to avoid Sequelize instance issues
+      return metrics.map(metric => metric.get({ plain: true }));
     } catch (error) {
-      logger.error('Failed to get company metrics:', { 
+      logger.error('Failed to retrieve company metrics:', { 
         error: error instanceof Error ? error.message : 'Unknown error',
         companyId 
       });
-      throw new AppError(
-        BUSINESS_ERRORS.OPERATION_FAILED.message,
-        BUSINESS_ERRORS.OPERATION_FAILED.httpStatus,
-        BUSINESS_ERRORS.OPERATION_FAILED.code
-      );
+      throw new AppError('Failed to retrieve company metrics', 500);
     }
   }
 

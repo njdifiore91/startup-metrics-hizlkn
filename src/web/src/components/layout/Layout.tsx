@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, memo, useState } from 'react';
+import React, { useCallback, useEffect, memo, useState, useRef } from 'react';
 import styled from '@emotion/styled';
 import { useDispatch, useSelector } from 'react-redux';
 import Header from './Header';
@@ -69,10 +69,11 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
   const { showToast } = useToast();
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  const sessionCheckRef = useRef<NodeJS.Timeout>();
   
   const isSidebarOpen = useSelector((state: RootState) => state.ui.isSidebarOpen);
 
-  // Session Monitoring
+  // Session Monitoring with reduced frequency
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -89,9 +90,18 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
       }
     };
 
-    const sessionInterval = setInterval(checkSession, 60000); // Check every minute
-    return () => clearInterval(sessionInterval);
-  }, [validateSession]);
+    // Initial check
+    checkSession();
+
+    // Set up interval with longer duration (5 minutes)
+    sessionCheckRef.current = setInterval(checkSession, 5 * 60 * 1000);
+
+    return () => {
+      if (sessionCheckRef.current) {
+        clearInterval(sessionCheckRef.current);
+      }
+    };
+  }, [validateSession, showToast]);
 
   // Theme Change Handler
   const handleThemeChange = useCallback((newTheme: 'light' | 'dark') => {
