@@ -29,6 +29,7 @@ import {
   TablePagination,
   FormControlLabel,
   Switch,
+  CircularProgress,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AddIcon from '@mui/icons-material/Add';
@@ -44,7 +45,8 @@ interface User {
   role: string;
   isActive: boolean;
   createdAt: string;
-  version: number;
+  lastLoginAt: string;
+  profileImageUrl: string | null;
 }
 
 interface UserResponse {
@@ -106,7 +108,7 @@ const UserManagement: React.FC = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await api.get<UserResponse>('/api/v1/admin/users', {
+      const response = await api.get('/api/v1/admin/users', {
         params: {
           page: page + 1, // API uses 1-based pagination
           limit: rowsPerPage,
@@ -115,12 +117,15 @@ const UserManagement: React.FC = () => {
         },
       });
 
-      setUsers(response.data.users);
-      setTotalUsers(response.data.total);
+      const users = response.data.data.data || [];
+      setUsers(users);
+      setTotalUsers(users.length);
       setError(null);
     } catch (err) {
       setError('Failed to fetch users');
       showToast('Failed to fetch users', 'error');
+      setUsers([]);
+      setTotalUsers(0);
     } finally {
       setLoading(false);
     }
@@ -162,7 +167,7 @@ const UserManagement: React.FC = () => {
   };
 
   const handleEditUser = async () => {
-    if (!selectedUserId || !editUser.version) return;
+    if (!selectedUserId) return;
 
     try {
       await api.put(`/api/v1/admin/users/${selectedUserId}`, editUser);
@@ -209,7 +214,6 @@ const UserManagement: React.FC = () => {
       name: user.name,
       email: user.email,
       role: user.role,
-      version: user.version,
     });
     setSelectedUserId(user.id);
     setEditDialogOpen(true);
@@ -263,32 +267,46 @@ const UserManagement: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.role}</TableCell>
-                <TableCell>
-                  <Chip
-                    label={user.isActive ? 'Active' : 'Inactive'}
-                    color={user.isActive ? 'success' : 'error'}
-                  />
-                </TableCell>
-                <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
-                <TableCell>
-                  <IconButton onClick={(e) => handleMenuClick(e, user.id)}>
-                    <MoreVertIcon />
-                  </IconButton>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} align="center">
+                  <CircularProgress />
                 </TableCell>
               </TableRow>
-            ))}
+            ) : users && users.length > 0 ? (
+              users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>{user.name}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.role}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={user.isActive ? 'Active' : 'Inactive'}
+                      color={user.isActive ? 'success' : 'error'}
+                    />
+                  </TableCell>
+                  <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <IconButton onClick={(e) => handleMenuClick(e, user.id)}>
+                      <MoreVertIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} align="center">
+                  No users found
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
       <TablePagination
         component="div"
-        count={totalUsers}
+        count={totalUsers || 0}
         page={page}
         onPageChange={handlePageChange}
         rowsPerPage={rowsPerPage}
@@ -297,14 +315,21 @@ const UserManagement: React.FC = () => {
       />
 
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-        <MenuItem
-          onClick={() => selectedUserId && startEdit(users.find((u) => u.id === selectedUserId)!)}
-        >
-          Edit
-        </MenuItem>
-        <MenuItem onClick={() => selectedUserId && handleDeactivateUser(selectedUserId)}>
-          {users.find((u) => u.id === selectedUserId)?.isActive ? 'Deactivate' : 'Activate'}
-        </MenuItem>
+        {selectedUserId && users && (
+          <>
+            {(() => {
+              const selectedUser = users.find((u) => u.id === selectedUserId);
+              return selectedUser ? (
+                <>
+                  <MenuItem onClick={() => startEdit(selectedUser)}>Edit</MenuItem>
+                  <MenuItem onClick={() => handleDeactivateUser(selectedUserId)}>
+                    {selectedUser.isActive ? 'Deactivate' : 'Activate'}
+                  </MenuItem>
+                </>
+              ) : null;
+            })()}
+          </>
+        )}
       </Menu>
 
       {/* Create User Dialog */}
