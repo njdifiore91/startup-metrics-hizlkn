@@ -20,6 +20,7 @@ import { useAuth } from './hooks/useAuth';
 import { authService } from './services/auth';
 import { authActions } from './store/authSlice';
 import { SessionStatus } from './store/authSlice';
+import UserManagement from './pages/admin/UserManagement';
 
 // Lazy-loaded route components
 const Login = React.lazy(() => import('./pages/Login'));
@@ -42,6 +43,7 @@ const ROUTES = {
   SETTINGS: '/settings',
   PROFILE: '/profile',
   GOOGLE_CALLBACK: '/auth/google/callback',
+  USER_MANAGEMENT: '/admin/users',
 } as const;
 
 // Error messages
@@ -184,6 +186,7 @@ const AppContent: React.FC = () => {
               <Route path={ROUTES.REPORTS} element={<Reports />} />
               <Route path={ROUTES.SETTINGS} element={<Settings />} />
               <Route path={ROUTES.PROFILE} element={<Profile />} />
+              <Route path={ROUTES.USER_MANAGEMENT} element={<UserManagement />} />
             </Route>
 
             {/* Default Route */}

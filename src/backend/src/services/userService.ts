@@ -10,7 +10,7 @@ import { Model, Op } from 'sequelize';
 // Redis client for caching
 const cache = createClient({
   url: process.env.REDIS_URL,
-  password: process.env.REDIS_PASSWORD
+  password: process.env.REDIS_PASSWORD,
 });
 
 // Constants
@@ -21,7 +21,7 @@ const PERMISSION_CACHE_PREFIX = 'perm:';
 // Rate limiting configuration
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests per windowMs
 });
 
 interface LogMetadata {
@@ -57,7 +57,7 @@ class UserService {
         role: userData.role || 'USER',
         tier: userData.tier || 'free',
         isActive: true,
-        lastLoginAt: new Date()
+        lastLoginAt: new Date(),
       } as IUser);
       return user;
     } catch (error) {
@@ -98,11 +98,52 @@ class UserService {
       return false;
     }
   }
+
+  async getAllUsers(
+    options: {
+      page?: number;
+      limit?: number;
+      role?: string;
+      isActive?: boolean;
+    } = {}
+  ): Promise<{ users: User[]; total: number }> {
+    try {
+      const { page = 1, limit = 10, role, isActive = true } = options;
+      const offset = (page - 1) * limit;
+
+      const where: any = { isActive };
+      if (role) {
+        where.role = role;
+      }
+
+      const { rows: users, count: total } = await User.findAndCountAll({
+        where,
+        attributes: [
+          'id',
+          'email',
+          'name',
+          'role',
+          'createdAt',
+          'lastLoginAt',
+          'profileImageUrl',
+          'isActive',
+        ],
+        order: [['createdAt', 'DESC']],
+        offset,
+        limit,
+      });
+
+      return { users, total };
+    } catch (error) {
+      logger.error('Error fetching all users:', { error } as LogMetadata);
+      throw new AppError('Failed to fetch users', 500);
+    }
+  }
 }
 
 export const userService = new UserService();
 
 // Initialize cache connection
-cache.connect().catch(error => {
+cache.connect().catch((error) => {
   logger.error('Redis cache connection error', { error });
 });

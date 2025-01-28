@@ -6,24 +6,25 @@ import { logger } from '../utils/logger';
 import { USER_ROLES, hasPermission } from '../constants/roles';
 import { v4 as uuidv4 } from 'uuid'; // ^9.0.0
 import createHttpError from 'http-errors'; // ^2.0.0
+import { AppError } from '../utils/AppError';
 
 // Rate limiting configuration for user operations
 const userRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later'
+  message: 'Too many requests from this IP, please try again later',
 });
 
 // Cache TTL configurations
 const CACHE_TTL = {
   userProfile: 3600, // 1 hour
-  adminOperations: 300 // 5 minutes
+  adminOperations: 300, // 5 minutes
 };
 
 // Cache key prefixes
 const CACHE_PREFIX = {
   user: 'user:profile:',
-  admin: 'admin:user:'
+  admin: 'admin:user:',
 };
 
 /**
@@ -32,11 +33,7 @@ const CACHE_PREFIX = {
  * @param res Express response object
  * @param next Express next function
  */
-const getCurrentUser = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+const getCurrentUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const correlationId = uuidv4();
   logger.setCorrelationId(correlationId);
 
@@ -49,7 +46,7 @@ const getCurrentUser = async (
     // Check cache first
     const cacheKey = `${CACHE_PREFIX.user}${userId}`;
     const cachedUser = await cacheService.get(cacheKey);
-    
+
     if (cachedUser) {
       logger.info('User profile retrieved from cache', { userId });
       res.json({ data: cachedUser, correlationId });
@@ -79,11 +76,7 @@ const getCurrentUser = async (
  * @param res Express response object
  * @param next Express next function
  */
-const getUserProfile = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+const getUserProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const correlationId = uuidv4();
   logger.setCorrelationId(correlationId);
 
@@ -144,8 +137,9 @@ const updateUserProfile = async (
     const requestingUserId = req.user?.id;
 
     // Validate update permissions
-    const canUpdate = requestingUserId === userId || 
-      await userService.validateUserRole(requestingUserId, USER_ROLES.ADMIN);
+    const canUpdate =
+      requestingUserId === userId ||
+      (await userService.validateUserRole(requestingUserId, USER_ROLES.ADMIN));
 
     if (!canUpdate) {
       throw createHttpError(403, 'Insufficient permissions to update profile');
@@ -157,23 +151,19 @@ const updateUserProfile = async (
     }
 
     // Perform update
-    const updatedUser = await userService.updateUser(
-      userId,
-      updateData,
-      updateData.version
-    );
+    const updatedUser = await userService.updateUser(userId, updateData, updateData.version);
 
     // Invalidate caches
     await Promise.all([
       cacheService.delete(`${CACHE_PREFIX.user}${userId}`),
-      cacheService.delete(`${CACHE_PREFIX.admin}${userId}`)
+      cacheService.delete(`${CACHE_PREFIX.admin}${userId}`),
     ]);
 
     logger.info('User profile updated', { userId, requestingUserId });
-    res.json({ 
-      data: updatedUser, 
+    res.json({
+      data: updatedUser,
       correlationId,
-      message: 'Profile updated successfully'
+      message: 'Profile updated successfully',
     });
   } catch (error) {
     logger.error('Error updating user profile', { error, correlationId });
@@ -217,21 +207,50 @@ const deactivateUserAccount = async (
     await Promise.all([
       cacheService.delete(`${CACHE_PREFIX.user}${targetUserId}`),
       cacheService.delete(`${CACHE_PREFIX.admin}${targetUserId}`),
-      cacheService.clear(`*:${targetUserId}:*`)
+      cacheService.clear(`*:${targetUserId}:*`),
     ]);
 
-    logger.warn('User account deactivated', { 
-      adminId, 
+    logger.warn('User account deactivated', {
+      adminId,
       targetUserId,
-      action: 'account_deactivation'
+      action: 'account_deactivation',
     });
 
-    res.json({ 
+    res.json({
       message: 'Account deactivated successfully',
-      correlationId
+      correlationId,
     });
   } catch (error) {
     logger.error('Error deactivating user account', { error, correlationId });
+    next(error);
+  }
+};
+
+export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Check if user has admin role
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    const hasPermission = await userService.validateRole(userId, USER_ROLES.ADMIN);
+    if (!hasPermission) {
+      throw new AppError('Forbidden', 403);
+    }
+
+    const users = await userService.getAllUsers();
+
+    res.status(200).json({
+      success: true,
+      data: users,
+      metadata: {
+        total: users.length,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    logger.error('Error in getAllUsers controller:', { error });
     next(error);
   }
 };
@@ -241,5 +260,6 @@ export const userController = {
   getCurrentUser,
   getUserProfile,
   updateUserProfile,
-  deactivateUserAccount
+  deactivateUserAccount,
+  getAllUsers,
 };

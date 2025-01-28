@@ -16,6 +16,7 @@ import authRoutes from './authRoutes';
 import metricsRoutes from './metricsRoutes';
 import benchmarkRoutes from './benchmarkRoutes';
 import companyMetricsRoutes from './companyMetricsRoutes';
+import adminRoutes from './adminRoutes';
 
 // Import middleware
 import { errorHandler } from '../middleware/errorHandler';
@@ -37,8 +38,8 @@ const securityHeaders = helmet({
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
-    }
+      frameSrc: ["'none'"],
+    },
   },
   crossOriginEmbedderPolicy: true,
   crossOriginOpenerPolicy: true,
@@ -49,14 +50,14 @@ const securityHeaders = helmet({
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
-    preload: true
+    preload: true,
   },
   ieNoOpen: true,
   noSniff: true,
   originAgentCluster: true,
   permittedCrossDomainPolicies: { permittedPolicies: 'none' },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  xssFilter: true
+  xssFilter: true,
 });
 
 /**
@@ -68,7 +69,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID'],
   exposedHeaders: ['X-Total-Count', 'X-Response-Time'],
   credentials: true,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
 };
 
 // Correlation ID middleware
@@ -89,7 +90,7 @@ router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version
+    version: process.env.npm_package_version,
   });
 });
 
@@ -97,6 +98,7 @@ router.get('/health', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/benchmarks', benchmarkRoutes);
 router.use('/company-metrics', companyMetricsRoutes);
+router.use('/admin', adminRoutes);
 
 // Apply error handling middleware last
 router.use(errorHandler);
@@ -107,7 +109,7 @@ router.use((req, res, next) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'X-XSS-Protection': '1; mode=block',
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   });
   next();
 });
