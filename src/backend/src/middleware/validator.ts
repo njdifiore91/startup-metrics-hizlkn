@@ -6,16 +6,9 @@
 
 import { Request, Response, NextFunction } from 'express'; // ^4.18.2
 import Joi from 'joi'; // ^17.9.0
-import { 
-  validateMetricValue, 
-  validateUserData, 
-  sanitizeInput 
-} from '../utils/validation';
-import { 
-  METRIC_VALIDATION_RULES, 
-  USER_VALIDATION_RULES 
-} from '../constants/validations';
-import { CustomError } from './errorHandler';
+import { validateMetricValue, validateUserData, sanitizeInput } from '../utils/validation';
+import { METRIC_VALIDATION_RULES, USER_VALIDATION_RULES } from '../constants/validations';
+import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 
 // Maximum allowed depth for nested objects
@@ -39,10 +32,7 @@ interface ValidationOptions {
  * @param schema - Joi validation schema
  * @param options - Validation options
  */
-export const validateRequest = (
-  schema: Joi.Schema,
-  options: ValidationOptions = {}
-) => {
+export const validateRequest = (schema: Joi.Schema, options: ValidationOptions = {}) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const correlationId = logger.getCorrelationId() || `val-${Date.now()}`;
@@ -50,61 +40,47 @@ export const validateRequest = (
         stripUnknown: options.stripUnknown ?? true,
         abortEarly: options.abortEarly ?? false,
         maxDepth: options.maxDepth ?? MAX_OBJECT_DEPTH,
-        maxArrayLength: options.maxArrayLength ?? MAX_ARRAY_LENGTH
+        maxArrayLength: options.maxArrayLength ?? MAX_ARRAY_LENGTH,
       };
 
       // Extract data to validate
       const dataToValidate = {
         body: req.body,
         query: req.query,
-        params: req.params
+        params: req.params,
       };
 
       // Check object depth
       if (exceedsMaxDepth(dataToValidate, validationOptions.maxDepth)) {
-        throw new CustomError(
-          'Request data exceeds maximum allowed depth',
-          'VAL_005',
-          400,
-          true,
-          { maxDepth: validationOptions.maxDepth }
-        );
+        throw new AppError('Request data exceeds maximum allowed depth', 400, 'VAL_005', {
+          maxDepth: validationOptions.maxDepth,
+        });
       }
 
       // Check array lengths
       if (containsLargeArrays(dataToValidate, validationOptions.maxArrayLength)) {
-        throw new CustomError(
-          'Request contains arrays exceeding maximum length',
-          'VAL_006',
-          400,
-          true,
-          { maxArrayLength: validationOptions.maxArrayLength }
-        );
+        throw new AppError('Request contains arrays exceeding maximum length', 400, 'VAL_006', {
+          maxArrayLength: validationOptions.maxArrayLength,
+        });
       }
 
       // Validate against schema
       const { error, value } = schema.validate(dataToValidate, {
         ...validationOptions,
-        context: { correlationId }
+        context: { correlationId },
       });
 
       if (error) {
-        const errorDetails = error.details.map(detail => ({
+        const errorDetails = error.details.map((detail) => ({
           path: detail.path.join('.'),
           message: detail.message,
-          type: detail.type
+          type: detail.type,
         }));
 
-        throw new CustomError(
-          'Validation failed',
-          'VAL_001',
-          400,
-          true,
-          { 
-            errors: errorDetails,
-            correlationId 
-          }
-        );
+        throw new AppError('Validation failed', 400, 'VAL_001', {
+          errors: errorDetails,
+          correlationId,
+        });
       }
 
       // Apply enhanced sanitization
@@ -119,7 +95,7 @@ export const validateRequest = (
       logger.debug('Request validation successful', {
         correlationId,
         path: req.path,
-        method: req.method
+        method: req.method,
       });
       next();
     } catch (error) {
@@ -133,34 +109,19 @@ export const validateRequest = (
  * @param data Request data containing metric values
  * @param metricType Type of metric being validated
  */
-export const validateMetricRequest = async (
-  data: any,
-  metricType: string
-): Promise<void> => {
+export const validateMetricRequest = async (data: any, metricType: string): Promise<void> => {
   const rules = METRIC_VALIDATION_RULES[metricType];
   if (!rules) {
-    throw new CustomError(
-      'Invalid metric type',
-      'VAL_003',
-      400,
-      true,
-      { metricType }
-    );
+    throw new AppError('Invalid metric type', 400, 'VAL_003', { metricType });
   }
 
   const validationResult = await validateMetricValue(data, {
     type: metricType,
-    rules
+    rules,
   });
 
   if (!validationResult.isValid) {
-    throw new CustomError(
-      'Invalid metric value',
-      'VAL_003',
-      400,
-      true,
-      { errors: validationResult.errors }
-    );
+    throw new AppError('Invalid metric value', 400, 'VAL_003', { errors: validationResult.errors });
   }
 };
 
@@ -172,13 +133,7 @@ export const validateUserRequest = async (data: any): Promise<void> => {
   const validationResult = await validateUserData(data, USER_VALIDATION_RULES);
 
   if (!validationResult.isValid) {
-    throw new CustomError(
-      'Invalid user data',
-      'VAL_002',
-      400,
-      true,
-      { errors: validationResult.errors }
-    );
+    throw new AppError('Invalid user data', 400, 'VAL_002', { errors: validationResult.errors });
   }
 };
 
@@ -192,9 +147,7 @@ const exceedsMaxDepth = (obj: any, maxDepth: number): boolean => {
     if (depth > maxDepth) return true;
     if (typeof current !== 'object' || current === null) return false;
 
-    return Object.values(current).some(value => 
-      checkDepth(value, depth + 1)
-    );
+    return Object.values(current).some((value) => checkDepth(value, depth + 1));
   };
 
   return checkDepth(obj, 0);
@@ -210,7 +163,7 @@ const containsLargeArrays = (obj: any, maxLength: number): boolean => {
     if (Array.isArray(current) && current.length > maxLength) return true;
     if (typeof current !== 'object' || current === null) return false;
 
-    return Object.values(current).some(value => checkArrays(value));
+    return Object.values(current).some((value) => checkArrays(value));
   };
 
   return checkArrays(obj);
@@ -229,17 +182,20 @@ const sanitizeRequestData = (data: any): any => {
       }
       return sanitizeInput(value, {
         maxLength: 10000, // Configurable maximum length
-        stripAll: true
+        stripAll: true,
       });
     }
     if (Array.isArray(value)) {
-      return value.map(item => sanitize(item));
+      return value.map((item) => sanitize(item));
     }
     if (typeof value === 'object' && value !== null) {
-      return Object.entries(value).reduce((acc, [key, val]) => ({
-        ...acc,
-        [key]: sanitize(val, key)
-      }), {});
+      return Object.entries(value).reduce(
+        (acc, [key, val]) => ({
+          ...acc,
+          [key]: sanitize(val, key),
+        }),
+        {}
+      );
     }
     return value;
   };

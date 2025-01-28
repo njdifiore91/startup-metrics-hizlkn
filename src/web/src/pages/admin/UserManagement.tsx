@@ -47,6 +47,7 @@ interface User {
   createdAt: string;
   lastLoginAt: string;
   profileImageUrl: string | null;
+  tier: 'free' | 'pro' | 'enterprise';
 }
 
 interface UserResponse {
@@ -58,6 +59,9 @@ interface CreateUserData {
   name: string;
   email: string;
   role: keyof typeof USER_ROLES;
+  isActive?: boolean;
+  profileImageUrl?: string;
+  tier?: 'free' | 'pro' | 'enterprise';
 }
 
 const UserManagement: React.FC = () => {
@@ -80,6 +84,8 @@ const UserManagement: React.FC = () => {
     name: '',
     email: '',
     role: 'USER',
+    isActive: true,
+    tier: 'free',
   });
   const [editUser, setEditUser] = useState<Partial<User>>({});
 
@@ -92,7 +98,6 @@ const UserManagement: React.FC = () => {
 
   const handleMenuClose = () => {
     setAnchorEl(null);
-    setSelectedUserId(null);
   };
 
   const showToast = (message: string, severity: 'success' | 'error') => {
@@ -110,7 +115,7 @@ const UserManagement: React.FC = () => {
       setLoading(true);
       const response = await api.get('/api/v1/admin/users', {
         params: {
-          page: page + 1, // API uses 1-based pagination
+          page: page + 1,
           limit: rowsPerPage,
           role: roleFilter || undefined,
           isActive: !showInactive ? true : undefined,
@@ -159,7 +164,13 @@ const UserManagement: React.FC = () => {
       await api.post('/api/v1/admin/users', newUser);
       showToast('User created successfully', 'success');
       setCreateDialogOpen(false);
-      setNewUser({ name: '', email: '', role: 'USER' });
+      setNewUser({
+        name: '',
+        email: '',
+        role: 'USER',
+        isActive: true,
+        tier: 'free',
+      });
       fetchUsers();
     } catch (err) {
       showToast('Failed to create user', 'error');
@@ -167,16 +178,61 @@ const UserManagement: React.FC = () => {
   };
 
   const handleEditUser = async () => {
-    if (!selectedUserId) return;
+    console.log('handleEditUser called', { selectedUserId, editUser }); // Debug log
+
+    if (!selectedUserId) {
+      console.log('No selectedUserId found'); // Debug log
+      return;
+    }
 
     try {
-      await api.put(`/api/v1/admin/users/${selectedUserId}`, editUser);
+      // Validate required fields
+      if (!editUser.name?.trim()) {
+        showToast('Name is required', 'error');
+        return;
+      }
+      if (!editUser.email?.trim()) {
+        showToast('Email is required', 'error');
+        return;
+      }
+      if (!editUser.role) {
+        showToast('Role is required', 'error');
+        return;
+      }
+
+      const updateData = {
+        name: editUser.name.trim(),
+        email: editUser.email.trim(),
+        role: editUser.role,
+        isActive: editUser.isActive ?? true,
+        profileImageUrl: editUser.profileImageUrl?.trim() || null,
+        tier: editUser.tier || 'free',
+      };
+
+      console.log('Making API call to update user:', {
+        url: `/api/v1/admin/users/${selectedUserId}`,
+        data: updateData,
+      }); // Debug log
+
+      setLoading(true);
+      const response = await api.put(`/api/v1/admin/users/${selectedUserId}`, updateData);
+      console.log('API response:', response); // Debug log
+
       showToast('User updated successfully', 'success');
       setEditDialogOpen(false);
       setEditUser({});
-      fetchUsers();
-    } catch (err) {
-      showToast('Failed to update user', 'error');
+      await fetchUsers(); // Refresh the user list
+    } catch (err: any) {
+      console.error('Error updating user:', {
+        error: err,
+        response: err.response,
+        status: err.response?.status,
+        data: err.response?.data,
+      }); // Detailed error logging
+      const errorMessage = err.response?.data?.message || 'Failed to update user';
+      showToast(errorMessage, 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -210,14 +266,26 @@ const UserManagement: React.FC = () => {
   };
 
   const startEdit = (user: User) => {
+    console.log('startEdit called with user:', user);
     setEditUser({
       name: user.name,
       email: user.email,
       role: user.role,
+      isActive: user.isActive,
+      profileImageUrl: user.profileImageUrl || undefined,
+      tier: user.tier,
     });
     setSelectedUserId(user.id);
     setEditDialogOpen(true);
-    handleMenuClose();
+    setAnchorEl(null); // Just close the menu, don't reset selectedUserId
+  };
+
+  const handleCloseEditDialog = () => {
+    if (!loading) {
+      setEditDialogOpen(false);
+      setEditUser({});
+      setSelectedUserId(null);
+    }
   };
 
   return (
@@ -319,6 +387,8 @@ const UserManagement: React.FC = () => {
           <>
             {(() => {
               const selectedUser = users.find((u) => u.id === selectedUserId);
+              console.log('selectedUser', selectedUser);
+              console.log('selectedUserId', selectedUserId);
               return selectedUser ? (
                 <>
                   <MenuItem onClick={() => startEdit(selectedUser)}>Edit</MenuItem>
@@ -336,82 +406,203 @@ const UserManagement: React.FC = () => {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
         <DialogTitle>Create New User</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            name="name"
-            label="Name"
-            type="text"
-            fullWidth
-            value={newUser.name}
-            onChange={handleInputChange}
-          />
-          <TextField
-            margin="dense"
-            name="email"
-            label="Email"
-            type="email"
-            fullWidth
-            value={newUser.email}
-            onChange={handleInputChange}
-          />
-          <FormControl fullWidth margin="dense">
-            <InputLabel>Role</InputLabel>
-            <Select value={newUser.role} onChange={handleRoleChange} label="Role">
-              {Object.entries(USER_ROLES).map(([key, value]) => (
-                <MenuItem key={key} value={key}>
-                  {value}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <TextField
+              name="name"
+              label="Name"
+              type="text"
+              fullWidth
+              value={newUser.name}
+              onChange={handleInputChange}
+              required
+            />
+            <TextField
+              name="email"
+              label="Email"
+              type="email"
+              fullWidth
+              value={newUser.email}
+              onChange={handleInputChange}
+              required
+            />
+            <FormControl fullWidth>
+              <InputLabel>Role</InputLabel>
+              <Select value={newUser.role} onChange={handleRoleChange} label="Role">
+                {Object.entries(USER_ROLES).map(([key, value]) => (
+                  <MenuItem key={key} value={key}>
+                    {value}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Tier</InputLabel>
+              <Select
+                name="tier"
+                value={newUser.tier || 'free'}
+                onChange={(e) =>
+                  setNewUser((prev) => ({
+                    ...prev,
+                    tier: e.target.value as 'free' | 'pro' | 'enterprise',
+                  }))
+                }
+                label="Tier"
+              >
+                <MenuItem value="free">Free</MenuItem>
+                <MenuItem value="pro">Pro</MenuItem>
+                <MenuItem value="enterprise">Enterprise</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              name="profileImageUrl"
+              label="Profile Image URL"
+              type="url"
+              fullWidth
+              value={newUser.profileImageUrl || ''}
+              onChange={handleInputChange}
+              helperText="Optional: URL to user's profile image"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={newUser.isActive}
+                  onChange={(e) => setNewUser((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  name="isActive"
+                />
+              }
+              label="Active User"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreateUser} variant="contained" color="primary">
+          <Button
+            onClick={() => {
+              setCreateDialogOpen(false);
+              setNewUser({
+                name: '',
+                email: '',
+                role: 'USER',
+                isActive: true,
+                tier: 'free',
+              });
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreateUser}
+            variant="contained"
+            color="primary"
+            disabled={!newUser.name || !newUser.email}
+          >
             Create
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+      <Dialog open={editDialogOpen} onClose={handleCloseEditDialog}>
         <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            name="name"
-            label="Name"
-            type="text"
-            fullWidth
-            value={editUser.name || ''}
-            onChange={handleEditInputChange}
-          />
-          <TextField
-            margin="dense"
-            name="email"
-            label="Email"
-            type="email"
-            fullWidth
-            value={editUser.email || ''}
-            onChange={handleEditInputChange}
-          />
-          <FormControl fullWidth margin="dense">
-            <InputLabel>Role</InputLabel>
-            <Select value={editUser.role || ''} onChange={handleEditRoleChange} label="Role">
-              {Object.entries(USER_ROLES).map(([key, value]) => (
-                <MenuItem key={key} value={key}>
-                  {value}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <TextField
+              name="name"
+              label="Name"
+              type="text"
+              fullWidth
+              value={editUser.name || ''}
+              onChange={handleEditInputChange}
+              required
+              error={!editUser.name?.trim()}
+              helperText={!editUser.name?.trim() ? 'Name is required' : ''}
+              disabled={loading}
+            />
+            <TextField
+              name="email"
+              label="Email"
+              type="email"
+              fullWidth
+              value={editUser.email || ''}
+              onChange={handleEditInputChange}
+              required
+              error={!editUser.email?.trim()}
+              helperText={!editUser.email?.trim() ? 'Email is required' : ''}
+              disabled={loading}
+            />
+            <FormControl fullWidth error={!editUser.role}>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={editUser.role || ''}
+                onChange={handleEditRoleChange}
+                label="Role"
+                disabled={loading}
+              >
+                {Object.entries(USER_ROLES).map(([key, value]) => (
+                  <MenuItem key={key} value={key}>
+                    {value}
+                  </MenuItem>
+                ))}
+              </Select>
+              {!editUser.role && <FormHelperText>Role is required</FormHelperText>}
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Tier</InputLabel>
+              <Select
+                name="tier"
+                value={editUser.tier || 'free'}
+                onChange={(e) =>
+                  setEditUser((prev) => ({
+                    ...prev,
+                    tier: e.target.value as 'free' | 'pro' | 'enterprise',
+                  }))
+                }
+                label="Tier"
+                disabled={loading}
+              >
+                <MenuItem value="free">Free</MenuItem>
+                <MenuItem value="pro">Pro</MenuItem>
+                <MenuItem value="enterprise">Enterprise</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              name="profileImageUrl"
+              label="Profile Image URL"
+              type="url"
+              fullWidth
+              value={editUser.profileImageUrl || ''}
+              onChange={handleEditInputChange}
+              helperText="Optional: URL to user's profile image"
+              disabled={loading}
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={editUser.isActive}
+                  onChange={(e) => setEditUser((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  name="isActive"
+                  disabled={loading}
+                />
+              }
+              label="Active User"
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleEditUser} variant="contained" color="primary">
-            Save
+          <Button onClick={handleCloseEditDialog} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              console.log('Save button clicked, selectedUserId:', selectedUserId);
+              handleEditUser();
+            }}
+            variant="contained"
+            color="primary"
+            disabled={
+              loading || !editUser.name?.trim() || !editUser.email?.trim() || !editUser.role
+            }
+          >
+            {loading ? <CircularProgress size={24} /> : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

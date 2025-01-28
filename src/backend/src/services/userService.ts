@@ -6,6 +6,7 @@ import { encrypt } from '../utils/encryption';
 import { rateLimit } from 'express-rate-limit';
 import { createClient } from 'redis';
 import { Model, Op } from 'sequelize';
+import { v4 as uuidv4 } from 'uuid';
 
 // Redis client for caching
 const cache = createClient({
@@ -81,6 +82,64 @@ class UserService {
     }
   }
 
+  async editUser(
+    id: string,
+    editData: {
+      email?: string;
+      name?: string;
+      role?: keyof typeof USER_ROLES;
+      isActive?: boolean;
+      profileImageUrl?: string;
+      tier?: 'free' | 'pro' | 'enterprise';
+      metadata?: Record<string, unknown>;
+    }
+  ): Promise<User> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+
+      // Validate email if provided
+      if (editData.email) {
+        const existingUser = await this.findByEmail(editData.email);
+        if (existingUser && existingUser.id !== id) {
+          throw new AppError('Email already in use by another user', 400);
+        }
+      }
+
+      // Validate role if provided
+      if (editData.role && !Object.values(USER_ROLES).includes(editData.role)) {
+        throw new AppError('Invalid role specified', 400);
+      }
+
+      // Create audit log entry
+      logger.info('User edit requested', {
+        userId: id,
+        changes: editData,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Perform the update with validation
+      const updatedUser = await user.update({
+        ...editData,
+        updatedAt: new Date(),
+      });
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+
+      return updatedUser;
+    } catch (error) {
+      logger.error('Error editing user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to edit user', 500);
+    }
+  }
+
   async validateRole(userId: string, requiredRole: keyof typeof USER_ROLES): Promise<boolean> {
     try {
       const user = await User.findByPk(userId);
@@ -137,6 +196,47 @@ class UserService {
     } catch (error) {
       logger.error('Error fetching all users:', { error } as LogMetadata);
       throw new AppError('Failed to fetch users', 500);
+    }
+  }
+
+  async createManualUser(userData: {
+    email: string;
+    name: string;
+    role?: keyof typeof USER_ROLES;
+    isActive?: boolean;
+    profileImageUrl?: string;
+    tier?: 'free' | 'pro' | 'enterprise';
+  }): Promise<User> {
+    try {
+      // Check if user with email already exists
+      const existingUser = await this.findByEmail(userData.email);
+      if (existingUser) {
+        throw new AppError('User with this email already exists', 400);
+      }
+
+      const now = new Date();
+      const user = await User.create({
+        id: uuidv4(),
+        email: userData.email,
+        name: userData.name,
+        role: userData.role || USER_ROLES.USER,
+        tier: userData.tier || 'free',
+        isActive: userData.isActive ?? true,
+        lastLoginAt: now,
+        createdAt: now,
+        updatedAt: now,
+        profileImageUrl: userData.profileImageUrl,
+        version: 1,
+      } as IUser);
+
+      logger.info('Manual user created successfully', { userId: user.id });
+      return user;
+    } catch (error) {
+      logger.error('Error creating manual user:', { error } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to create user', 500);
     }
   }
 }
