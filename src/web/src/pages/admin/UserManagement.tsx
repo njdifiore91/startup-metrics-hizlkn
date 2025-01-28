@@ -26,6 +26,9 @@ import {
   Select,
   SelectChangeEvent,
   FormHelperText,
+  TablePagination,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AddIcon from '@mui/icons-material/Add';
@@ -41,6 +44,12 @@ interface User {
   role: string;
   isActive: boolean;
   createdAt: string;
+  version: number;
+}
+
+interface UserResponse {
+  users: User[];
+  total: number;
 }
 
 interface CreateUserData {
@@ -51,25 +60,26 @@ interface CreateUserData {
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [roleFilter, setRoleFilter] = useState<string>('');
+  const [showInactive, setShowInactive] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
   const [newUser, setNewUser] = useState<CreateUserData>({
     name: '',
     email: '',
     role: 'USER',
   });
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error';
-  }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
+  const [editUser, setEditUser] = useState<Partial<User>>({});
 
   const { user: currentUser } = useAuth();
 
@@ -84,82 +94,96 @@ const UserManagement: React.FC = () => {
   };
 
   const showToast = (message: string, severity: 'success' | 'error') => {
-    setToast({
-      open: true,
-      message,
-      severity,
-    });
+    setToastMessage(message);
+    setToastSeverity(severity);
+    setToastOpen(true);
   };
 
   const handleToastClose = () => {
-    setToast((prev) => ({ ...prev, open: false }));
+    setToastOpen(false);
   };
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/users');
-      setUsers(response.data.data);
-    } catch (error) {
-      showToast('Unable to load user list', 'error');
+      setLoading(true);
+      const response = await api.get<UserResponse>('/api/v1/admin/users', {
+        params: {
+          page: page + 1, // API uses 1-based pagination
+          limit: rowsPerPage,
+          role: roleFilter || undefined,
+          isActive: !showInactive ? true : undefined,
+        },
+      });
+
+      setUsers(response.data.users);
+      setTotalUsers(response.data.total);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch users');
+      showToast('Failed to fetch users', 'error');
     } finally {
       setLoading(false);
     }
   };
 
+  const handlePageChange = (event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleRowsPerPageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleRoleFilterChange = (event: SelectChangeEvent) => {
+    setRoleFilter(event.target.value);
+    setPage(0);
+  };
+
+  const handleShowInactiveChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setShowInactive(event.target.checked);
+    setPage(0);
+  };
+
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [page, rowsPerPage, roleFilter, showInactive]);
 
   const handleCreateUser = async () => {
     try {
-      // Validate required fields
-      if (!newUser.name || !newUser.email || !newUser.role) {
-        showToast('Please fill in all required fields', 'error');
-        return;
-      }
-
-      await api.post('/users', newUser);
+      await api.post('/api/v1/admin/users', newUser);
       showToast('User created successfully', 'success');
       setCreateDialogOpen(false);
       setNewUser({ name: '', email: '', role: 'USER' });
       fetchUsers();
-    } catch (error: any) {
-      showToast(error.response?.data?.message || 'Failed to create user', 'error');
+    } catch (err) {
+      showToast('Failed to create user', 'error');
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
+  const handleEditUser = async () => {
+    if (!selectedUserId || !editUser.version) return;
+
     try {
-      await api.delete(`/users/${userId}`);
-      showToast('User deleted successfully', 'success');
-      setDeleteDialogOpen(false);
+      await api.put(`/api/v1/admin/users/${selectedUserId}`, editUser);
+      showToast('User updated successfully', 'success');
+      setEditDialogOpen(false);
+      setEditUser({});
       fetchUsers();
-    } catch (error) {
-      showToast('Failed to delete user', 'error');
+    } catch (err) {
+      showToast('Failed to update user', 'error');
     }
-    handleMenuClose();
   };
 
   const handleDeactivateUser = async (userId: string) => {
     try {
-      await api.post(`/users/${userId}/deactivate`);
+      await api.post(`/api/v1/admin/users/${userId}/deactivate`);
       showToast('User deactivated successfully', 'success');
+      handleMenuClose();
       fetchUsers();
-    } catch (error) {
+    } catch (err) {
       showToast('Failed to deactivate user', 'error');
     }
-    handleMenuClose();
-  };
-
-  const handleReactivateUser = async (userId: string) => {
-    try {
-      await api.post(`/users/${userId}/reactivate`);
-      showToast('User reactivated successfully', 'success');
-      fetchUsers();
-    } catch (error) {
-      showToast('Failed to reactivate user', 'error');
-    }
-    handleMenuClose();
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,89 +191,119 @@ const UserManagement: React.FC = () => {
     setNewUser((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditUser((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleRoleChange = (e: SelectChangeEvent) => {
     setNewUser((prev) => ({ ...prev, role: e.target.value as keyof typeof USER_ROLES }));
   };
 
+  const handleEditRoleChange = (e: SelectChangeEvent) => {
+    setEditUser((prev) => ({ ...prev, role: e.target.value }));
+  };
+
+  const startEdit = (user: User) => {
+    setEditUser({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      version: user.version,
+    });
+    setSelectedUserId(user.id);
+    setEditDialogOpen(true);
+    handleMenuClose();
+  };
+
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4">User Management</Typography>
+    <Box sx={{ width: '100%', p: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h5" component="h1">
+          User Management
+        </Typography>
         <Button
           variant="contained"
-          color="primary"
           startIcon={<AddIcon />}
           onClick={() => setCreateDialogOpen(true)}
         >
-          Create User
+          Add User
         </Button>
       </Box>
 
-      <Paper>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Created At</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={user.role}
-                      color={user.role === 'ADMIN' ? 'secondary' : 'primary'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={user.isActive ? 'Active' : 'Inactive'}
-                      color={user.isActive ? 'success' : 'error'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <IconButton
-                      onClick={(e) => handleMenuClick(e, user.id)}
-                      disabled={user.id === currentUser?.id}
-                    >
-                      <MoreVertIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+      <Box sx={{ mb: 2, display: 'flex', gap: 2 }}>
+        <FormControl sx={{ minWidth: 120 }}>
+          <InputLabel>Role Filter</InputLabel>
+          <Select value={roleFilter} onChange={handleRoleFilterChange} label="Role Filter">
+            <MenuItem value="">All Roles</MenuItem>
+            {Object.keys(USER_ROLES).map((role) => (
+              <MenuItem key={role} value={role}>
+                {role}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-      {/* Action Menu */}
+        <FormControlLabel
+          control={<Switch checked={showInactive} onChange={handleShowInactiveChange} />}
+          label="Show Inactive Users"
+        />
+      </Box>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Email</TableCell>
+              <TableCell>Role</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Created At</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell>{user.name}</TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>{user.role}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={user.isActive ? 'Active' : 'Inactive'}
+                    color={user.isActive ? 'success' : 'error'}
+                  />
+                </TableCell>
+                <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <IconButton onClick={(e) => handleMenuClick(e, user.id)}>
+                    <MoreVertIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <TablePagination
+        component="div"
+        count={totalUsers}
+        page={page}
+        onPageChange={handlePageChange}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleRowsPerPageChange}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+      />
+
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
-        {selectedUserId && users.find((u) => u.id === selectedUserId)?.isActive ? (
-          <MenuItem onClick={() => handleDeactivateUser(selectedUserId)}>Deactivate User</MenuItem>
-        ) : (
-          <MenuItem onClick={() => selectedUserId && handleReactivateUser(selectedUserId)}>
-            Reactivate User
-          </MenuItem>
-        )}
         <MenuItem
-          onClick={() => {
-            handleMenuClose();
-            setDeleteDialogOpen(true);
-          }}
-          sx={{ color: 'error.main' }}
+          onClick={() => selectedUserId && startEdit(users.find((u) => u.id === selectedUserId)!)}
         >
-          <DeleteIcon sx={{ mr: 1 }} /> Delete User
+          Edit
+        </MenuItem>
+        <MenuItem onClick={() => selectedUserId && handleDeactivateUser(selectedUserId)}>
+          {users.find((u) => u.id === selectedUserId)?.isActive ? 'Deactivate' : 'Activate'}
         </MenuItem>
       </Menu>
 
@@ -257,83 +311,94 @@ const UserManagement: React.FC = () => {
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
         <DialogTitle>Create New User</DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <TextField
-              name="name"
-              label="Name"
-              value={newUser.name}
-              onChange={handleInputChange}
-              fullWidth
-              required
-              error={createDialogOpen && !newUser.name}
-              helperText={createDialogOpen && !newUser.name ? 'Name is required' : ''}
-            />
-            <TextField
-              name="email"
-              label="Email"
-              type="email"
-              value={newUser.email}
-              onChange={handleInputChange}
-              fullWidth
-              required
-              error={createDialogOpen && !newUser.email}
-              helperText={createDialogOpen && !newUser.email ? 'Email is required' : ''}
-            />
-            <FormControl fullWidth required error={createDialogOpen && !newUser.role}>
-              <InputLabel>Role</InputLabel>
-              <Select value={newUser.role} label="Role" onChange={handleRoleChange}>
-                {Object.entries(USER_ROLES).map(([key, value]) => (
-                  <MenuItem key={key} value={key}>
-                    {value}
-                  </MenuItem>
-                ))}
-              </Select>
-              {createDialogOpen && !newUser.role && (
-                <FormHelperText>Role is required</FormHelperText>
-              )}
-            </FormControl>
-          </Box>
+          <TextField
+            autoFocus
+            margin="dense"
+            name="name"
+            label="Name"
+            type="text"
+            fullWidth
+            value={newUser.name}
+            onChange={handleInputChange}
+          />
+          <TextField
+            margin="dense"
+            name="email"
+            label="Email"
+            type="email"
+            fullWidth
+            value={newUser.email}
+            onChange={handleInputChange}
+          />
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Role</InputLabel>
+            <Select value={newUser.role} onChange={handleRoleChange} label="Role">
+              {Object.entries(USER_ROLES).map(([key, value]) => (
+                <MenuItem key={key} value={key}>
+                  {value}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleCreateUser}
-            variant="contained"
-            color="primary"
-            disabled={!newUser.name || !newUser.email || !newUser.role}
-          >
+          <Button onClick={handleCreateUser} variant="contained" color="primary">
             Create
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete User</DialogTitle>
+      {/* Edit User Dialog */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+        <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
-          Are you sure you want to delete this user? This action cannot be undone.
+          <TextField
+            autoFocus
+            margin="dense"
+            name="name"
+            label="Name"
+            type="text"
+            fullWidth
+            value={editUser.name || ''}
+            onChange={handleEditInputChange}
+          />
+          <TextField
+            margin="dense"
+            name="email"
+            label="Email"
+            type="email"
+            fullWidth
+            value={editUser.email || ''}
+            onChange={handleEditInputChange}
+          />
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Role</InputLabel>
+            <Select value={editUser.role || ''} onChange={handleEditRoleChange} label="Role">
+              {Object.entries(USER_ROLES).map(([key, value]) => (
+                <MenuItem key={key} value={key}>
+                  {value}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={() => selectedUserId && handleDeleteUser(selectedUserId)}
-            variant="contained"
-            color="error"
-          >
-            Delete
+          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleEditUser} variant="contained" color="primary">
+            Save
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Toast Notification */}
       <Snackbar
-        open={toast.open}
-        autoHideDuration={3000}
+        open={toastOpen}
+        autoHideDuration={6000}
         onClose={handleToastClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert onClose={handleToastClose} severity={toast.severity}>
-          {toast.message}
+        <Alert onClose={handleToastClose} severity={toastSeverity}>
+          {toastMessage}
         </Alert>
       </Snackbar>
     </Box>
