@@ -180,11 +180,33 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
   },
 ];
 
+// // Admin navigation items
+// const adminNavItems = [
+//   {
+//     title: 'User Management',
+//     path: '/admin/users',
+//     icon: <GroupIcon />,
+//   },
+//   {
+//     title: 'Metric Management',
+//     path: '/admin/metrics',
+//     icon: <BarChartIcon />,
+//   },
+//   {
+//     title: 'Data Sources',
+//     path: '/admin/sources',
+//     icon: <StorageIcon />,
+//   },
+//   {
+//     title: 'Audit Logs',
+//     path: '/admin/audit',
+//     icon: <HistoryIcon />,
+//   },
+// ];
+
 export const Navigation: React.FC<NavigationProps> = ({
   isCollapsed,
-  theme,
   ariaLabel = 'Main Navigation',
-  onNavigationError,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
