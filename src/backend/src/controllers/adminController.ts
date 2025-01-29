@@ -261,3 +261,56 @@ export const deactivateUser = async (
     next(error);
   }
 };
+
+/**
+ * Delete a user account permanently
+ * @param req Express request object
+ * @param res Express response object
+ * @param next Express next function
+ */
+export const deleteUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const correlationId = uuidv4();
+  logger.setCorrelationId(correlationId);
+
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) {
+      throw new AppError('Unauthorized', 401);
+    }
+
+    // Validate admin permissions
+    const hasPermission = await userService.validateRole(adminId, USER_ROLES.ADMIN);
+    if (!hasPermission) {
+      throw new AppError('Insufficient permissions to delete users', 403);
+    }
+
+    const userId = req.params.userId;
+
+    // Delete the user
+    await userService.deleteUser(userId);
+
+    logger.info('User deleted through admin interface', {
+      adminId,
+      deletedUserId: userId,
+      correlationId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully',
+      correlationId,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('Error deleting user through admin interface', {
+      error,
+      correlationId,
+      userId: req.params.userId,
+    });
+    next(error);
+  }
+};

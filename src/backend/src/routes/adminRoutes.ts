@@ -5,6 +5,7 @@ import {
   updateUser,
   editUser,
   deactivateUser,
+  deleteUser,
 } from '../controllers/adminController';
 import { createAuthMiddleware } from '../middleware/auth';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
@@ -82,6 +83,13 @@ const deactivateUserSchema = {
   }),
 };
 
+// Validation schema for user deletion
+const deleteUserSchema = {
+  params: Joi.object({
+    userId: Joi.string().required(),
+  }),
+};
+
 // Apply authentication middleware to all admin routes
 router.use(authenticate);
 
@@ -91,6 +99,7 @@ router.post('/users', createUserRateLimit, validateRequest(createUserSchema), cr
 router.put('/users/:userId', validateRequest(updateUserSchema), updateUser);
 router.patch('/users/:userId', validateRequest(editUserSchema), editUser);
 router.post('/users/:userId/deactivate', validateRequest(deactivateUserSchema), deactivateUser);
+router.delete('/users/:userId', validateRequest(deleteUserSchema), deleteUser);
 
 // Mount Audit Log Routes
 router.use('/audit-logs', auditLogRoutes);

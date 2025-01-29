@@ -276,6 +276,35 @@ class UserService {
       throw new AppError('Failed to create user', 500);
     }
   }
+
+  async deleteUser(id: string): Promise<void> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+
+      // Create audit log entry
+      logger.info('User deletion requested', {
+        userId: id,
+        userEmail: user.email,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Delete the user
+      await user.destroy();
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+    } catch (error) {
+      logger.error('Error deleting user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to delete user', 500);
+    }
+  }
 }
 
 export const userService = new UserService();
