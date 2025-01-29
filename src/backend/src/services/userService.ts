@@ -140,6 +140,43 @@ class UserService {
     }
   }
 
+  async deactivateUser(id: string): Promise<User> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+
+      if (!user.isActive) {
+        throw new AppError('User is already deactivated', 400);
+      }
+
+      // Create audit log entry
+      logger.info('User deactivation requested', {
+        userId: id,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Perform the deactivation
+      const updatedUser = await user.update({
+        isActive: false,
+        updatedAt: new Date(),
+      });
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+
+      return updatedUser;
+    } catch (error) {
+      logger.error('Error deactivating user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to deactivate user', 500);
+    }
+  }
+
   async validateRole(userId: string, requiredRole: keyof typeof USER_ROLES): Promise<boolean> {
     try {
       const user = await User.findByPk(userId);
@@ -170,7 +207,7 @@ class UserService {
       const { page = 1, limit = 10, role, isActive = true } = options;
       const offset = (page - 1) * limit;
 
-      const where: any = { isActive };
+      const where: any = {};
       if (role) {
         where.role = role;
       }
@@ -237,6 +274,35 @@ class UserService {
         throw error;
       }
       throw new AppError('Failed to create user', 500);
+    }
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+
+      // Create audit log entry
+      logger.info('User deletion requested', {
+        userId: id,
+        userEmail: user.email,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Delete the user
+      await user.destroy();
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+    } catch (error) {
+      logger.error('Error deleting user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to delete user', 500);
     }
   }
 }

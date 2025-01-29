@@ -27,6 +27,7 @@ import {
   Settings as SettingsIcon,
   ExpandLess,
   ExpandMore,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission, FEATURES, USER_ROLES, type UserRole } from '@/constants/roles';
@@ -174,6 +175,20 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
         label: 'System Settings',
         path: '/admin/settings',
         icon: <SettingsIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+      {
+        id: 'audit-logs',
+        label: 'Audit Logs',
+        path: '/admin/audit-logs',
+        icon: <HistoryIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+      {
+        id: 'audit-stats',
+        label: 'Audit Statistics',
+        path: '/admin/audit-stats',
+        icon: <AssessmentIcon />,
         visible: hasPermission(userRole, FEATURES.users, 'full'),
       },
     ],

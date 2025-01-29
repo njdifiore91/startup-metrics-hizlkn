@@ -77,6 +77,7 @@ const UserManagement: React.FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastSeverity, setToastSeverity] = useState<'success' | 'error'>('success');
@@ -236,17 +237,6 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleDeactivateUser = async (userId: string) => {
-    try {
-      await api.post(`/api/v1/admin/users/${userId}/deactivate`);
-      showToast('User deactivated successfully', 'success');
-      handleMenuClose();
-      fetchUsers();
-    } catch (err) {
-      showToast('Failed to deactivate user', 'error');
-    }
-  };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
@@ -284,6 +274,38 @@ const UserManagement: React.FC = () => {
     if (!loading) {
       setEditDialogOpen(false);
       setEditUser({});
+      setSelectedUserId(null);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUserId) return;
+
+    try {
+      setLoading(true);
+      await api.delete(`/api/v1/admin/users/${selectedUserId}`);
+      showToast('User deleted successfully', 'success');
+      handleMenuClose();
+      setDeleteDialogOpen(false);
+      await fetchUsers();
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to delete user';
+      showToast(errorMessage, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startDelete = (user: User) => {
+    setSelectedUserId(user.id);
+    setDeleteDialogOpen(true);
+    setAnchorEl(null);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    if (!loading) {
+      setDeleteDialogOpen(false);
       setSelectedUserId(null);
     }
   };
@@ -392,9 +414,7 @@ const UserManagement: React.FC = () => {
               return selectedUser ? (
                 <>
                   <MenuItem onClick={() => startEdit(selectedUser)}>Edit</MenuItem>
-                  <MenuItem onClick={() => handleDeactivateUser(selectedUserId)}>
-                    {selectedUser.isActive ? 'Deactivate' : 'Activate'}
-                  </MenuItem>
+                  <MenuItem onClick={() => startDelete(selectedUser)}>Delete</MenuItem>
                 </>
               ) : null;
             })()}
@@ -603,6 +623,30 @@ const UserManagement: React.FC = () => {
             }
           >
             {loading ? <CircularProgress size={24} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={handleCloseDeleteDialog}>
+        <DialogTitle>Delete User</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this user? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteDialog} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteUser}
+            variant="contained"
+            color="error"
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : <DeleteIcon />}
+          >
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
