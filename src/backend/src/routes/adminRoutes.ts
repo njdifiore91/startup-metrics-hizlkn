@@ -1,5 +1,11 @@
 import express from 'express';
-import { getAllUsers, createUser, updateUser, editUser } from '../controllers/adminController';
+import {
+  getAllUsers,
+  createUser,
+  updateUser,
+  editUser,
+  deactivateUser,
+} from '../controllers/adminController';
 import { createAuthMiddleware } from '../middleware/auth';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
 import { validateRequest } from '../middleware/validator';
@@ -68,6 +74,13 @@ const editUserSchema = Joi.object({
   }).min(1), // Require at least one field to edit
 });
 
+// Validation schema for user deactivation
+const deactivateUserSchema = Joi.object({
+  params: Joi.object({
+    userId: Joi.string().required(),
+  }),
+});
+
 // Apply authentication middleware to all admin routes
 router.use(authenticate);
 
@@ -82,5 +95,8 @@ router.put('/users/:userId', validateRequest(updateUserSchema), updateUser);
 
 // PATCH /api/admin/users/:userId - Edit specific user fields
 router.patch('/users/:userId', validateRequest(editUserSchema), editUser);
+
+// POST /api/admin/users/:userId/deactivate - Deactivate a user
+router.post('/users/:userId/deactivate', validateRequest(deactivateUserSchema), deactivateUser);
 
 export default router;

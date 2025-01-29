@@ -238,12 +238,22 @@ const UserManagement: React.FC = () => {
 
   const handleDeactivateUser = async (userId: string) => {
     try {
-      await api.post(`/api/v1/admin/users/${userId}/deactivate`);
-      showToast('User deactivated successfully', 'success');
-      handleMenuClose();
-      fetchUsers();
-    } catch (err) {
-      showToast('Failed to deactivate user', 'error');
+      setLoading(true);
+      const response = await api.post(`/api/v1/admin/users/${userId}/deactivate`);
+
+      if (response.data.success) {
+        showToast('User deactivated successfully', 'success');
+        handleMenuClose();
+        await fetchUsers(); // Refresh the user list
+      } else {
+        throw new Error(response.data.message || 'Failed to deactivate user');
+      }
+    } catch (err: any) {
+      console.error('Error deactivating user:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to deactivate user';
+      showToast(errorMessage, 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
