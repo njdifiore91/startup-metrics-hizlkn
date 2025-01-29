@@ -22,6 +22,15 @@ router.get(
   auditLogController.getAuditLogs
 );
 
+// Get audit log statistics
+router.get(
+  '/statistics',
+  validateRequest({
+    query: auditLogValidation.getAuditLogStatistics.query,
+  }),
+  auditLogController.getAuditLogStatistics
+);
+
 // Get specific audit log by ID
 router.get(
   '/:id',
@@ -38,15 +47,6 @@ router.post(
     body: auditLogValidation.exportAuditLogs.body,
   }),
   auditLogController.exportAuditLogs
-);
-
-// Get audit log statistics
-router.get(
-  '/statistics',
-  validateRequest({
-    query: auditLogValidation.getAuditLogStatistics.query,
-  }),
-  auditLogController.getAuditLogStatistics
 );
 
 export default router;

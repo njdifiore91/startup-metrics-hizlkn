@@ -19,10 +19,11 @@ const AuditLogStats: React.FC = () => {
         startDate || undefined,
         endDate || undefined
       );
+      console.log('Received statistics data:', data); // Debug log
       setStats(data);
     } catch (err) {
+      console.error('Error details:', err); // Debug log
       setError('Failed to fetch audit log statistics');
-      console.error('Error fetching audit log statistics:', err);
     } finally {
       setLoading(false);
     }
@@ -49,8 +50,30 @@ const AuditLogStats: React.FC = () => {
   }
 
   if (!stats) {
-    return null;
+    return (
+      <Box p={3}>
+        <Alert severity="info">No statistics available</Alert>
+      </Box>
+    );
   }
+
+  console.log('Rendering with stats:', stats); // Debug log
+
+  // Transform data with null checks
+  const actionsByTypeData = Object.entries(stats.actionsByType || {}).map(([type, count]) => ({
+    type,
+    count: count || 0,
+  }));
+
+  const actionsByUserData = Object.entries(stats.actionsByUser || {}).map(([user, count]) => ({
+    user,
+    count: count || 0,
+  }));
+
+  const actionsOverTimeData = (stats.actionsOverTime || []).map((item) => ({
+    date: item.date,
+    count: item.count || 0,
+  }));
 
   return (
     <Box p={3}>
@@ -66,7 +89,7 @@ const AuditLogStats: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Total Actions
               </Typography>
-              <Typography variant="h3">{stats.totalActions}</Typography>
+              <Typography variant="h3">{stats.totalActions || 0}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -78,21 +101,24 @@ const AuditLogStats: React.FC = () => {
                 Actions by Type
               </Typography>
               <Box height={300}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={Object.entries(stats.actionsByType).map(([type, count]) => ({
-                      type,
-                      count,
-                    }))}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="type" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#8884d8" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {actionsByTypeData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={actionsByTypeData}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="type" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="#8884d8" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                    <Typography color="textSecondary">No data available</Typography>
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -105,21 +131,24 @@ const AuditLogStats: React.FC = () => {
                 Actions by User
               </Typography>
               <Box height={300}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={Object.entries(stats.actionsByUser).map(([user, count]) => ({
-                      user,
-                      count,
-                    }))}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="user" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#82ca9d" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {actionsByUserData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={actionsByUserData}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="user" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="#82ca9d" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                    <Typography color="textSecondary">No data available</Typography>
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -132,18 +161,24 @@ const AuditLogStats: React.FC = () => {
                 Actions Over Time
               </Typography>
               <Box height={300}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={stats.actionsOverTime}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="count" fill="#ffc658" />
-                  </BarChart>
-                </ResponsiveContainer>
+                {actionsOverTimeData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={actionsOverTimeData}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="#ffc658" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                    <Typography color="textSecondary">No data available</Typography>
+                  </Box>
+                )}
               </Box>
             </CardContent>
           </Card>

@@ -110,7 +110,7 @@ class AuditLogService {
     }
 
     const response = await api.get(`${this.baseUrl}/statistics?${params.toString()}`);
-    return response.data.data;
+    return response.data.data.data;
   }
 }
 

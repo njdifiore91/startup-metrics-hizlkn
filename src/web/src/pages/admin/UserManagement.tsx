@@ -236,27 +236,6 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleDeactivateUser = async (userId: string) => {
-    try {
-      setLoading(true);
-      const response = await api.post(`/api/v1/admin/users/${userId}/deactivate`);
-
-      if (response.data.success) {
-        showToast('User deactivated successfully', 'success');
-        handleMenuClose();
-        await fetchUsers(); // Refresh the user list
-      } else {
-        throw new Error(response.data.message || 'Failed to deactivate user');
-      }
-    } catch (err: any) {
-      console.error('Error deactivating user:', err);
-      const errorMessage = err.response?.data?.message || 'Failed to deactivate user';
-      showToast(errorMessage, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
@@ -402,9 +381,6 @@ const UserManagement: React.FC = () => {
               return selectedUser ? (
                 <>
                   <MenuItem onClick={() => startEdit(selectedUser)}>Edit</MenuItem>
-                  <MenuItem onClick={() => handleDeactivateUser(selectedUserId)}>
-                    {selectedUser.isActive ? 'Deactivate' : 'Activate'}
-                  </MenuItem>
                 </>
               ) : null;
             })()}

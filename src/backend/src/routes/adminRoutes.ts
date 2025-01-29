@@ -6,14 +6,13 @@ import {
   editUser,
   deactivateUser,
 } from '../controllers/adminController';
-import { auditLogController } from '../controllers/auditLogController';
 import { createAuthMiddleware } from '../middleware/auth';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
 import { validateRequest } from '../middleware/validator';
 import { USER_ROLES } from '../constants/roles';
 import rateLimit from 'express-rate-limit';
 import Joi from 'joi';
-import { auditLogValidation } from '../validations/auditLogValidation';
+import auditLogRoutes from './auditLogRoutes';
 
 const router = express.Router();
 const { authenticate } = createAuthMiddleware(new GoogleAuthProvider());
@@ -93,26 +92,7 @@ router.put('/users/:userId', validateRequest(updateUserSchema), updateUser);
 router.patch('/users/:userId', validateRequest(editUserSchema), editUser);
 router.post('/users/:userId/deactivate', validateRequest(deactivateUserSchema), deactivateUser);
 
-// Audit Log Routes
-router.get(
-  '/audit-logs',
-  validateRequest(auditLogValidation.getAuditLogs),
-  auditLogController.getAuditLogs
-);
-router.get(
-  '/audit-logs/:id',
-  validateRequest(auditLogValidation.getAuditLogById),
-  auditLogController.getAuditLogById
-);
-router.post(
-  '/audit-logs/export',
-  validateRequest(auditLogValidation.exportAuditLogs),
-  auditLogController.exportAuditLogs
-);
-router.get(
-  '/audit-logs/statistics',
-  validateRequest(auditLogValidation.getAuditLogStatistics),
-  auditLogController.getAuditLogStatistics
-);
+// Mount Audit Log Routes
+router.use('/audit-logs', auditLogRoutes);
 
 export default router;
