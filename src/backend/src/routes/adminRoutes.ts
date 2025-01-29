@@ -6,12 +6,14 @@ import {
   editUser,
   deactivateUser,
 } from '../controllers/adminController';
+import { auditLogController } from '../controllers/auditLogController';
 import { createAuthMiddleware } from '../middleware/auth';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
 import { validateRequest } from '../middleware/validator';
 import { USER_ROLES } from '../constants/roles';
 import rateLimit from 'express-rate-limit';
 import Joi from 'joi';
+import { auditLogValidation } from '../validations/auditLogValidation';
 
 const router = express.Router();
 const { authenticate } = createAuthMiddleware(new GoogleAuthProvider());
@@ -26,7 +28,7 @@ const createUserRateLimit = rateLimit({
 });
 
 // Validation schema for user creation
-const createUserSchema = Joi.object({
+const createUserSchema = {
   body: Joi.object({
     email: Joi.string().email().required(),
     name: Joi.string().min(2).max(50).required(),
@@ -37,10 +39,10 @@ const createUserSchema = Joi.object({
     profileImageUrl: Joi.string().uri().optional(),
     tier: Joi.string().valid('free', 'pro', 'enterprise').optional(),
   }),
-});
+};
 
 // Validation schema for user update
-const updateUserSchema = Joi.object({
+const updateUserSchema = {
   params: Joi.object({
     userId: Joi.string().required(),
   }),
@@ -54,10 +56,10 @@ const updateUserSchema = Joi.object({
     profileImageUrl: Joi.string().uri().allow(null).optional(),
     tier: Joi.string().valid('free', 'pro', 'enterprise').optional(),
   }).min(1), // Require at least one field to update
-});
+};
 
 // Validation schema for user edit
-const editUserSchema = Joi.object({
+const editUserSchema = {
   params: Joi.object({
     userId: Joi.string().required(),
   }),
@@ -72,31 +74,45 @@ const editUserSchema = Joi.object({
     tier: Joi.string().valid('free', 'pro', 'enterprise').optional(),
     metadata: Joi.object().optional(),
   }).min(1), // Require at least one field to edit
-});
+};
 
 // Validation schema for user deactivation
-const deactivateUserSchema = Joi.object({
+const deactivateUserSchema = {
   params: Joi.object({
     userId: Joi.string().required(),
   }),
-});
+};
 
 // Apply authentication middleware to all admin routes
 router.use(authenticate);
 
-// GET /api/admin/users - Get all users
+// User Management Routes
 router.get('/users', getAllUsers);
-
-// POST /api/admin/users - Create a new user
 router.post('/users', createUserRateLimit, validateRequest(createUserSchema), createUser);
-
-// PUT /api/admin/users/:userId - Update an existing user
 router.put('/users/:userId', validateRequest(updateUserSchema), updateUser);
-
-// PATCH /api/admin/users/:userId - Edit specific user fields
 router.patch('/users/:userId', validateRequest(editUserSchema), editUser);
-
-// POST /api/admin/users/:userId/deactivate - Deactivate a user
 router.post('/users/:userId/deactivate', validateRequest(deactivateUserSchema), deactivateUser);
+
+// Audit Log Routes
+router.get(
+  '/audit-logs',
+  validateRequest(auditLogValidation.getAuditLogs),
+  auditLogController.getAuditLogs
+);
+router.get(
+  '/audit-logs/:id',
+  validateRequest(auditLogValidation.getAuditLogById),
+  auditLogController.getAuditLogById
+);
+router.post(
+  '/audit-logs/export',
+  validateRequest(auditLogValidation.exportAuditLogs),
+  auditLogController.exportAuditLogs
+);
+router.get(
+  '/audit-logs/statistics',
+  validateRequest(auditLogValidation.getAuditLogStatistics),
+  auditLogController.getAuditLogStatistics
+);
 
 export default router;

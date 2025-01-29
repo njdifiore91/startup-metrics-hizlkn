@@ -8,6 +8,8 @@ import React, { Suspense, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Provider, useDispatch } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 //import { Analytics } from '@analytics/google-analytics';
 import Analytics from 'analytics';
 
@@ -32,6 +34,7 @@ const Settings = React.lazy(() => import('./pages/Settings'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 const NotFound = React.lazy(() => import('./pages/NotFound'));
 const GoogleCallback = React.lazy(() => import('./pages/GoogleCallback'));
+const AuditLogs = React.lazy(() => import('./pages/admin/AuditLogs'));
 
 // Constants
 const ROUTES = {
@@ -44,6 +47,7 @@ const ROUTES = {
   PROFILE: '/profile',
   GOOGLE_CALLBACK: '/auth/google/callback',
   USER_MANAGEMENT: '/admin/users',
+  AUDIT_LOGS: '/admin/audit-logs',
 } as const;
 
 // Error messages
@@ -187,6 +191,7 @@ const AppContent: React.FC = () => {
               <Route path={ROUTES.SETTINGS} element={<Settings />} />
               <Route path={ROUTES.PROFILE} element={<Profile />} />
               <Route path={ROUTES.USER_MANAGEMENT} element={<UserManagement />} />
+              <Route path={ROUTES.AUDIT_LOGS} element={<AuditLogs />} />
             </Route>
 
             {/* Default Route */}
@@ -227,7 +232,9 @@ const App: React.FC = () => {
       onReset={() => window.location.reload()}
     >
       <Provider store={store}>
-        <AppContent />
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+          <AppContent />
+        </LocalizationProvider>
       </Provider>
     </ErrorBoundary>
   );

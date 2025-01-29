@@ -8,6 +8,8 @@ import { Request, Response, NextFunction } from 'express'; // ^4.18.2
 import Joi from 'joi'; // ^17.9.0
 import { validateMetricValue, validateUserData, sanitizeInput } from '../utils/validation';
 import { METRIC_VALIDATION_RULES, USER_VALIDATION_RULES } from '../constants/validations';
+import { METRIC_VALUE_TYPES } from '../constants/metricTypes';
+import { MetricType, ValueType, IMetric } from '../interfaces/IMetric';
 import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 
@@ -27,12 +29,18 @@ interface ValidationOptions {
   maxArrayLength?: number;
 }
 
+interface ValidationSchema {
+  body?: Joi.ObjectSchema;
+  query?: Joi.ObjectSchema;
+  params?: Joi.ObjectSchema;
+}
+
 /**
  * Creates a validation middleware with enhanced security features
  * @param schema - Joi validation schema
  * @param options - Validation options
  */
-export const validateRequest = (schema: Joi.Schema, options: ValidationOptions = {}) => {
+export const validateRequest = (schema: ValidationSchema, options: ValidationOptions = {}) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const correlationId = logger.getCorrelationId() || `val-${Date.now()}`;
@@ -64,27 +72,42 @@ export const validateRequest = (schema: Joi.Schema, options: ValidationOptions =
         });
       }
 
-      // Validate against schema
-      const { error, value } = schema.validate(dataToValidate, {
-        ...validationOptions,
-        context: { correlationId },
-      });
+      // Validate each part of the request separately
+      const validatedData: any = {};
+      const errors: any[] = [];
 
-      if (error) {
-        const errorDetails = error.details.map((detail) => ({
-          path: detail.path.join('.'),
-          message: detail.message,
-          type: detail.type,
-        }));
+      for (const key of ['body', 'query', 'params'] as const) {
+        if (schema[key]) {
+          const { error, value } = schema[key]!.validate(dataToValidate[key], {
+            ...validationOptions,
+            context: { correlationId },
+          });
 
+          if (error) {
+            errors.push(
+              ...error.details.map((detail) => ({
+                path: `${key}.${detail.path.join('.')}`,
+                message: detail.message,
+                type: detail.type,
+              }))
+            );
+          } else {
+            validatedData[key] = value;
+          }
+        } else {
+          validatedData[key] = dataToValidate[key];
+        }
+      }
+
+      if (errors.length > 0) {
         throw new AppError('Validation failed', 400, 'VAL_001', {
-          errors: errorDetails,
+          errors,
           correlationId,
         });
       }
 
       // Apply enhanced sanitization
-      const sanitizedData = sanitizeRequestData(value);
+      const sanitizedData = sanitizeRequestData(validatedData);
 
       // Attach validated and sanitized data to request
       req.body = sanitizedData.body;
@@ -109,19 +132,57 @@ export const validateRequest = (schema: Joi.Schema, options: ValidationOptions =
  * @param data Request data containing metric values
  * @param metricType Type of metric being validated
  */
-export const validateMetricRequest = async (data: any, metricType: string): Promise<void> => {
-  const rules = METRIC_VALIDATION_RULES[metricType];
-  if (!rules) {
+export const validateMetricRequest = async (data: any, metricType: MetricType): Promise<void> => {
+  const valueType = getValueTypeForMetric(metricType);
+  const valueTypeKey = Object.entries(METRIC_VALUE_TYPES).find(
+    ([_, value]) => value.toLowerCase() === valueType.toLowerCase()
+  )?.[0] as keyof typeof METRIC_VALIDATION_RULES | undefined;
+
+  if (!valueTypeKey || !(valueTypeKey in METRIC_VALIDATION_RULES)) {
     throw new AppError('Invalid metric type', 400, 'VAL_003', { metricType });
   }
 
-  const validationResult = await validateMetricValue(data, {
+  const validationRules = METRIC_VALIDATION_RULES[valueTypeKey];
+  const metric: Partial<IMetric> = {
     type: metricType,
-    rules,
-  });
+    valueType,
+    validationRules: {
+      min: 'min' in validationRules ? validationRules.min : undefined,
+      max: 'max' in validationRules ? validationRules.max : undefined,
+      decimals:
+        'decimalPrecision' in validationRules ? validationRules.decimalPrecision : undefined,
+      required: 'required' in validationRules ? validationRules.required : undefined,
+    },
+  };
+
+  const validationResult = await validateMetricValue(data, metric as IMetric);
 
   if (!validationResult.isValid) {
     throw new AppError('Invalid metric value', 400, 'VAL_003', { errors: validationResult.errors });
+  }
+};
+
+/**
+ * Gets the value type for a given metric type
+ * @param metricType The metric type to get the value type for
+ * @returns The corresponding value type
+ */
+const getValueTypeForMetric = (metricType: MetricType): ValueType => {
+  switch (metricType) {
+    case MetricType.REVENUE:
+    case MetricType.EXPENSES:
+    case MetricType.PROFIT:
+      return ValueType.CURRENCY;
+    case MetricType.USERS:
+      return ValueType.NUMBER;
+    case MetricType.GROWTH:
+    case MetricType.CHURN:
+    case MetricType.CONVERSION:
+      return ValueType.PERCENTAGE;
+    case MetricType.ENGAGEMENT:
+      return ValueType.RATIO;
+    default:
+      throw new AppError('Invalid metric type', 400, 'VAL_003', { metricType });
   }
 };
 
