@@ -6,19 +6,16 @@
 
 import { Request, Response, NextFunction } from 'express'; // ^4.18.2
 import Joi, { Schema, ValidationError } from 'joi'; // ^17.9.0
-import { 
-  validateMetricValue, 
-  validateUserData, 
-  sanitizeInput 
-} from '../utils/validation';
-import { 
-  METRIC_VALIDATION_RULES, 
-  USER_VALIDATION_RULES 
-} from '../constants/validations';
+import { validateMetricValue, validateUserData, sanitizeInput } from '../utils/validation';
+import { METRIC_VALIDATION_RULES, USER_VALIDATION_RULES } from '../constants/validations';
 import { AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { VALIDATION_ERRORS } from '../constants/errorCodes';
-import { MetricValueType, METRIC_VALUE_TYPES, isValidMetricValueType } from '../constants/metricTypes';
+import {
+  MetricValueType,
+  METRIC_VALUE_TYPES,
+  isValidMetricValueType,
+} from '../constants/metricTypes';
 import { IMetric, ValueType, MetricType, Frequency } from '../interfaces/IMetric';
 
 // Maximum allowed depth for nested objects
@@ -48,44 +45,48 @@ interface ValidationSchema {
  * @param schema Joi validation schema
  */
 export const validateRequest = (schema: Schema) => {
-    return async (req: Request, res: Response, next: NextFunction) => {
-        try {
-            // Validate request against schema
-            await schema.validateAsync({
-                body: req.body,
-                query: req.query,
-                params: req.params
-            }, { 
-                abortEarly: false,
-                stripUnknown: true
-            });
-            
-            next();
-        } catch (error) {
-            logger.warn('Request validation failed', {
-                error: error instanceof Error ? error.message : 'Unknown validation error',
-                path: req.path,
-                method: req.method,
-                userId: req.user?.id
-            });
-
-            const validationError = new AppError(
-                VALIDATION_ERRORS.INVALID_REQUEST.message,
-                VALIDATION_ERRORS.INVALID_REQUEST.httpStatus,
-                VALIDATION_ERRORS.INVALID_REQUEST.code,
-                true,
-                {
-                    errors: error instanceof ValidationError 
-                        ? error.details.map(detail => ({
-                            path: detail.path.join('.'),
-                            message: detail.message
-                        }))
-                        : [{ message: 'Validation failed' }]
-                }
-            );
-            next(validationError);
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Validate request against schema
+      await schema.validateAsync(
+        {
+          body: req.body,
+          query: req.query,
+          params: req.params,
+        },
+        {
+          abortEarly: false,
+          stripUnknown: true,
         }
-    };
+      );
+
+      next();
+    } catch (error) {
+      logger.warn('Request validation failed', {
+        error: error instanceof Error ? error.message : 'Unknown validation error',
+        path: req.path,
+        method: req.method,
+        userId: req.user?.id,
+      });
+
+      const validationError = new AppError(
+        VALIDATION_ERRORS.INVALID_REQUEST.message,
+        VALIDATION_ERRORS.INVALID_REQUEST.httpStatus,
+        VALIDATION_ERRORS.INVALID_REQUEST.code,
+        true,
+        {
+          errors:
+            error instanceof ValidationError
+              ? error.details.map((detail) => ({
+                  path: detail.path.join('.'),
+                  message: detail.message,
+                }))
+              : [{ message: 'Validation failed' }],
+        }
+      );
+      next(validationError);
+    }
+  };
 };
 
 /**
@@ -94,10 +95,7 @@ export const validateRequest = (schema: Schema) => {
  * @param metricType Type of metric being validated
  */
 
-export const validateMetricRequest = async (
-  data: any,
-  metricType: string
-): Promise<void> => {
+export const validateMetricRequest = async (data: any, metricType: string): Promise<void> => {
   if (!isValidMetricValueType(metricType)) {
     throw new AppError(
       VALIDATION_ERRORS.INVALID_FORMAT.message,
@@ -121,7 +119,7 @@ export const validateMetricRequest = async (
     createdAt: new Date(),
     updatedAt: new Date(),
     frequency: Frequency.MONTHLY,
-    precision: 2
+    precision: 2,
   };
 
   const validationResult = await validateMetricValue(data, metricDefinition);
@@ -219,4 +217,100 @@ const sanitizeRequestData = (data: any): any => {
   };
 
   return sanitize(data);
+};
+
+export const validateUserAdminRequest = (
+  schema: ValidationSchema,
+  options: ValidationOptions = {}
+) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const correlationId = logger.getCorrelationId() || `val-${Date.now()}`;
+      const validationOptions = {
+        stripUnknown: options.stripUnknown ?? true,
+        abortEarly: options.abortEarly ?? false,
+        maxDepth: options.maxDepth ?? MAX_OBJECT_DEPTH,
+        maxArrayLength: options.maxArrayLength ?? MAX_ARRAY_LENGTH,
+      };
+
+      // Extract data to validate
+      const dataToValidate = {
+        body: req.body,
+        query: req.query,
+        params: req.params,
+      };
+
+      // Check object depth
+      if (exceedsMaxDepth(dataToValidate, validationOptions.maxDepth)) {
+        throw new AppError('Request data exceeds maximum allowed depth', 400, 'VAL_005', true, {
+          maxDepth: validationOptions.maxDepth,
+        });
+      }
+
+      // Check array lengths
+      if (containsLargeArrays(dataToValidate, validationOptions.maxArrayLength)) {
+        throw new AppError(
+          'Request contains arrays exceeding maximum length',
+          400,
+          'VAL_006',
+          true,
+          {
+            maxArrayLength: validationOptions.maxArrayLength,
+          }
+        );
+      }
+
+      // Validate each part of the request separately
+      const validatedData: any = {};
+      const errors: any[] = [];
+
+      for (const key of ['body', 'query', 'params'] as const) {
+        if (schema[key]) {
+          const { error, value } = schema[key]!.validate(dataToValidate[key], {
+            ...validationOptions,
+            context: { correlationId },
+          });
+
+          if (error) {
+            errors.push(
+              ...error.details.map((detail) => ({
+                path: `${key}.${detail.path.join('.')}`,
+                message: detail.message,
+                type: detail.type,
+              }))
+            );
+          } else {
+            validatedData[key] = value;
+          }
+        } else {
+          validatedData[key] = dataToValidate[key];
+        }
+      }
+
+      if (errors.length > 0) {
+        throw new AppError('Validation failed', 400, 'VAL_001', true, {
+          errors,
+          correlationId,
+        });
+      }
+
+      // Apply enhanced sanitization
+      const sanitizedData = sanitizeRequestData(validatedData);
+
+      // Attach validated and sanitized data to request
+      req.body = sanitizedData.body;
+      req.query = sanitizedData.query;
+      req.params = sanitizedData.params;
+
+      // Log successful validation
+      logger.debug('Request validation successful', {
+        correlationId,
+        path: req.path,
+        method: req.method,
+      });
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 };

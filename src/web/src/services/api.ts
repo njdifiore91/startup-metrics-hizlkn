@@ -21,6 +21,7 @@ import { apiConfig } from '../config/api';
 import { handleApiError } from '../utils/errorHandlers';
 import { AUTH_CONSTANTS } from '../config/constants';
 import { ApiError } from '../utils/errorHandlers';
+import { AuthService } from './auth';
 
 /**
  * Enhanced request configuration interface with security options
@@ -114,6 +115,14 @@ const createApiInstance = (): AxiosInstance => {
       if (token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        // Try to get token from auth service
+        const authService = new AuthService();
+        const tokens = authService.getStoredTokens();
+        if (tokens?.token) {
+          config.headers = config.headers || {};
+          config.headers.Authorization = `Bearer ${tokens.token}`;
+        }
       }
 
       // Add performance tracking
