@@ -16,6 +16,9 @@ import router from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import requestLogger from './middleware/requestLogger';
 import { rateLimiter } from './middleware/rateLimiter';
+import { auditLogMiddleware } from './middleware/auditMiddleware';
+import metricsRouter from './routes/metricsRoutes';
+import authRouter from './routes/authRoutes';
 
 // Initialize metrics collection
 const metrics = new Registry();
@@ -43,6 +46,7 @@ const configureApp = (): Application => {
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'X-API-Version', 'X-Client-Version', 'X-Requested-With'],
   }));
 
+
   // Request parsing middleware
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -52,11 +56,12 @@ const configureApp = (): Application => {
 
   // Request logging
   app.use(requestLogger);
-
   // Rate limiting - 100 requests per minute
   app.use(rateLimiter);
 
-  // Mount all routes under /api/v1
+  // Audit logging for all write operations - after auth but before other routes
+  app.use(auditLogMiddleware());
+
   app.use('/api/v1', router);
 
   // Root route
@@ -65,7 +70,7 @@ const configureApp = (): Application => {
       status: 'success',
       message: 'Welcome to Startup Metrics API',
       version: process.env.npm_package_version,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   });
 
@@ -74,7 +79,7 @@ const configureApp = (): Application => {
     res.status(200).json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version
+      version: process.env.npm_package_version,
     });
   });
 
@@ -93,7 +98,7 @@ const configureApp = (): Application => {
     if (!res.headersSent) {
       res.status(404).json({
         status: 'error',
-        message: 'Resource not found'
+        message: 'Resource not found',
       });
     } else {
       next();

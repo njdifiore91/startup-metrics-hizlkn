@@ -37,6 +37,12 @@ interface ValidationOptions {
   maxArrayLength?: number;
 }
 
+interface ValidationSchema {
+  body?: Joi.ObjectSchema;
+  query?: Joi.ObjectSchema;
+  params?: Joi.ObjectSchema;
+}
+
 /**
  * Middleware factory for request validation using Joi schemas
  * @param schema Joi validation schema
@@ -87,6 +93,7 @@ export const validateRequest = (schema: Schema) => {
  * @param data Request data containing metric values
  * @param metricType Type of metric being validated
  */
+
 export const validateMetricRequest = async (
   data: any,
   metricType: string
@@ -158,9 +165,7 @@ const exceedsMaxDepth = (obj: any, maxDepth: number): boolean => {
     if (depth > maxDepth) return true;
     if (typeof current !== 'object' || current === null) return false;
 
-    return Object.values(current).some(value => 
-      checkDepth(value, depth + 1)
-    );
+    return Object.values(current).some((value) => checkDepth(value, depth + 1));
   };
 
   return checkDepth(obj, 0);
@@ -176,7 +181,7 @@ const containsLargeArrays = (obj: any, maxLength: number): boolean => {
     if (Array.isArray(current) && current.length > maxLength) return true;
     if (typeof current !== 'object' || current === null) return false;
 
-    return Object.values(current).some(value => checkArrays(value));
+    return Object.values(current).some((value) => checkArrays(value));
   };
 
   return checkArrays(obj);
@@ -195,17 +200,20 @@ const sanitizeRequestData = (data: any): any => {
       }
       return sanitizeInput(value, {
         maxLength: 10000, // Configurable maximum length
-        stripAll: true
+        stripAll: true,
       });
     }
     if (Array.isArray(value)) {
-      return value.map(item => sanitize(item));
+      return value.map((item) => sanitize(item));
     }
     if (typeof value === 'object' && value !== null) {
-      return Object.entries(value).reduce((acc, [key, val]) => ({
-        ...acc,
-        [key]: sanitize(val, key)
-      }), {});
+      return Object.entries(value).reduce(
+        (acc, [key, val]) => ({
+          ...acc,
+          [key]: sanitize(val, key),
+        }),
+        {}
+      );
     }
     return value;
   };

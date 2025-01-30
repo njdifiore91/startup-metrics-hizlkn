@@ -23,7 +23,7 @@ const redisClient = new Redis(redisUrl, {
   },
   maxRetriesPerRequest: 3,
   enableReadyCheck: true,
-  showFriendlyErrorStack: true
+  showFriendlyErrorStack: true,
 });
 
 // Handle Redis connection events
@@ -53,7 +53,7 @@ const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
   'X-Content-Type-Options': 'nosniff',
   'X-XSS-Protection': '1; mode=block',
-  'Referrer-Policy': 'strict-origin-when-cross-origin'
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
 };
 
 /**
@@ -84,18 +84,20 @@ export const authController = {
       const authResult = await googleAuthProvider.authenticate(code, redirectUri);
       res.json(authResult);
     } catch (error) {
-      logger.error('Authentication failed:', { 
-        error: error instanceof Error ? error.message : 'Unknown error'
+      logger.error('Authentication failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       if (error instanceof AppError) {
         next(error);
       } else {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        next(new AppError(
-          `${AUTH_ERRORS.AUTHENTICATION_FAILED.message}: ${errorMessage}`,
-          AUTH_ERRORS.AUTHENTICATION_FAILED.httpStatus,
-          AUTH_ERRORS.AUTHENTICATION_FAILED.code
-        ));
+        next(
+          new AppError(
+            `${AUTH_ERRORS.AUTHENTICATION_FAILED.message}: ${errorMessage}`,
+            AUTH_ERRORS.AUTHENTICATION_FAILED.httpStatus,
+            AUTH_ERRORS.AUTHENTICATION_FAILED.code
+          )
+        );
       }
     }
   },
@@ -117,23 +119,27 @@ export const authController = {
       const redirectUri = `${req.protocol}://${req.get('host')}/api/v1/auth/google/callback`;
       const authResult = await googleAuthProvider.authenticate(code, redirectUri);
       const { accessToken, refreshToken, user } = authResult;
-      
+
       // Redirect to frontend with tokens and user data
       const redirectUrl = new URL(process.env.FRONTEND_URL || 'http://localhost:3000');
       redirectUrl.searchParams.set('accessToken', accessToken);
       redirectUrl.searchParams.set('refreshToken', refreshToken);
-      redirectUrl.searchParams.set('userData', JSON.stringify({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        tier: user.tier
-      }));
-      
+      redirectUrl.searchParams.set(
+        'userData',
+        JSON.stringify({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          tier: user.tier,
+          isActive: true,
+        })
+      );
+
       res.redirect(redirectUrl.toString());
     } catch (error) {
-      logger.error('Google callback failed:', { 
-        error: error instanceof Error ? error.message : 'Unknown error'
+      logger.error('Google callback failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       next(error);
     }
@@ -156,8 +162,8 @@ export const authController = {
       const tokens = await googleAuthProvider.refreshToken(refreshToken);
       res.json(tokens);
     } catch (error) {
-      logger.error('Token refresh failed:', { 
-        error: error instanceof Error ? error.message : 'Unknown error'
+      logger.error('Token refresh failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       next(error);
     }
@@ -174,12 +180,12 @@ export const authController = {
       }
       res.json({ message: 'Logged out successfully' });
     } catch (error) {
-      logger.error('Logout failed:', { 
-        error: error instanceof Error ? error.message : 'Unknown error'
+      logger.error('Logout failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       next(error);
     }
-  }
+  },
 };
 
 /**
@@ -210,9 +216,9 @@ export const validateSession = async (
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role
-        }
-      }
+          role: user.role,
+        },
+      },
     });
   } catch (error) {
     logger.error('Session validation failed:', { error });

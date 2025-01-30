@@ -47,16 +47,19 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
       req.user = user;
       next();
     } catch (error) {
-      logger.error('Authentication failed', { 
-        error: error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        } : {
-          name: 'UnknownError',
-          message: String(error),
-          stack: undefined
-        }
+      logger.error('Authentication failed', {
+        error:
+          error instanceof Error
+            ? {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+              }
+            : {
+                name: 'UnknownError',
+                message: String(error),
+                stack: undefined,
+              },
       });
       if (error instanceof AppError) {
         next(error);
@@ -72,7 +75,7 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
    */
   const authorize = (allowedRoles: string | string[]) => {
     const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-    
+
     return (req: Request, res: Response, next: NextFunction) => {
       try {
         if (!req.user) {
@@ -85,16 +88,19 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
 
         next();
       } catch (error) {
-        logger.error('Authorization failed', { 
-          error: error instanceof Error ? {
-            name: error.name,
-            message: error.message,
-            stack: error.stack
-          } : {
-            name: 'UnknownError',
-            message: String(error),
-            stack: undefined
-          }
+        logger.error('Authorization failed', {
+          error:
+            error instanceof Error
+              ? {
+                  name: error.name,
+                  message: error.message,
+                  stack: error.stack,
+                }
+              : {
+                  name: 'UnknownError',
+                  message: String(error),
+                  stack: undefined,
+                },
         });
         if (error instanceof AppError) {
           next(error);
@@ -107,7 +113,7 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
 
   return {
     authenticate,
-    authorize
+    authorize,
   };
 }
 

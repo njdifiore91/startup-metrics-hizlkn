@@ -27,6 +27,7 @@ import {
   Settings as SettingsIcon,
   ExpandLess,
   ExpandMore,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission, FEATURES, USER_ROLES, type UserRole } from '@/constants/roles';
@@ -176,15 +177,51 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
         icon: <SettingsIcon />,
         visible: hasPermission(userRole, FEATURES.users, 'full'),
       },
+      {
+        id: 'audit-logs',
+        label: 'Audit Logs',
+        path: '/admin/audit-logs',
+        icon: <HistoryIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+      {
+        id: 'audit-stats',
+        label: 'Audit Statistics',
+        path: '/admin/audit-stats',
+        icon: <AssessmentIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
     ],
   },
 ];
 
+// // Admin navigation items
+// const adminNavItems = [
+//   {
+//     title: 'User Management',
+//     path: '/admin/users',
+//     icon: <GroupIcon />,
+//   },
+//   {
+//     title: 'Metric Management',
+//     path: '/admin/metrics',
+//     icon: <BarChartIcon />,
+//   },
+//   {
+//     title: 'Data Sources',
+//     path: '/admin/sources',
+//     icon: <StorageIcon />,
+//   },
+//   {
+//     title: 'Audit Logs',
+//     path: '/admin/audit',
+//     icon: <HistoryIcon />,
+//   },
+// ];
+
 export const Navigation: React.FC<NavigationProps> = ({
   isCollapsed,
-  theme,
   ariaLabel = 'Main Navigation',
-  onNavigationError,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
