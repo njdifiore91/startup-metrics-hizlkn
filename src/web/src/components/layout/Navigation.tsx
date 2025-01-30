@@ -184,40 +184,9 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
         icon: <HistoryIcon />,
         visible: hasPermission(userRole, FEATURES.users, 'full'),
       },
-      {
-        id: 'audit-stats',
-        label: 'Audit Statistics',
-        path: '/admin/audit-stats',
-        icon: <AssessmentIcon />,
-        visible: hasPermission(userRole, FEATURES.users, 'full'),
-      },
     ],
   },
 ];
-
-// // Admin navigation items
-// const adminNavItems = [
-//   {
-//     title: 'User Management',
-//     path: '/admin/users',
-//     icon: <GroupIcon />,
-//   },
-//   {
-//     title: 'Metric Management',
-//     path: '/admin/metrics',
-//     icon: <BarChartIcon />,
-//   },
-//   {
-//     title: 'Data Sources',
-//     path: '/admin/sources',
-//     icon: <StorageIcon />,
-//   },
-//   {
-//     title: 'Audit Logs',
-//     path: '/admin/audit',
-//     icon: <HistoryIcon />,
-//   },
-// ];
 
 export const Navigation: React.FC<NavigationProps> = ({
   isCollapsed,
