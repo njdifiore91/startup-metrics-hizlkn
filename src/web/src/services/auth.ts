@@ -403,8 +403,10 @@ export class AuthService {
   public async logout(): Promise<void> {
     try {
       const tokens = this.getStoredTokens();
-      if (tokens) {
-        await api.post(authConfig.authEndpoints.logout);
+      if (tokens?.refreshToken) {
+        await api.post(authConfig.authEndpoints.logout, {
+          refreshToken: tokens.refreshToken,
+        });
       }
 
       this.clearTokens();
