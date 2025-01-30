@@ -114,14 +114,14 @@ const AuditLogList: React.FC = () => {
     <Box sx={{ p: 3 }}>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h5">Audit Logs</Typography>
-        <Box>
+        {/* <Box>
           <IconButton onClick={fetchLogs} sx={{ mr: 1 }}>
             <RefreshIcon />
           </IconButton>
           <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExport}>
             Export
           </Button>
-        </Box>
+        </Box> */}
       </Box>
 
       <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
