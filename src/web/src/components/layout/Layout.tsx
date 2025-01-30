@@ -70,13 +70,29 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
   const sessionCheckRef = useRef<NodeJS.Timeout>();
+  const lastValidationRef = useRef<number>(0);
+  const validationInProgressRef = useRef<boolean>(false);
   
   const isSidebarOpen = useSelector((state: RootState) => state.ui.isSidebarOpen);
 
-  // Session Monitoring with reduced frequency
+  // Session Monitoring with reduced frequency and debouncing
   useEffect(() => {
     const checkSession = async () => {
+      // Prevent concurrent validations
+      if (validationInProgressRef.current) {
+        return;
+      }
+
+      // Implement debouncing
+      const now = Date.now();
+      if (now - lastValidationRef.current < 5000) { // 5 second debounce
+        return;
+      }
+
       try {
+        validationInProgressRef.current = true;
+        lastValidationRef.current = now;
+        
         const isValid = await validateSession();
         if (!isValid) {
           showToast(
@@ -87,21 +103,27 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
         }
       } catch (error) {
         console.error('Session validation failed:', error);
+      } finally {
+        validationInProgressRef.current = false;
       }
     };
 
-    // Initial check
-    checkSession();
+    // Only set up validation for non-login pages
+    if (!isLoginPage) {
+      // Initial check with delay to prevent race conditions
+      const initialCheckTimeout = setTimeout(checkSession, 1000);
 
-    // Set up interval with longer duration (5 minutes)
-    sessionCheckRef.current = setInterval(checkSession, 5 * 60 * 1000);
+      // Set up interval with longer duration (5 minutes)
+      sessionCheckRef.current = setInterval(checkSession, 5 * 60 * 1000);
 
-    return () => {
-      if (sessionCheckRef.current) {
-        clearInterval(sessionCheckRef.current);
-      }
-    };
-  }, [validateSession, showToast]);
+      return () => {
+        clearTimeout(initialCheckTimeout);
+        if (sessionCheckRef.current) {
+          clearInterval(sessionCheckRef.current);
+        }
+      };
+    }
+  }, [validateSession, showToast, isLoginPage]);
 
   // Theme Change Handler
   const handleThemeChange = useCallback((newTheme: 'light' | 'dark') => {

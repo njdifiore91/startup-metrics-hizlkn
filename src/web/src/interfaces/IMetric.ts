@@ -5,10 +5,25 @@
 export type MetricCategory = 'financial' | 'growth' | 'operational';
 
 /**
+ * Valid metric types that map to categories
+ * @version 1.0.0
+ */
+export enum MetricType {
+  REVENUE = 'REVENUE',
+  EXPENSES = 'EXPENSES',
+  PROFIT = 'PROFIT',
+  USERS = 'USERS',
+  GROWTH = 'GROWTH',
+  CHURN = 'CHURN',
+  ENGAGEMENT = 'ENGAGEMENT',
+  CONVERSION = 'CONVERSION'
+}
+
+/**
  * Supported value types for metric data with validation constraints
  * @version 1.0.0
  */
-export type MetricValueType = 'percentage' | 'currency' | 'number' | 'ratio';
+export type MetricValueType = 'PERCENTAGE' | 'CURRENCY' | 'NUMBER' | 'RATIO';
 
 /**
  * Enhanced interface for metric validation rules
@@ -47,11 +62,17 @@ export interface IMetric {
   /** Human-readable name of the metric */
   name: string;
   
+  /** Human-readable display name of the metric */
+  displayName: string;
+  
   /** Detailed description of what the metric measures */
   description: string;
   
   /** Business domain category of the metric */
   category: MetricCategory;
+
+  /** Specific type of the metric */
+  type: MetricType;
   
   /** Data type and format of the metric value */
   valueType: MetricValueType;

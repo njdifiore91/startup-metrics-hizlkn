@@ -57,7 +57,7 @@ export const USER_ROLES = {
 export const ROLE_PERMISSIONS: RolePermissionsType = {
   [USER_ROLES.USER]: {
     [FEATURES.benchmarkData]: ['read'] as const,
-    [FEATURES.companyData]: ['read', 'update'] as const,
+    [FEATURES.companyData]: ['read', 'create', 'update'] as const,
     [FEATURES.profile]: ['read', 'update'] as const
   },
   [USER_ROLES.ANALYST]: {

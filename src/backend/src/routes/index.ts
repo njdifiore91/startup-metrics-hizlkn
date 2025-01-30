@@ -10,15 +10,26 @@ import helmet from 'helmet'; // ^7.0.0
 import compression from 'compression'; // ^1.7.4
 import { getId } from 'correlation-id'; // ^3.1.0
 import crypto from 'crypto';
+import { container } from 'tsyringe';
 
 // Import route modules
 import authRoutes from './authRoutes';
 import metricsRoutes from './metricsRoutes';
 import benchmarkRoutes from './benchmarkRoutes';
-import companyMetricsRoutes from './companyMetricsRoutes';
+import initializeCompanyMetricsRoutes from './companyMetricsRoutes';
+import dataSourcesRoutes from './dataSourcesRoutes';
+
+// Import controllers and services
+import { CompanyMetricsController } from '../controllers/companyMetricsController';
+import { CompanyMetricsService } from '../services/companyMetricsService';
 
 // Import middleware
 import { errorHandler } from '../middleware/errorHandler';
+
+// Register services in container
+container.register('CompanyMetricsService', {
+  useClass: CompanyMetricsService
+});
 
 // Initialize router
 const router = express.Router();
@@ -71,6 +82,9 @@ const corsOptions = {
   maxAge: 86400 // 24 hours
 };
 
+// Initialize controllers using dependency injection
+const companyMetricsController = container.resolve(CompanyMetricsController);
+
 // Correlation ID middleware
 const correlationMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
@@ -95,8 +109,10 @@ router.get('/health', (req, res) => {
 
 // Mount API routes
 router.use('/auth', authRoutes);
+router.use('/metrics', metricsRoutes);
 router.use('/benchmarks', benchmarkRoutes);
-router.use('/company-metrics', companyMetricsRoutes);
+router.use('/company-metrics', initializeCompanyMetricsRoutes(companyMetricsController));
+router.use('/data-sources', dataSourcesRoutes);
 
 // Apply error handling middleware last
 router.use(errorHandler);

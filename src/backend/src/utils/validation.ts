@@ -5,9 +5,10 @@
  */
 
 import { METRIC_VALIDATION_RULES, USER_VALIDATION_RULES } from '../constants/validations';
-import { IMetric } from '../interfaces/IMetric';
-import { IUser } from '../interfaces/IUser';
+import { IMetric, ValueType } from '../interfaces/IMetric';
+import { IUser } from '../interfaces/user';
 import validator from 'validator'; // v13.9.0
+import { METRIC_VALUE_TYPES } from '../constants/metricTypes';
 
 /**
  * Type definition for validation result
@@ -35,7 +36,16 @@ interface UserValidationResult {
  */
 export const validateMetricValue = (value: any, metric: IMetric): ValidationResult<any> => {
   const errors: string[] = [];
-  const rules = METRIC_VALIDATION_RULES[metric.valueType];
+  
+  // Get the validation rules based on metric type
+  const valueType = metric.valueType as keyof typeof METRIC_VALUE_TYPES;
+  const metricType = METRIC_VALUE_TYPES[valueType];
+  const rules = METRIC_VALIDATION_RULES[metricType];
+
+  if (!rules) {
+    errors.push(`Invalid metric value type: ${metric.valueType}`);
+    return { isValid: false, errors };
+  }
 
   // Check if value exists when required
   if (rules.required && (value === null || value === undefined || value === '')) {
@@ -93,7 +103,7 @@ export const validateUserData = (
   rules = USER_VALIDATION_RULES
 ): UserValidationResult => {
   const errors: Record<string, string[]> = {};
-  const sanitizedData: Partial<IUser> = {};
+  const sanitizedData: Record<string, any> = {};
 
   // Validate email
   if (data.email !== undefined) {
@@ -142,7 +152,7 @@ export const validateUserData = (
   return {
     isValid: Object.keys(errors).length === 0,
     errors,
-    sanitizedData: Object.keys(sanitizedData).length > 0 ? sanitizedData : undefined
+    sanitizedData: Object.keys(sanitizedData).length > 0 ? sanitizedData as Partial<IUser> : undefined
   };
 };
 

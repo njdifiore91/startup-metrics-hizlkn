@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { debounce } from 'lodash'; // v4.17.21
 import Select from '../common/Select';
-import { IMetric, MetricCategory } from '../../interfaces/IMetric';
+import { IMetric, MetricCategory, MetricType } from '../../interfaces/IMetric';
 import { useMetrics } from '../../hooks/useMetrics';
 import styled from '@emotion/styled';
+
+// Map MetricType to MetricCategory
+const typeToCategory: Record<MetricType, MetricCategory> = {
+  [MetricType.REVENUE]: 'financial',
+  [MetricType.EXPENSES]: 'financial',
+  [MetricType.PROFIT]: 'financial',
+  [MetricType.USERS]: 'operational',
+  [MetricType.GROWTH]: 'growth',
+  [MetricType.CHURN]: 'operational',
+  [MetricType.ENGAGEMENT]: 'operational',
+  [MetricType.CONVERSION]: 'growth'
+};
+
+// Debug: Log the typeToCategory mapping
+console.log('Type to Category Mapping:', typeToCategory);
 
 /**
  * Interface for MetricSelector component props with comprehensive validation
@@ -25,35 +39,13 @@ interface MetricSelectorProps {
   errorRetryCount?: number;
 }
 
-/**
- * Interface for transformed select options
- */
-interface SelectOption {
-  value: string;
-  label: string;
-  disabled?: boolean;
-  metadata?: {
-    category: MetricCategory;
-    description: string;
-  };
-}
-
 const StyledMetricSelector = styled.div`
   width: 100%;
   max-width: 400px;
-
-  @media (prefers-reduced-motion: reduce) {
-    transition: none;
-  }
-
-  @media (forced-colors: active) {
-    border-color: ButtonText;
-  }
 `;
 
 /**
  * A robust and accessible metric selector component
- * Supports categorized metric selection with comprehensive validation and error handling
  */
 const MetricSelector: React.FC<MetricSelectorProps> = React.memo(
   ({
@@ -65,107 +57,148 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(
     ariaLabel = 'Select a metric',
     errorRetryCount = 3,
   }) => {
-    // Get metrics data and utilities from hook
-    const { metrics, loading, error, getMetricsByCategory, validateMetricValue } = useMetrics();
+    // Debug: Log incoming props
+    console.log('MetricSelector Props:', {
+      selectedMetricId,
+      category,
+      disabled,
+      className,
+      ariaLabel,
+      errorRetryCount
+    });
 
-    // Local state for filtered metrics
-    const [filteredMetrics, setFilteredMetrics] = useState<IMetric[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const { loading, error, getMetricTypes } = useMetrics();
+    const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
     const [retryCount, setRetryCount] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    // Transform metrics to select options with memoization
-    const transformMetricsToOptions = useCallback((metrics: IMetric[]): SelectOption[] => {
-      return metrics
-        .map((metric) => ({
-          value: metric.id,
-          label: metric.name,
-          disabled: !metric.isActive,
-          metadata: {
-            category: metric.category,
-            description: metric.description,
-          },
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label));
-    }, []);
-
-    // Memoized select options
-    const selectOptions = useMemo(
-      () => transformMetricsToOptions(filteredMetrics),
-      [filteredMetrics, transformMetricsToOptions]
-    );
-
-    // Debounced search handler
-    const handleSearch = useMemo(
-      () =>
-        debounce((term: string) => {
-          const filtered = metrics.filter(
-            (metric) =>
-              metric.category === category &&
-              (metric.name.toLowerCase().includes(term.toLowerCase()) ||
-                metric.description.toLowerCase().includes(term.toLowerCase()) ||
-                metric.tags.some((tag) => tag.toLowerCase().includes(term.toLowerCase())))
-          );
-          setFilteredMetrics(filtered);
-        }, 300),
-      [metrics, category]
-    );
-
-    // Handle metric selection
-    const handleMetricSelect = useCallback(
-      (value: string | number) => {
-        const selectedMetric = metrics.find((m) => m.id === String(value));
-        if (selectedMetric) {
-          onMetricSelect(String(value), selectedMetric);
-        }
-      },
-      [metrics, onMetricSelect]
-    );
-
-    // Fetch metrics on category change
     useEffect(() => {
-      const fetchMetrics = async () => {
+      const fetchMetricTypes = async () => {
+        setIsLoading(true);
+        setErrorMessage(null);
+        
         try {
-          const result = await getMetricsByCategory(category);
-          setFilteredMetrics(result || []);
+          console.log('Fetching metric types...'); // Debug: Log fetch start
+          const result = await getMetricTypes();
+          console.log('Raw API Response:', result);
+          
+          // Check if result is the direct array or nested in a data property
+          const metricTypes = Array.isArray(result) ? result : (result.data || []);
+          console.log('Extracted Metric Types:', metricTypes);
+          
+          if (Array.isArray(metricTypes) && metricTypes.length > 0) {
+            console.log('Current Category Filter:', category); // Debug: Log current category
+
+            const filteredMetrics = metricTypes.filter(metric => {
+              const metricType = metric.type as MetricType;
+              const mappedCategory = typeToCategory[metricType];
+              
+              // Debug: Log each metric's filtering process
+              console.log('Processing Metric:', {
+                id: metric.id,
+                name: metric.name,
+                type: metricType,
+                mappedCategory,
+                targetCategory: category,
+                matches: mappedCategory === category,
+                typeToCategory: typeToCategory[metricType]
+              });
+              
+              return mappedCategory === category;
+            });
+            
+            console.log('Filtered Metrics:', filteredMetrics);
+            
+            const newOptions = filteredMetrics.map(metric => {
+              const option = {
+                value: metric.id,
+                label: metric.name
+              };
+              console.log('Created Option:', option); // Debug: Log each created option
+              return option;
+            });
+            
+            console.log('Final Options Array:', newOptions);
+            setOptions(newOptions);
+          } else {
+            console.warn('No metric types found or invalid response format:', {
+              result,
+              metricTypes
+            });
+            setOptions([]);
+          }
         } catch (err) {
+          console.error('Error in fetchMetricTypes:', {
+            error: err,
+            retryCount,
+            maxRetries: errorRetryCount
+          });
+          
+          setErrorMessage(err instanceof Error ? err.message : 'Failed to fetch metrics');
+          
           if (retryCount < errorRetryCount) {
-            setRetryCount((prev) => prev + 1);
-            // Exponential backoff
+            console.log('Retrying fetch...', {
+              attempt: retryCount + 1,
+              maxRetries: errorRetryCount
+            });
+            setRetryCount(prev => prev + 1);
             setTimeout(() => {
-              fetchMetrics();
+              fetchMetricTypes();
             }, Math.pow(2, retryCount) * 1000);
           }
+        } finally {
+          setIsLoading(false);
         }
       };
 
-      fetchMetrics();
-    }, [category, getMetricsByCategory, errorRetryCount, retryCount]);
+      fetchMetricTypes();
+    }, [category, getMetricTypes, errorRetryCount, retryCount]);
 
-    // Reset retry count when category changes
-    useEffect(() => {
-      setRetryCount(0);
-    }, [category]);
+    const handleChange = useCallback((value: string | number) => {
+      console.log('Handle Change Called:', { value }); // Debug: Log change handler
+      
+      const selectedOption = options.find(opt => opt.value === value);
+      console.log('Selected Option:', selectedOption); // Debug: Log selected option
+      
+      onMetricSelect(String(value), {
+        id: String(value),
+        name: selectedOption?.label || '',
+        description: '',
+        category: category,
+        type: MetricType.REVENUE, // This will be overridden by the actual type
+        valueType: 'number',
+        validationRules: {},
+        isActive: true,
+        displayOrder: 0,
+        tags: [],
+        metadata: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }, [options, category, onMetricSelect]);
 
-    // Clean up debounce on unmount
-    useEffect(() => {
-      return () => {
-        handleSearch.cancel();
-      };
-    }, [handleSearch]);
+    // Debug: Log component state before render
+    console.log('MetricSelector State:', {
+      options,
+      isLoading,
+      error: errorMessage,
+      selectedMetricId
+    });
 
     return (
       <StyledMetricSelector className={className}>
         <Select
-          options={selectOptions}
+          options={options}
           value={selectedMetricId}
-          onChange={handleMetricSelect}
+          onChange={handleChange}
           name="metric-selector"
           id="metric-selector"
           label="Select Metric"
           placeholder="Choose a metric..."
-          disabled={disabled || loading[`category_${category}`] || false}
-          error={error[`category_${category}`] || ''}
-          loading={loading[`category_${category}`] || false}
+          disabled={disabled || isLoading}
+          error={errorMessage || ''}
+          loading={isLoading}
           required
           aria-label={ariaLabel}
         />
@@ -174,7 +207,6 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(
   }
 );
 
-// Display name for debugging
 MetricSelector.displayName = 'MetricSelector';
 
 export default MetricSelector;

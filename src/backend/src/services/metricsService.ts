@@ -1,15 +1,24 @@
 import { Op } from 'sequelize'; // v6.31.0
 import { Big } from 'big.js'; // v6.2.1
-import { caching } from 'cache-manager'; // v5.2.0
-import { IMetric } from '../interfaces/IMetric';
+import { caching, Cache } from 'cache-manager'; // v5.2.0
+import { IMetric, MetricType } from '../interfaces/IMetric';
 import { Metric } from '../models/Metric';
-import { MetricCategory, isValidMetricCategory } from '../constants/metricTypes';
+import { MetricCategory, METRIC_CATEGORIES, isValidMetricCategory } from '../constants/metricTypes';
 import { ValidationError, NotFoundError, DuplicateError } from '../utils/errors';
 import { logger } from '../utils/logger';
+import type { LogMetadata } from '../utils/logger';
 import { AppError } from '../utils/AppError';
 import { BUSINESS_ERRORS } from '../constants/errorCodes';
 import { CompanyMetric } from '../models/CompanyMetric';
-import { ICompanyMetric } from '../interfaces/ICompanyMetric';
+import { ICompanyMetric, ICreateCompanyMetric } from '../interfaces/ICompanyMetric';
+import { Model, CreationAttributes } from 'sequelize';
+
+interface MetricLogMetadata {
+  metricId?: string;
+  error?: string;
+  category?: string;
+  type?: string;
+}
 
 // Constants for service configuration
 const DEFAULT_METRIC_LIMIT = 100;
@@ -18,28 +27,23 @@ const CALCULATION_PRECISION = 4;
 const MAX_BULK_OPERATIONS = 1000;
 
 // Configure cache manager
-const metricCache = caching({
-  store: 'redis',
-  ttl: METRIC_CACHE_TTL,
-  max: 1000,
-  isCacheableValue: (val) => val !== undefined && val !== null
-});
+let metricCache: Cache;
+
+(async () => {
+  metricCache = await caching('memory', {
+    ttl: METRIC_CACHE_TTL,
+    max: 1000
+  });
+})();
 
 /**
  * Service class for managing metric operations with enhanced validation and caching
  */
 export class MetricsService {
-  private cache: any;
+  private cache: Cache;
 
   constructor() {
-    this.initializeCache();
-  }
-
-  private async initializeCache() {
-    this.cache = await caching('memory', {
-      max: 100,
-      ttl: METRIC_CACHE_TTL
-    });
+    this.cache = metricCache;
   }
 
   /**
@@ -68,15 +72,45 @@ export class MetricsService {
         isActive: true
       });
 
-      // Invalidate category cache
-      await this.invalidateCategoryCache(metricData.category);
+      // Map metric type to category for cache invalidation
+      const category = this.getMetricCategory(metricData.type);
+      await this.invalidateCategoryCache(category);
 
-      logger.info(`Created new metric: ${metric.id}`);
+      const logMetadata: LogMetadata = { metricId: metric.id };
+      logger.info(`Created new metric: ${metric.id}`, logMetadata);
       return metric.toJSON() as IMetric;
     } catch (error) {
-      logger.error('Error creating metric:', error);
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error)
+      };
+      logger.error('Error creating metric:', logMetadata);
       throw error;
     }
+  }
+
+  /**
+   * Maps a metric type to its corresponding category
+   * @param type - The metric type
+   * @returns The corresponding metric category
+   */
+  private getMetricCategory(type: MetricType): MetricCategory {
+    const typeToCategory: Record<MetricType, MetricCategory> = {
+      [MetricType.REVENUE]: METRIC_CATEGORIES.FINANCIAL,
+      [MetricType.EXPENSES]: METRIC_CATEGORIES.FINANCIAL,
+      [MetricType.PROFIT]: METRIC_CATEGORIES.FINANCIAL,
+      [MetricType.USERS]: METRIC_CATEGORIES.OPERATIONAL,
+      [MetricType.GROWTH]: METRIC_CATEGORIES.GROWTH,
+      [MetricType.CHURN]: METRIC_CATEGORIES.OPERATIONAL,
+      [MetricType.ENGAGEMENT]: METRIC_CATEGORIES.OPERATIONAL,
+      [MetricType.CONVERSION]: METRIC_CATEGORIES.GROWTH
+    };
+
+    const category = typeToCategory[type];
+    if (!category) {
+      throw new ValidationError(`Invalid metric type: ${type}`);
+    }
+
+    return category;
   }
 
   /**
@@ -100,10 +134,11 @@ export class MetricsService {
       }
 
       const cacheKey = this.generateCacheKey(category, options);
-      const cachedResult = await metricCache.get(cacheKey);
+      const cachedResult = await this.cache.get(cacheKey);
 
       if (cachedResult) {
-        logger.debug(`Cache hit for metrics category: ${category}`);
+        const logMetadata: LogMetadata = { category, cacheHit: true };
+        logger.debug(`Cache hit for metrics category: ${category}`, logMetadata);
         return cachedResult as { metrics: IMetric[]; total: number };
       }
 
@@ -143,12 +178,17 @@ export class MetricsService {
       };
 
       // Cache results
-      await metricCache.set(cacheKey, result);
+      await this.cache.set(cacheKey, result);
 
-      logger.debug(`Retrieved ${metrics.length} metrics for category: ${category}`);
+      const logMetadata: LogMetadata = { category, total };
+      logger.debug(`Retrieved ${metrics.length} metrics for category: ${category}`, logMetadata);
       return result;
     } catch (error) {
-      logger.error('Error retrieving metrics:', error);
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error),
+        category
+      };
+      logger.error('Error retrieving metrics:', logMetadata);
       throw error;
     }
   }
@@ -175,27 +215,39 @@ export class MetricsService {
         this.validateMetricRules(updateData.validationRules);
       }
 
+      // Get current type before update
+      const currentType = metric.get('type') as MetricType;
+      if (!currentType) {
+        throw new ValidationError('Metric type is required');
+      }
+
       // Perform update
       await metric.update(updateData);
 
       // Invalidate relevant caches
-      await this.invalidateCategoryCache(metric.category);
-      if (updateData.category && updateData.category !== metric.category) {
-        await this.invalidateCategoryCache(updateData.category);
+      const currentCategory = this.getMetricCategory(currentType);
+      await this.invalidateCategoryCache(currentCategory);
+
+      if (updateData.type && updateData.type !== currentType) {
+        const newCategory = this.getMetricCategory(updateData.type);
+        await this.invalidateCategoryCache(newCategory);
       }
 
-      logger.info(`Updated metric: ${id}`);
+      const logMetadata: LogMetadata = { metricId: id };
+      logger.info(`Updated metric: ${id}`, logMetadata);
       return metric.toJSON() as IMetric;
     } catch (error) {
-      logger.error('Error updating metric:', error);
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error),
+        metricId: id
+      };
+      logger.error('Error updating metric:', logMetadata);
       throw error;
     }
   }
 
   /**
    * Performs bulk metric calculations with high precision
-   * @param metrics - Array of metric values to process
-   * @returns Promise<Map<string, number>> - Calculated results
    */
   async calculateMetricValues(
     metrics: Array<{ id: string; value: number }>
@@ -216,7 +268,10 @@ export class MetricsService {
 
       return results;
     } catch (error) {
-      logger.error('Error calculating metric values:', error);
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error)
+      };
+      logger.error('Error calculating metric values:', logMetadata);
       throw error;
     }
   }
@@ -298,7 +353,7 @@ export class MetricsService {
   /**
    * Update metrics for a company
    */
-  async updateMetrics(companyId: string, data: Partial<Metric>): Promise<Metric> {
+  async updateMetrics(companyId: string, data: Partial<IMetric & { date: Date }>): Promise<Metric> {
     try {
       const metric = await Metric.findOne({
         where: { companyId, date: data.date }
@@ -311,11 +366,12 @@ export class MetricsService {
 
       return await Metric.create({ ...data, companyId });
     } catch (error) {
-      logger.error('Failed to update metrics:', { 
-        error: error instanceof Error ? error.message : 'Unknown error',
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error),
         companyId,
-        data 
-      });
+        data: JSON.stringify(data)
+      };
+      logger.error('Failed to update metrics:', logMetadata);
       throw new AppError(
         BUSINESS_ERRORS.OPERATION_FAILED.message,
         BUSINESS_ERRORS.OPERATION_FAILED.httpStatus,
@@ -324,47 +380,233 @@ export class MetricsService {
     }
   }
 
+  /**
+   * Retrieves a metric by its ID
+   */
+  async getMetricById(id: string): Promise<IMetric> {
+    try {
+      const metric = await Metric.findByPk(id);
+      if (!metric) {
+        throw new NotFoundError(`Metric not found: ${id}`);
+      }
+
+      return metric.toJSON() as IMetric;
+    } catch (error) {
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error),
+        metricId: id
+      };
+      logger.error('Error retrieving metric by ID:', logMetadata);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all available metric types for dropdowns
+   * Returns a list of active metrics with fields needed for the dropdown
+   */
+  async getAllMetricTypes(): Promise<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>[]> {
+    try {
+      const metrics = await Metric.findAll({
+        where: { isActive: true },
+        attributes: ['id', 'name', 'displayName', 'type', 'valueType'],
+        order: [['name', 'ASC']]
+      });
+
+      return metrics.map(metric => ({
+        id: metric.id,
+        name: metric.name,
+        displayName: metric.displayName,
+        type: metric.type,
+        valueType: metric.valueType
+      }));
+    } catch (error) {
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error)
+      };
+      logger.error('Error retrieving metric types:', logMetadata);
+      throw error;
+    }
+  }
+
+  /**
+   * Creates a new company metric entry
+   * @param metricData - The company metric data to create
+   * @returns Promise<ICompanyMetric> - The created company metric
+   */
+  async createCompanyMetric(metricData: Partial<ICompanyMetric>): Promise<ICompanyMetric> {
+    try {
+      // Validate required fields
+      if (!metricData.companyId) {
+        throw new ValidationError('Company ID is required');
+      }
+      if (!metricData.metricId) {
+        throw new ValidationError('Metric ID is required');
+      }
+      if (typeof metricData.value !== 'number') {
+        throw new ValidationError('Value is required and must be a number');
+      }
+
+      // Create company metric
+      const now = new Date();
+      const companyMetricData = {
+        companyId: metricData.companyId,
+        metricId: metricData.metricId,
+        value: metricData.value,
+        date: metricData.date || now,
+        source: metricData.source || 'manual',
+        isVerified: metricData.isVerified || false,
+        verifiedBy: metricData.verifiedBy,
+        verifiedAt: metricData.verifiedAt,
+        notes: metricData.notes,
+        isActive: metricData.isActive ?? true
+      } as const;
+
+      // Create the record with type assertion
+      const companyMetric = await CompanyMetric.create(companyMetricData as any);
+      
+      // Invalidate cache
+      await this.invalidateCompanyMetricsCache(metricData.companyId);
+
+      return companyMetric.toJSON() as ICompanyMetric;
+    } catch (error) {
+      logger.error('Error creating company metric:', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Updates an existing company metric
+   * @param id - The ID of the company metric to update
+   * @param updateData - The data to update
+   * @returns Promise<ICompanyMetric> - The updated company metric
+   */
+  async updateCompanyMetric(id: string, updateData: Partial<ICompanyMetric>): Promise<ICompanyMetric> {
+    try {
+      // Find existing company metric
+      const companyMetric = await CompanyMetric.findByPk(id);
+      if (!companyMetric) {
+        throw new NotFoundError(`Company metric with ID ${id} not found`);
+      }
+
+      // Prepare update data with type safety
+      const updateFields: Partial<ICompanyMetric> = {};
+      
+      if (updateData.value !== undefined) updateFields.value = updateData.value;
+      if (updateData.date !== undefined) updateFields.date = updateData.date;
+      if (updateData.source !== undefined) updateFields.source = updateData.source;
+      if (updateData.isVerified !== undefined) updateFields.isVerified = updateData.isVerified;
+      if (updateData.verifiedBy !== undefined) updateFields.verifiedBy = updateData.verifiedBy;
+      if (updateData.verifiedAt !== undefined) updateFields.verifiedAt = updateData.verifiedAt;
+      if (updateData.notes !== undefined) updateFields.notes = updateData.notes;
+      if (updateData.isActive !== undefined) updateFields.isActive = updateData.isActive;
+
+      // Update company metric
+      const updatedMetric = await companyMetric.update(updateFields);
+      
+      // Get the company ID from the metric for cache invalidation
+      const metricData = updatedMetric.toJSON() as ICompanyMetric;
+      await this.invalidateCompanyMetricsCache(metricData.companyId);
+
+      return metricData;
+    } catch (error) {
+      logger.error('Error updating company metric:', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to invalidate company metrics cache
+   * @param companyId - The company ID whose metrics cache needs to be invalidated
+   */
+  private async invalidateCompanyMetricsCache(companyId: string): Promise<void> {
+    const cacheKey = `company-metrics-${companyId}`;
+    await this.cache.del(cacheKey);
+  }
+
   // Private helper methods
 
+  /**
+   * Validates metric data before creation or update
+   * @param data - The metric data to validate
+   * @throws ValidationError
+   */
   private validateMetricData(data: Partial<IMetric>): void {
-    if (!data.name || data.name.length < 2 || data.name.length > 100) {
-      throw new ValidationError('Invalid metric name length');
+    // Validate required fields
+    const requiredFields = ['name', 'type', 'valueType', 'description'];
+    const missingFields = requiredFields.filter(field => !data[field as keyof IMetric]);
+
+    if (missingFields.length > 0) {
+      throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
     }
 
-    if (!isValidMetricCategory(data.category)) {
-      throw new ValidationError(`Invalid metric category: ${data.category}`);
+    // Validate metric type
+    if (!data.type || !(data.type in MetricType)) {
+      throw new ValidationError(`Invalid metric type: ${data.type}`);
     }
 
+    // Validate validation rules if present
     if (data.validationRules) {
       this.validateMetricRules(data.validationRules);
     }
   }
 
-  private validateMetricRules(rules: any): void {
+  /**
+   * Validates metric validation rules
+   * @param rules - The validation rules to validate
+   * @throws ValidationError
+   */
+  private validateMetricRules(rules: IMetric['validationRules']): void {
+    if (!rules) return;
+
+    // Validate numeric constraints
     if (rules.min !== undefined && rules.max !== undefined && rules.min > rules.max) {
       throw new ValidationError('Minimum value cannot be greater than maximum value');
     }
 
-    if (rules.decimals !== undefined && (!Number.isInteger(rules.decimals) || rules.decimals < 0)) {
-      throw new ValidationError('Decimals must be a non-negative integer');
+    if (rules.decimals !== undefined && rules.decimals < 0) {
+      throw new ValidationError('Decimal places must be non-negative');
+    }
+
+    // Validate custom validation rules
+    if (rules.customValidation) {
+      for (const validation of rules.customValidation) {
+        if (!validation.rule || !validation.message) {
+          throw new ValidationError('Custom validation rules must have both rule and message');
+        }
+      }
     }
   }
 
-  private async invalidateCategoryCache(category: MetricCategory): Promise<void> {
-    const cachePattern = `metrics:${category}:*`;
-    await metricCache.del(cachePattern);
-  }
-
-  private generateCacheKey(category: string, options: any): string {
-    return `metrics:${category}:${JSON.stringify(options)}`;
-  }
-
+  /**
+   * Formats a metric response by removing sensitive data
+   * @param metric - The metric to format
+   * @returns The formatted metric
+   */
   private formatMetricResponse(metric: Metric): IMetric {
-    const metricJson = metric.toJSON();
-    return {
-      ...metricJson,
-      validationRules: undefined // Exclude validation rules from response
-    } as IMetric;
+    const metricData = metric.toJSON();
+    delete metricData.validationRules;
+    return metricData as IMetric;
+  }
+
+  /**
+   * Generates a cache key for metric queries
+   * @param category - The metric category
+   * @param options - The query options
+   * @returns The generated cache key
+   */
+  private generateCacheKey(category: MetricCategory, options: Record<string, any>): string {
+    const { limit, offset, includeInactive, searchTerm } = options;
+    return `metrics:${category}:${limit}:${offset}:${includeInactive}:${searchTerm || ''}`;
+  }
+
+  /**
+   * Invalidates cache entries for a category
+   * @param category - The category to invalidate
+   */
+  private async invalidateCategoryCache(category: MetricCategory): Promise<void> {
+    const cacheKey = `metrics:${category}:*`;
+    await this.cache.del(cacheKey);
   }
 }
 

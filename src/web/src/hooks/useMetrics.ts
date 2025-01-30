@@ -1,23 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
 import type { MetricServiceResponse } from '../services/metrics';
-import {
-  selectMetrics,
-  selectMetricsLoading,
-  selectMetricsError,
-  fetchMetrics,
-  fetchMetricsByCategory,
-} from '../store/metricsSlice';
-import { RootState } from '../store';
 
-// Constants
-const CACHE_TTL = 300000; // 5 minutes
 const MAX_RETRIES = 3;
 
-interface UseMetricsReturn {
-  metrics: IMetric[];
+export interface UseMetricsReturn {
   loading: Record<string, boolean>;
   error: Record<string, string | null>;
   getMetricById: (id: string) => Promise<IMetric | null>;
@@ -25,17 +13,10 @@ interface UseMetricsReturn {
   saveCompanyMetric: (metricId: string, value: number) => Promise<boolean>;
   getBenchmarkData: (metricId: string, revenueRange: string) => Promise<any | null>;
   validateMetricValue: (value: number, metric: IMetric) => boolean;
+  getMetricTypes: () => Promise<MetricServiceResponse<Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>>>;
 }
 
-/**
- * Custom hook for managing metric-related operations with caching and optimizations
- * @version 1.0.0
- */
 export const useMetrics = (): UseMetricsReturn => {
-  // Initialize Redux
-  const dispatch = useDispatch();
-  const metrics = useSelector((state: RootState) => selectMetrics(state));
-
   // Local state for granular loading and error states
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string | null>>({});
@@ -46,9 +27,6 @@ export const useMetrics = (): UseMetricsReturn => {
   // Initialize metrics service
   const metricsService = new MetricsService();
 
-  /**
-   * Retrieves a specific metric by ID with caching
-   */
   const getMetricById = useCallback(async (id: string): Promise<IMetric | null> => {
     try {
       // Cancel any existing request
@@ -81,9 +59,6 @@ export const useMetrics = (): UseMetricsReturn => {
     }
   }, []);
 
-  /**
-   * Retrieves metrics filtered by category with optimization
-   */
   const getMetricsByCategory = useCallback(async (category: MetricCategory): Promise<IMetric[]> => {
     const cacheKey = `category_${category}`;
 
@@ -119,44 +94,29 @@ export const useMetrics = (): UseMetricsReturn => {
     }
   }, []);
 
-  /**
-   * Saves or updates a company's metric value with validation
-   */
-  const saveCompanyMetric = useCallback(
-    async (metricId: string, value: number): Promise<boolean> => {
-      const operationKey = `save_${metricId}`;
+  const saveCompanyMetric = useCallback(async (metricId: string, value: number): Promise<boolean> => {
+    const operationKey = `save_${metricId}`;
 
-      try {
-        setLoading((prev) => ({ ...prev, [operationKey]: true }));
-        setError((prev) => ({ ...prev, [operationKey]: null }));
+    try {
+      setLoading((prev) => ({ ...prev, [operationKey]: true }));
+      setError((prev) => ({ ...prev, [operationKey]: null }));
 
-        // Validate metric value
-        const metric = await getMetricById(metricId);
-        if (!metric) {
-          throw new Error('Metric not found');
-        }
+      const response = await metricsService.saveCompanyMetric(metricId, value);
 
-        const response = await metricsService.saveCompanyMetric(metricId, value);
-
-        if (response.error) {
-          throw new Error(response.error);
-        }
-
-        return true;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to save metric';
-        setError((prev) => ({ ...prev, [operationKey]: errorMessage }));
-        return false;
-      } finally {
-        setLoading((prev) => ({ ...prev, [operationKey]: false }));
+      if (response.error) {
+        throw new Error(response.error);
       }
-    },
-    [getMetricById]
-  );
 
-  /**
-   * Retrieves benchmark data for a specific metric with caching
-   */
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save metric';
+      setError((prev) => ({ ...prev, [operationKey]: errorMessage }));
+      return false;
+    } finally {
+      setLoading((prev) => ({ ...prev, [operationKey]: false }));
+    }
+  }, []);
+
   const getBenchmarkData = useCallback(async (metricId: string, revenueRange: string) => {
     const cacheKey = `benchmark_${metricId}_${revenueRange}`;
     let retryCount = 0;
@@ -205,9 +165,6 @@ export const useMetrics = (): UseMetricsReturn => {
     }
   }, []);
 
-  /**
-   * Validates a metric value against its definition rules
-   */
   const validateMetricValue = useCallback((value: number, metric: IMetric): boolean => {
     const { validationRules, valueType } = metric;
 
@@ -233,8 +190,31 @@ export const useMetrics = (): UseMetricsReturn => {
     }
   }, []);
 
+  const getMetricTypes = useCallback(async () => {
+    const cacheKey = 'metric_types';
+    
+    try {
+      setLoading((prev) => ({ ...prev, [cacheKey]: true }));
+      const response = await metricsService.getMetricTypes();
+      // console.log('response from getMetricTypes', response);
+      if (!response.data) {
+        throw new Error(response.error || 'Failed to fetch metric types');
+      }
+      
+      return {
+        data: Array.isArray(response.data) ? response.data : [],
+        error: response.error
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch metric types';
+      setError((prev) => ({ ...prev, [cacheKey]: errorMessage }));
+      return { data: [], error: errorMessage };
+    } finally {
+      setLoading((prev) => ({ ...prev, [cacheKey]: false }));
+    }
+  }, []);
+
   return {
-    metrics,
     loading,
     error,
     getMetricById,
@@ -242,5 +222,6 @@ export const useMetrics = (): UseMetricsReturn => {
     saveCompanyMetric,
     getBenchmarkData,
     validateMetricValue,
+    getMetricTypes,
   };
 };

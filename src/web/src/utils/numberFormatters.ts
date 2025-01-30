@@ -175,13 +175,13 @@ export const formatMetricValue = (
 
   try {
     switch (valueType) {
-      case 'percentage':
+      case 'PERCENTAGE':
         return formatPercentage(value, decimals, options);
-      case 'currency':
+      case 'CURRENCY':
         return formatCurrency(value, decimals, options);
-      case 'ratio':
+      case 'RATIO':
         return formatRatio(value, decimals, options);
-      case 'number':
+      case 'NUMBER':
         return formatNumber(value, decimals, options);
       default:
         console.error(`Unsupported metric value type: ${valueType}`);

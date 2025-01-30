@@ -3,6 +3,7 @@
  * @version 1.0.0
  */
 
+import 'reflect-metadata'; // Required for tsyringe dependency injection
 import 'dotenv/config';
 import { createServer } from 'http';
 import { logger } from './utils/logger';

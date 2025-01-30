@@ -5,17 +5,28 @@
  * @version 1.0.0
  */
 
-import express, { Router } from 'express'; // ^4.18.2
+import express, { Router, Request } from 'express'; // ^4.18.2
 import rateLimit from 'express-rate-limit'; // ^6.7.0
 import correlationId from 'express-correlation-id'; // ^2.0.0
 import cacheControl from 'express-cache-controller'; // ^1.1.0
 
 import CompanyMetricsController from '../controllers/companyMetricsController';
-import { authenticate, authorize } from '../middleware/auth';
-import validateRequest from '../middleware/validator';
+import { createAuthMiddleware } from '../middleware/auth';
+import { validateRequest } from '../middleware/validator';
 import { companyMetricSchema } from '../validators/companyMetricsValidator';
 import { logger } from '../utils/logger';
 import { USER_ROLES } from '../constants/roles';
+import { GoogleAuthProvider } from '../services/googleAuthProvider';
+import { IUser } from '../interfaces/user';
+
+// Extend Request type to include correlationId and user
+interface ExtendedRequest extends Request {
+  correlationId?: string;
+  user?: IUser;
+}
+
+// Initialize auth middleware with Google auth provider
+const authMiddleware = createAuthMiddleware(new GoogleAuthProvider());
 
 // Rate limiting configurations
 const CREATE_LIMIT = {
@@ -56,17 +67,17 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
   // Create company metric route
   router.post('/',
     rateLimit(CREATE_LIMIT),
-    authenticate,
-    authorize([USER_ROLES.USER, USER_ROLES.ADMIN], 'companyData', 'create'),
+    authMiddleware.authenticate,
+    authMiddleware.authorize([USER_ROLES.USER, USER_ROLES.ADMIN]),
     validateRequest(companyMetricSchema),
-    async (req, res, next) => {
+    async (req: ExtendedRequest, res, next) => {
       try {
         logger.info('Creating company metric', {
           userId: req.user?.id,
           correlationId: req.correlationId
         });
 
-        const result = await controller.createMetric(req, res);
+        const result = await controller.createCompanyMetric(req, res);
         res.status(201).json(result);
       } catch (error) {
         next(error);
@@ -77,10 +88,10 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
   // Get company metrics route
   router.get('/',
     rateLimit(READ_LIMIT),
-    authenticate,
-    authorize([USER_ROLES.USER, USER_ROLES.ADMIN, USER_ROLES.ANALYST], 'companyData', 'read'),
+    authMiddleware.authenticate,
+    authMiddleware.authorize([USER_ROLES.USER, USER_ROLES.ADMIN, USER_ROLES.ANALYST]),
     cacheControl({ maxAge: 300 }), // 5 minutes cache
-    async (req, res, next) => {
+    async (req: ExtendedRequest, res, next) => {
       try {
         logger.info('Retrieving company metrics', {
           userId: req.user?.id,
@@ -88,7 +99,7 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
           filters: req.query
         });
 
-        const result = await controller.getMetrics(req, res);
+        const result = await controller.getCompanyMetrics(req, res);
         res.status(200).json(result);
       } catch (error) {
         next(error);
@@ -99,10 +110,10 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
   // Update company metric route
   router.put('/:id',
     rateLimit(UPDATE_LIMIT),
-    authenticate,
-    authorize([USER_ROLES.USER, USER_ROLES.ADMIN], 'companyData', 'update'),
+    authMiddleware.authenticate,
+    authMiddleware.authorize([USER_ROLES.USER, USER_ROLES.ADMIN]),
     validateRequest(companyMetricSchema),
-    async (req, res, next) => {
+    async (req: ExtendedRequest, res, next) => {
       try {
         logger.info('Updating company metric', {
           userId: req.user?.id,
@@ -110,7 +121,7 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
           metricId: req.params.id
         });
 
-        const result = await controller.updateMetric(req, res);
+        const result = await controller.updateCompanyMetric(req, res);
         res.status(200).json(result);
       } catch (error) {
         next(error);
@@ -121,9 +132,9 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
   // Delete company metric route
   router.delete('/:id',
     rateLimit(DELETE_LIMIT),
-    authenticate,
-    authorize([USER_ROLES.USER, USER_ROLES.ADMIN], 'companyData', 'update'),
-    async (req, res, next) => {
+    authMiddleware.authenticate,
+    authMiddleware.authorize([USER_ROLES.USER, USER_ROLES.ADMIN]),
+    async (req: ExtendedRequest, res, next) => {
       try {
         logger.info('Deleting company metric', {
           userId: req.user?.id,
@@ -131,7 +142,7 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
           metricId: req.params.id
         });
 
-        await controller.deleteMetric(req, res);
+        await controller.deleteCompanyMetric(req, res);
         res.status(204).send();
       } catch (error) {
         next(error);
@@ -140,7 +151,7 @@ const initializeRoutes = (controller: CompanyMetricsController): Router => {
   );
 
   // Apply error handling middleware
-  router.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  router.use((error: Error, req: ExtendedRequest, res: express.Response, next: express.NextFunction) => {
     logger.error('Error in company metrics route', {
       error,
       correlationId: req.correlationId,

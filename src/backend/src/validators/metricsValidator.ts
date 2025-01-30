@@ -209,3 +209,69 @@ export const validateMetricsRequest = async (data: unknown): Promise<void> => {
     throw error;
   }
 };
+
+/**
+ * Validation schema for company metrics
+ * Enforces strict validation for company-specific metric data
+ */
+export const companyMetricSchema = Joi.object({
+  value: Joi.number()
+    .required()
+    .messages({
+      'any.required': 'Value is required',
+      'number.base': 'Value must be a number'
+    }),
+
+  metricId: Joi.string()
+    .required()
+    .messages({
+      'any.required': 'Metric ID is required',
+      'string.base': 'Metric ID must be a string'
+    }),
+
+  userId: Joi.string()
+    .required()
+    .messages({
+      'any.required': 'User ID is required',
+      'string.base': 'User ID must be a string'
+    }),
+
+  timestamp: Joi.string()
+    .isoDate()
+    .required()
+    .messages({
+      'any.required': 'Timestamp is required',
+      'string.isoDate': 'Timestamp must be a valid ISO date string'
+    }),
+
+  isActive: Joi.boolean()
+    .default(true),
+
+  metadata: Joi.object()
+    .default({}),
+
+  metric: Joi.object({
+    id: Joi.string().required(),
+    name: Joi.string().required(),
+    displayName: Joi.string().required(),
+    type: Joi.string().required(),
+    valueType: Joi.string().required(),
+    description: Joi.string().allow(''),
+    category: Joi.string().required(),
+    validationRules: Joi.object().required(),
+    isActive: Joi.boolean().required(),
+    displayOrder: Joi.number().required(),
+    tags: Joi.array().items(Joi.string()).required(),
+    metadata: Joi.object().required(),
+    createdAt: Joi.date().required(),
+    updatedAt: Joi.date().required()
+  }).required(),
+
+  lastModified: Joi.string()
+    .isoDate()
+    .required(),
+
+  createdAt: Joi.string()
+    .isoDate()
+    .required()
+}).options({ abortEarly: false });

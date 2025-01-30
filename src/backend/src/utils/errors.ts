@@ -5,14 +5,14 @@ export class AppError extends Error {
   public readonly statusCode: number;
   public readonly code: string;
   public readonly isOperational: boolean;
-  public readonly meta?: Record<string, unknown>;
+  public meta?: Record<string, any>;
 
   constructor(
     message: string,
-    statusCode: number,
-    code: string,
-    isOperational = true,
-    meta?: Record<string, unknown>
+    statusCode: number = 500,
+    code: string = 'INTERNAL_ERROR',
+    isOperational: boolean = true,
+    meta?: Record<string, any>
   ) {
     super(message);
     this.statusCode = statusCode;
@@ -22,6 +22,33 @@ export class AppError extends Error {
 
     // Maintains proper stack trace for where our error was thrown
     Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+/**
+ * Validation error for invalid input data
+ */
+export class ValidationError extends AppError {
+  constructor(message: string, meta?: Record<string, unknown>) {
+    super(message, 400, 'VALIDATION_ERROR', true, meta);
+  }
+}
+
+/**
+ * Not found error for missing resources
+ */
+export class NotFoundError extends AppError {
+  constructor(message: string, meta?: Record<string, unknown>) {
+    super(message, 404, 'NOT_FOUND', true, meta);
+  }
+}
+
+/**
+ * Duplicate error for already existing resources
+ */
+export class DuplicateError extends AppError {
+  constructor(message: string, meta?: Record<string, unknown>) {
+    super(message, 409, 'DUPLICATE_ERROR', true, meta);
   }
 }
 
