@@ -31,19 +31,20 @@ interface IChartConfig {
  * Used for service communication and endpoint management
  */
 export const API_CONFIG: IApiConfig = {
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  API_BASE_URL: 'http://localhost:8000',
   API_TIMEOUT: 30000,
   API_VERSION: 'v1',
   API_ENDPOINTS: {
-    AUTH: '/auth',
     METRICS: '/api/v1/metrics',
-    BENCHMARKS: '/api/v1/benchmarks',
+    METRIC_TYPES: '/api/v1/metrics/types',
     COMPANY_METRICS: '/api/v1/company-metrics',
-    EXPORTS: '/api/v1/exports',
-    USERS: '/api/v1/users',
+    BENCHMARKS: '/api/v1/benchmarks',
+    USER: '/api/v1/user',
+    AUTH: '/api/v1/auth',
+    DATA_SOURCES: '/api/v1/data-sources'
   },
-  ERROR_LOGGING_ENABLED: import.meta.env.MODE === 'development',
-} as const;
+  ERROR_LOGGING_ENABLED: true
+};
 
 /**
  * Metric type constants
@@ -138,7 +139,7 @@ export const METRIC_VALIDATION_RULES: Record<
     currencySymbol?: string;
   }
 > = {
-  percentage: {
+  PERCENTAGE: {
     min: 0,
     max: 100,
     required: true,
@@ -149,7 +150,7 @@ export const METRIC_VALIDATION_RULES: Record<
     allowNegative: false,
   },
 
-  currency: {
+  CURRENCY: {
     min: 0,
     max: 1000000000, // $1B limit
     required: true,
@@ -161,7 +162,7 @@ export const METRIC_VALIDATION_RULES: Record<
     currencySymbol: '$',
   },
 
-  number: {
+  NUMBER: {
     min: 0,
     max: 1000000, // 1M limit
     required: true,
@@ -172,7 +173,7 @@ export const METRIC_VALIDATION_RULES: Record<
     allowNegative: false,
   },
 
-  ratio: {
+  RATIO: {
     min: 0,
     max: 1000,
     required: true,

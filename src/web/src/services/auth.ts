@@ -111,9 +111,11 @@ export class AuthService {
   private googleAuthUrl: string = '';
   private lastValidationTime: number = 0;
   private validationCache: { isValid: boolean; timestamp: number; user: IUser | null } | null = null;
-  private static VALIDATION_CACHE_TTL = 5 * 60 * 1000; // 5 minute cache TTL
+  private static VALIDATION_CACHE_TTL = 15 * 60 * 1000; // 15 minute cache TTL
   private validationInProgress: Promise<boolean> | null = null;
   private globalValidationTimer: NodeJS.Timeout | null = null;
+  private initializationPromise: Promise<void> | null = null;
+  private static VALIDATION_DEBOUNCE = 5000; // 5 second debounce
 
   constructor() {
     if (AuthService.instance) {
@@ -121,11 +123,38 @@ export class AuthService {
     }
     AuthService.instance = this;
     this.initializeRateLimiter();
-    this.setupGlobalValidation();
-    // Initialize Google Auth in the background
-    this.initializeGoogleAuth().catch(error => {
-      console.warn('Background Google Auth initialization failed:', error);
-    });
+    
+    // Initialize service in constructor
+    this.initializationPromise = this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      // First try to restore session from stored tokens
+      const tokens = this.getStoredTokens();
+      if (tokens) {
+        this.token = tokens.token;
+        this.refreshToken = tokens.refreshToken;
+        api.defaults.headers.common['Authorization'] = `Bearer ${tokens.token}`;
+        
+        // Validate the session immediately
+        const isValid = await this.validateSession();
+        if (isValid) {
+          this.isAuthenticated = true;
+          this.setupGlobalValidation();
+        } else {
+          this.clearTokens();
+        }
+      }
+
+      // Initialize Google Auth in background
+      this.initializeGoogleAuth().catch(error => {
+        console.warn('Background Google Auth initialization failed:', error);
+      });
+    } catch (error) {
+      console.error('Auth service initialization failed:', error);
+      this.clearTokens();
+    }
   }
 
   private setupGlobalValidation(): void {
@@ -134,9 +163,29 @@ export class AuthService {
       clearInterval(this.globalValidationTimer);
     }
 
-    // Set up periodic validation every 5 minutes
-    this.globalValidationTimer = setInterval(() => {
-      this.validateSession().catch(console.error);
+    // Set up periodic validation every 15 minutes
+    this.globalValidationTimer = setInterval(async () => {
+      try {
+        const isValid = await this.validateSession();
+        if (!isValid) {
+          this.clearTokens();
+          window.dispatchEvent(new CustomEvent('auth-state-change', {
+            detail: {
+              isAuthenticated: false,
+              user: null,
+              token: null,
+              refreshToken: null,
+              tokenExpiration: null
+            }
+          }));
+        }
+      } catch (error) {
+        // Only log the error but don't clear tokens for network issues
+        if (error instanceof AxiosError && 
+            ![404, 500, 503].includes(error.response?.status || 0)) {
+          console.error('Periodic session validation failed:', error);
+        }
+      }
     }, AuthService.VALIDATION_CACHE_TTL);
 
     // Clean up on window unload
@@ -392,25 +441,28 @@ export class AuthService {
    */
   public async validateSession(): Promise<boolean> {
     try {
+      // Wait for initialization to complete first
+      if (this.initializationPromise) {
+        await this.initializationPromise;
+      }
+
       const now = Date.now();
 
-      // If there's a validation in progress, return its promise
+      // If there's a validation in progress, wait for it
       if (this.validationInProgress) {
         return this.validationInProgress;
       }
 
-      // Check cache first
+      // Check cache with longer TTL
       if (this.validationCache && (now - this.validationCache.timestamp) < AuthService.VALIDATION_CACHE_TTL) {
-        console.log('validateSession: Using cached validation result');
         if (this.validationCache.user) {
           this.currentUser = this.validationCache.user;
         }
         return this.validationCache.isValid;
       }
 
-      // Rate limit validation requests
-      if (now - this.lastValidationTime < 1000) {
-        console.log('validateSession: Rate limited, using last validation result');
+      // Implement request debouncing with 5 second window
+      if (now - this.lastValidationTime < AuthService.VALIDATION_DEBOUNCE) {
         return this.isAuthenticated;
       }
 
@@ -423,16 +475,31 @@ export class AuthService {
             return false;
           }
 
-          const response = await api.post(authConfig.authEndpoints.validateToken, {});
-          const innerResponse = response.data.data;
-          const isValid = innerResponse.status === 'success' && innerResponse.data?.user;
-          
-          if (isValid) {
-            const user = innerResponse.data.user;
-            this.updateAuthState(true, user, tokens);
-            this.validationCache = { isValid: true, timestamp: now, user };
-            this.lastValidationTime = now;
-            return true;
+          // Add retry logic for failed validations
+          let retries = 3;
+          while (retries > 0) {
+            try {
+              const response = await api.post(authConfig.authEndpoints.validateToken, {});
+              const innerResponse = response.data.data;
+              const isValid = innerResponse.status === 'success' && innerResponse.data?.user;
+              
+              if (isValid) {
+                const user = innerResponse.data.user;
+                this.updateAuthState(true, user, tokens);
+                this.validationCache = { isValid: true, timestamp: now, user };
+                this.lastValidationTime = now;
+                return true;
+              }
+              break;
+            } catch (error) {
+              if (retries > 1 && error instanceof AxiosError && 
+                  (error.response?.status === 500 || error.response?.status === 503)) {
+                retries--;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                continue;
+              }
+              throw error;
+            }
           }
 
           this.clearTokens();
@@ -440,14 +507,13 @@ export class AuthService {
           return false;
         } catch (error) {
           if (error instanceof AxiosError && error.response?.status === 404) {
+            // Consider 404 as valid for backward compatibility
             const tokens = this.getStoredTokens();
             if (tokens) {
               this.updateAuthState(true, this.currentUser, tokens);
-            } else {
-              this.updateAuthState(true, this.currentUser);
+              this.validationCache = { isValid: true, timestamp: now, user: this.currentUser };
+              return true;
             }
-            this.validationCache = { isValid: true, timestamp: now, user: this.currentUser };
-            return true;
           }
           throw error;
         } finally {
@@ -458,10 +524,11 @@ export class AuthService {
       return this.validationInProgress;
     } catch (error) {
       console.error('validateSession: Error occurred:', error);
-      const now = Date.now();
-      if (!(error instanceof AxiosError && error.response?.status === 404)) {
+      // Only clear tokens for specific error cases
+      if (error instanceof AxiosError && 
+          ![404, 500, 503].includes(error.response?.status || 0)) {
         this.clearTokens();
-        this.validationCache = { isValid: false, timestamp: now, user: null };
+        this.validationCache = { isValid: false, timestamp: Date.now(), user: null };
       }
       this.validationInProgress = null;
       return false;

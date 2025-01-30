@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 /**
  * Main Express application configuration with comprehensive security,
  * monitoring, and performance features.
@@ -31,43 +32,20 @@ const configureApp = (): Application => {
   const app = express();
 
   // Security middleware
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: [
-            "'self'",
-            "'unsafe-inline'",
-            "'unsafe-eval'",
-            'https://*.google.com',
-            'https://*.gstatic.com',
-            'https://*.googleapis.com',
-          ],
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-          fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          frameSrc: ['https://accounts.google.com', 'https://*.google.com'],
-          connectSrc: [
-            "'self'",
-            'http://localhost:8000',
-            'https://*.google.com',
-            'https://*.googleapis.com',
-          ],
-        },
-      },
-      crossOriginEmbedderPolicy: false,
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-    })
-  );
+  app.use(helmet({
+    contentSecurityPolicy: false, // Disable CSP for development
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  }));
 
   // CORS configuration
-  app.use(
-    cors({
-      origin: process.env.CORS_ORIGIN?.split(',') || 'http://localhost:3000',
-      credentials: true,
-    })
-  );
+  app.use(cors({
+    origin: true, // Allow all origins in development
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'X-API-Version', 'X-Client-Version', 'X-Requested-With'],
+  }));
+
 
   // Request parsing middleware
   app.use(express.json({ limit: '1mb' }));
@@ -78,21 +56,13 @@ const configureApp = (): Application => {
 
   // Request logging
   app.use(requestLogger);
-
   // Rate limiting - 100 requests per minute
   app.use(rateLimiter);
-
-  // Mount auth routes first
-  app.use('/auth', authRouter);
 
   // Audit logging for all write operations - after auth but before other routes
   app.use(auditLogMiddleware());
 
-  // API routes
   app.use('/api/v1', router);
-
-  // Mount metrics routes directly
-  app.use(metricsRouter);
 
   // Root route
   app.get('/', (req: Request, res: Response) => {
@@ -100,14 +70,6 @@ const configureApp = (): Application => {
       status: 'success',
       message: 'Welcome to Startup Metrics API',
       version: process.env.npm_package_version,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // Basic routes
-  app.get('/ping', (req: Request, res: Response) => {
-    res.status(200).json({
-      status: 'pong',
       timestamp: new Date().toISOString(),
     });
   });
@@ -121,7 +83,7 @@ const configureApp = (): Application => {
     });
   });
 
-  // Metrics endpoint
+  // Prometheus metrics endpoint
   app.get('/metrics', async (req: Request, res: Response) => {
     try {
       res.set('Content-Type', metrics.contentType);

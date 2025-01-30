@@ -4,18 +4,22 @@
  * @version 1.0.0
  */
 
-import { Transaction } from 'sequelize'; // v6.31.0
-import { RateLimiter } from 'rate-limiter-flexible'; // v2.4.1
-import { AuditLogger } from 'audit-logger'; // v1.0.0
-import Cache from 'node-cache'; // v5.1.2
+import { Transaction, Order } from 'sequelize';
+import { RateLimiterMemory } from 'rate-limiter-flexible';
+import Cache from 'node-cache';
+import { injectable } from 'tsyringe';
+import { Op } from 'sequelize';
 
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
-import CompanyMetric from '../models/CompanyMetric';
+import { CompanyMetric } from '../models/CompanyMetric';
 import { validateMetricValue } from '../utils/validation';
 import { formatMetricValue } from '../utils/metrics';
-import { encrypt, decrypt } from '../utils/encryption';
 import { hasPermission } from '../constants/roles';
 import { METRIC_VALIDATION_RULES } from '../constants/validations';
+import { AuditLogger } from '../utils/auditLogger';
+import { METRIC_VALUE_TYPES, MetricValueType } from '../constants/metricTypes';
+import { USER_ROLES, FEATURES } from '../constants/roles';
+import { MetricType, ValueType, Frequency } from '../interfaces/IMetric';
 
 // Cache configuration
 const CACHE_TTL = 300; // 5 minutes
@@ -28,11 +32,12 @@ const RATE_LIMIT_DURATION = 3600; // 1 hour
 /**
  * Service class for managing company metrics with comprehensive security measures
  */
+@injectable()
 export class CompanyMetricsService {
     private companyMetricModel: typeof CompanyMetric;
     private auditLogger: AuditLogger;
     private cache: Cache;
-    private rateLimiter: RateLimiter;
+    private rateLimiter: RateLimiterMemory;
 
     constructor() {
         this.companyMetricModel = CompanyMetric;
@@ -47,7 +52,7 @@ export class CompanyMetricsService {
             useClones: false
         });
 
-        this.rateLimiter = new RateLimiter({
+        this.rateLimiter = new RateLimiterMemory({
             points: RATE_LIMIT_POINTS,
             duration: RATE_LIMIT_DURATION
         });
@@ -55,10 +60,6 @@ export class CompanyMetricsService {
 
     /**
      * Creates a new company metric with comprehensive validation and security
-     * @param metricData The metric data to create
-     * @param transaction Optional transaction for atomic operations
-     * @returns Promise resolving to created metric
-     * @throws Error if validation fails or operation is unauthorized
      */
     public async createCompanyMetric(
         metricData: ICompanyMetric,
@@ -66,36 +67,55 @@ export class CompanyMetricsService {
     ): Promise<ICompanyMetric> {
         try {
             // Check rate limit
-            await this.rateLimiter.consume(metricData.userId);
+            await this.rateLimiter.consume(metricData.companyId);
 
-            // Validate user permissions
-            if (!hasPermission(metricData.userId, 'companyData', 'create')) {
+            // Validate permissions
+            if (!hasPermission(USER_ROLES.USER, FEATURES.companyData, 'create')) {
                 throw new Error('Unauthorized to create company metrics');
             }
+
+            // Default to number if no metric type is provided
+            const defaultValueType = ValueType.NUMBER;
+            const metricType = metricData.metric?.valueType || defaultValueType;
+            const metricValueType = metricType.toLowerCase() as MetricValueType;
+
+            // Get validation rules
+            const validationRules = METRIC_VALIDATION_RULES[METRIC_VALUE_TYPES[metricType]] || METRIC_VALIDATION_RULES[METRIC_VALUE_TYPES.NUMBER];
 
             // Validate metric value
             const validationResult = validateMetricValue(
                 metricData.value,
-                { valueType: metricData.metric?.valueType }
+                {
+                    id: metricData.metricId,
+                    name: metricData.metric?.name || '',
+                    description: metricData.metric?.description || '',
+                    type: metricData.metric?.type || MetricType.USERS,
+                    valueType: metricType,
+                    validationRules,
+                    isActive: true,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    frequency: Frequency.MONTHLY,
+                    precision: 2,
+                    displayName: metricData.metric?.displayName || ''
+                }
             );
 
             if (!validationResult.isValid) {
                 throw new Error(`Validation failed: ${validationResult.errors.join(', ')}`);
             }
 
-            // Format and encrypt sensitive data
+            // Format value
             const formattedValue = formatMetricValue(
                 metricData.value,
-                metricData.metric?.valueType
+                metricValueType
             );
 
-            const encryptedValue = await encrypt(formattedValue, process.env.ENCRYPTION_KEY);
-
-            // Create metric record
+            // Create metric record with formatted value
             const createdMetric = await this.companyMetricModel.create(
                 {
                     ...metricData,
-                    value: encryptedValue
+                    value: validationResult.sanitizedValue || metricData.value
                 },
                 { transaction }
             );
@@ -103,114 +123,87 @@ export class CompanyMetricsService {
             // Audit logging
             await this.auditLogger.log({
                 action: 'CREATE_METRIC',
-                userId: metricData.userId,
+                companyId: metricData.companyId,
                 metricId: createdMetric.id,
                 timestamp: new Date()
             });
 
             // Invalidate relevant cache
-            this.cache.del(`metrics:${metricData.userId}`);
+            this.cache.del(`metrics:${metricData.companyId}`);
 
             return createdMetric;
         } catch (error) {
-            this.auditLogger.error({
-                action: 'CREATE_METRIC_ERROR',
-                userId: metricData.userId,
-                error: error.message
-            });
+            if (error instanceof Error) {
+                this.auditLogger.error({
+                    action: 'CREATE_METRIC_ERROR',
+                    companyId: metricData.companyId,
+                    error: error.message
+                });
+            }
             throw error;
         }
     }
 
     /**
      * Retrieves company metrics with caching and access control
-     * @param userId User requesting the metrics
-     * @param filters Optional filters for metric retrieval
-     * @param pagination Optional pagination parameters
-     * @returns Promise resolving to array of metrics
-     * @throws Error if operation is unauthorized
      */
     public async getCompanyMetrics(
-        userId: string,
+        companyId: string,
         filters?: {
-            metricId?: string;
             startDate?: Date;
             endDate?: Date;
             isActive?: boolean;
-        },
-        pagination?: {
-            page: number;
-            limit: number;
         }
     ): Promise<ICompanyMetric[]> {
         try {
             // Check permissions
-            if (!hasPermission(userId, 'companyData', 'read')) {
+            if (!hasPermission(USER_ROLES.USER, FEATURES.companyData, 'read')) {
                 throw new Error('Unauthorized to view company metrics');
             }
 
             // Check cache
-            const cacheKey = `metrics:${userId}:${JSON.stringify(filters)}:${JSON.stringify(pagination)}`;
+            const cacheKey = `metrics:${companyId}:${JSON.stringify(filters)}`;
             const cachedMetrics = this.cache.get<ICompanyMetric[]>(cacheKey);
 
             if (cachedMetrics) {
                 return cachedMetrics;
             }
 
-            // Build query
-            const query: any = {
-                where: {
-                    userId,
-                    ...filters
-                },
-                order: [['timestamp', 'DESC']]
-            };
-
-            // Apply pagination
-            if (pagination) {
-                query.offset = (pagination.page - 1) * pagination.limit;
-                query.limit = pagination.limit;
+            // Build query with proper typing
+            const whereClause: any = { companyId };
+            
+            if (filters) {
+                if (filters.startDate) whereClause.date = { [Op.gte]: filters.startDate };
+                if (filters.endDate) whereClause.date = { ...(whereClause.date || {}), [Op.lte]: filters.endDate };
+                if (typeof filters.isActive === 'boolean') whereClause.isActive = filters.isActive;
             }
+
+            const query = {
+                where: whereClause,
+                order: [['date', 'DESC']] as Order
+            };
 
             // Fetch metrics
             const metrics = await this.companyMetricModel.findAll(query);
 
-            // Decrypt and format values
-            const formattedMetrics = await Promise.all(
-                metrics.map(async (metric) => ({
-                    ...metric.toJSON(),
-                    value: await decrypt(metric.value, process.env.ENCRYPTION_KEY)
-                }))
-            );
+            // Cache results
+            this.cache.set(cacheKey, metrics);
 
-            // Update cache
-            this.cache.set(cacheKey, formattedMetrics);
-
-            // Audit logging
-            await this.auditLogger.log({
-                action: 'GET_METRICS',
-                userId,
-                timestamp: new Date()
-            });
-
-            return formattedMetrics;
+            return metrics;
         } catch (error) {
-            this.auditLogger.error({
-                action: 'GET_METRICS_ERROR',
-                userId,
-                error: error.message
-            });
+            if (error instanceof Error) {
+                this.auditLogger.error({
+                    action: 'GET_METRICS_ERROR',
+                    companyId,
+                    error: error.message
+                });
+            }
             throw error;
         }
     }
 
     /**
-     * Updates an existing company metric with validation and security checks
-     * @param id Metric ID to update
-     * @param updateData Updated metric data
-     * @param transaction Optional transaction for atomic operations
-     * @returns Promise resolving to updated metric
-     * @throws Error if validation fails or operation is unauthorized
+     * Updates an existing company metric
      */
     public async updateCompanyMetric(
         id: string,
@@ -225,27 +218,8 @@ export class CompanyMetricsService {
             }
 
             // Check permissions
-            if (!hasPermission(updateData.userId!, 'companyData', 'update')) {
+            if (!hasPermission(USER_ROLES.USER, FEATURES.companyData, 'update')) {
                 throw new Error('Unauthorized to update company metrics');
-            }
-
-            // Validate and format new value if provided
-            if (updateData.value !== undefined) {
-                const validationResult = validateMetricValue(
-                    updateData.value,
-                    { valueType: existingMetric.metric?.valueType }
-                );
-
-                if (!validationResult.isValid) {
-                    throw new Error(`Validation failed: ${validationResult.errors.join(', ')}`);
-                }
-
-                const formattedValue = formatMetricValue(
-                    updateData.value,
-                    existingMetric.metric?.valueType
-                );
-
-                updateData.value = await encrypt(formattedValue, process.env.ENCRYPTION_KEY);
             }
 
             // Update metric
@@ -254,35 +228,33 @@ export class CompanyMetricsService {
             // Audit logging
             await this.auditLogger.log({
                 action: 'UPDATE_METRIC',
-                userId: updateData.userId,
+                companyId: updateData.companyId,
                 metricId: id,
                 timestamp: new Date()
             });
 
             // Invalidate cache
-            this.cache.del(`metrics:${updateData.userId}`);
+            this.cache.del(`metrics:${updateData.companyId}`);
 
             return updatedMetric;
         } catch (error) {
-            this.auditLogger.error({
-                action: 'UPDATE_METRIC_ERROR',
-                metricId: id,
-                error: error.message
-            });
+            if (error instanceof Error) {
+                this.auditLogger.error({
+                    action: 'UPDATE_METRIC_ERROR',
+                    metricId: id,
+                    error: error.message
+                });
+            }
             throw error;
         }
     }
 
     /**
-     * Soft deletes a company metric with security checks
-     * @param id Metric ID to delete
-     * @param userId User requesting deletion
-     * @returns Promise resolving to boolean indicating success
-     * @throws Error if operation is unauthorized
+     * Soft deletes a company metric
      */
     public async deleteCompanyMetric(
         id: string,
-        userId: string
+        companyId: string
     ): Promise<boolean> {
         try {
             const metric = await this.companyMetricModel.findByPk(id);
@@ -291,8 +263,8 @@ export class CompanyMetricsService {
                 throw new Error('Metric not found');
             }
 
-            // Check permissions
-            if (!hasPermission(userId, 'companyData', 'update')) {
+            // Check permissions - use 'update' permission since we're soft deleting
+            if (!hasPermission(USER_ROLES.USER, FEATURES.companyData, 'update')) {
                 throw new Error('Unauthorized to delete company metrics');
             }
 
@@ -302,24 +274,24 @@ export class CompanyMetricsService {
             // Audit logging
             await this.auditLogger.log({
                 action: 'DELETE_METRIC',
-                userId,
+                companyId,
                 metricId: id,
                 timestamp: new Date()
             });
 
             // Invalidate cache
-            this.cache.del(`metrics:${userId}`);
+            this.cache.del(`metrics:${companyId}`);
 
             return true;
         } catch (error) {
-            this.auditLogger.error({
-                action: 'DELETE_METRIC_ERROR',
-                metricId: id,
-                error: error.message
-            });
+            if (error instanceof Error) {
+                this.auditLogger.error({
+                    action: 'DELETE_METRIC_ERROR',
+                    metricId: id,
+                    error: error.message
+                });
+            }
             throw error;
         }
     }
 }
-
-export default CompanyMetricsService;

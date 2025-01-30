@@ -5,13 +5,21 @@
  */
 
 import { Request, Response, NextFunction } from 'express'; // ^4.18.2
-import Joi from 'joi'; // ^17.9.0
-import { validateMetricValue, validateUserData, sanitizeInput } from '../utils/validation';
-import { METRIC_VALIDATION_RULES, USER_VALIDATION_RULES } from '../constants/validations';
-import { METRIC_VALUE_TYPES } from '../constants/metricTypes';
-import { MetricType, ValueType, IMetric } from '../interfaces/IMetric';
-import { AppError } from '../utils/AppError';
+import Joi, { Schema, ValidationError } from 'joi'; // ^17.9.0
+import { 
+  validateMetricValue, 
+  validateUserData, 
+  sanitizeInput 
+} from '../utils/validation';
+import { 
+  METRIC_VALIDATION_RULES, 
+  USER_VALIDATION_RULES 
+} from '../constants/validations';
+import { AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { VALIDATION_ERRORS } from '../constants/errorCodes';
+import { MetricValueType, METRIC_VALUE_TYPES, isValidMetricValueType } from '../constants/metricTypes';
+import { IMetric, ValueType, MetricType, Frequency } from '../interfaces/IMetric';
 
 // Maximum allowed depth for nested objects
 const MAX_OBJECT_DEPTH = 5;
@@ -36,95 +44,48 @@ interface ValidationSchema {
 }
 
 /**
- * Creates a validation middleware with enhanced security features
- * @param schema - Joi validation schema
- * @param options - Validation options
+ * Middleware factory for request validation using Joi schemas
+ * @param schema Joi validation schema
  */
-export const validateRequest = (schema: ValidationSchema, options: ValidationOptions = {}) => {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const correlationId = logger.getCorrelationId() || `val-${Date.now()}`;
-      const validationOptions = {
-        stripUnknown: options.stripUnknown ?? true,
-        abortEarly: options.abortEarly ?? false,
-        maxDepth: options.maxDepth ?? MAX_OBJECT_DEPTH,
-        maxArrayLength: options.maxArrayLength ?? MAX_ARRAY_LENGTH,
-      };
+export const validateRequest = (schema: Schema) => {
+    return async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            // Validate request against schema
+            await schema.validateAsync({
+                body: req.body,
+                query: req.query,
+                params: req.params
+            }, { 
+                abortEarly: false,
+                stripUnknown: true
+            });
+            
+            next();
+        } catch (error) {
+            logger.warn('Request validation failed', {
+                error: error instanceof Error ? error.message : 'Unknown validation error',
+                path: req.path,
+                method: req.method,
+                userId: req.user?.id
+            });
 
-      // Extract data to validate
-      const dataToValidate = {
-        body: req.body,
-        query: req.query,
-        params: req.params,
-      };
-
-      // Check object depth
-      if (exceedsMaxDepth(dataToValidate, validationOptions.maxDepth)) {
-        throw new AppError('Request data exceeds maximum allowed depth', 400, 'VAL_005', {
-          maxDepth: validationOptions.maxDepth,
-        });
-      }
-
-      // Check array lengths
-      if (containsLargeArrays(dataToValidate, validationOptions.maxArrayLength)) {
-        throw new AppError('Request contains arrays exceeding maximum length', 400, 'VAL_006', {
-          maxArrayLength: validationOptions.maxArrayLength,
-        });
-      }
-
-      // Validate each part of the request separately
-      const validatedData: any = {};
-      const errors: any[] = [];
-
-      for (const key of ['body', 'query', 'params'] as const) {
-        if (schema[key]) {
-          const { error, value } = schema[key]!.validate(dataToValidate[key], {
-            ...validationOptions,
-            context: { correlationId },
-          });
-
-          if (error) {
-            errors.push(
-              ...error.details.map((detail) => ({
-                path: `${key}.${detail.path.join('.')}`,
-                message: detail.message,
-                type: detail.type,
-              }))
+            const validationError = new AppError(
+                VALIDATION_ERRORS.INVALID_REQUEST.message,
+                VALIDATION_ERRORS.INVALID_REQUEST.httpStatus,
+                VALIDATION_ERRORS.INVALID_REQUEST.code,
+                true,
+                {
+                    errors: error instanceof ValidationError 
+                        ? error.details.map(detail => ({
+                            path: detail.path.join('.'),
+                            message: detail.message
+                        }))
+                        : [{ message: 'Validation failed' }]
+                }
             );
-          } else {
-            validatedData[key] = value;
-          }
-        } else {
-          validatedData[key] = dataToValidate[key];
+            next(validationError);
         }
-      }
-
-      if (errors.length > 0) {
-        throw new AppError('Validation failed', 400, 'VAL_001', {
-          errors,
-          correlationId,
-        });
-      }
-
-      // Apply enhanced sanitization
-      const sanitizedData = sanitizeRequestData(validatedData);
-
-      // Attach validated and sanitized data to request
-      req.body = sanitizedData.body;
-      req.query = sanitizedData.query;
-      req.params = sanitizedData.params;
-
-      // Log successful validation
-      logger.debug('Request validation successful', {
-        correlationId,
-        path: req.path,
-        method: req.method,
-      });
-      next();
-    } catch (error) {
-      next(error);
-    }
-  };
+    };
 };
 
 /**
@@ -132,57 +93,47 @@ export const validateRequest = (schema: ValidationSchema, options: ValidationOpt
  * @param data Request data containing metric values
  * @param metricType Type of metric being validated
  */
-export const validateMetricRequest = async (data: any, metricType: MetricType): Promise<void> => {
-  const valueType = getValueTypeForMetric(metricType);
-  const valueTypeKey = Object.entries(METRIC_VALUE_TYPES).find(
-    ([_, value]) => value.toLowerCase() === valueType.toLowerCase()
-  )?.[0] as keyof typeof METRIC_VALIDATION_RULES | undefined;
 
-  if (!valueTypeKey || !(valueTypeKey in METRIC_VALIDATION_RULES)) {
-    throw new AppError('Invalid metric type', 400, 'VAL_003', { metricType });
+export const validateMetricRequest = async (
+  data: any,
+  metricType: string
+): Promise<void> => {
+  if (!isValidMetricValueType(metricType)) {
+    throw new AppError(
+      VALIDATION_ERRORS.INVALID_FORMAT.message,
+      400,
+      VALIDATION_ERRORS.INVALID_FORMAT.code,
+      true,
+      { metricType }
+    );
   }
 
-  const validationRules = METRIC_VALIDATION_RULES[valueTypeKey];
-  const metric: Partial<IMetric> = {
-    type: metricType,
-    valueType,
-    validationRules: {
-      min: 'min' in validationRules ? validationRules.min : undefined,
-      max: 'max' in validationRules ? validationRules.max : undefined,
-      decimals:
-        'decimalPrecision' in validationRules ? validationRules.decimalPrecision : undefined,
-      required: 'required' in validationRules ? validationRules.required : undefined,
-    },
+  const valueType = metricType.toUpperCase() as keyof typeof ValueType;
+  const metricDefinition: IMetric = {
+    id: '',
+    name: '',
+    displayName: '',
+    description: '',
+    type: MetricType.USERS,
+    valueType: ValueType[valueType],
+    validationRules: METRIC_VALIDATION_RULES[METRIC_VALUE_TYPES[valueType]],
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    frequency: Frequency.MONTHLY,
+    precision: 2
   };
 
-  const validationResult = await validateMetricValue(data, metric as IMetric);
+  const validationResult = await validateMetricValue(data, metricDefinition);
 
   if (!validationResult.isValid) {
-    throw new AppError('Invalid metric value', 400, 'VAL_003', { errors: validationResult.errors });
-  }
-};
-
-/**
- * Gets the value type for a given metric type
- * @param metricType The metric type to get the value type for
- * @returns The corresponding value type
- */
-const getValueTypeForMetric = (metricType: MetricType): ValueType => {
-  switch (metricType) {
-    case MetricType.REVENUE:
-    case MetricType.EXPENSES:
-    case MetricType.PROFIT:
-      return ValueType.CURRENCY;
-    case MetricType.USERS:
-      return ValueType.NUMBER;
-    case MetricType.GROWTH:
-    case MetricType.CHURN:
-    case MetricType.CONVERSION:
-      return ValueType.PERCENTAGE;
-    case MetricType.ENGAGEMENT:
-      return ValueType.RATIO;
-    default:
-      throw new AppError('Invalid metric type', 400, 'VAL_003', { metricType });
+    throw new AppError(
+      VALIDATION_ERRORS.INVALID_METRIC_VALUE.message,
+      400,
+      VALIDATION_ERRORS.INVALID_METRIC_VALUE.code,
+      true,
+      { errors: validationResult.errors }
+    );
   }
 };
 
@@ -194,7 +145,13 @@ export const validateUserRequest = async (data: any): Promise<void> => {
   const validationResult = await validateUserData(data, USER_VALIDATION_RULES);
 
   if (!validationResult.isValid) {
-    throw new AppError('Invalid user data', 400, 'VAL_002', { errors: validationResult.errors });
+    throw new AppError(
+      VALIDATION_ERRORS.INVALID_REQUEST.message,
+      400,
+      VALIDATION_ERRORS.INVALID_REQUEST.code,
+      true,
+      { errors: validationResult.errors }
+    );
   }
 };
 

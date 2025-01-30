@@ -1,5 +1,5 @@
 import { AxiosResponse } from 'axios'; // v1.4.0
-import { IMetric, MetricCategory, ValidationRule } from '../interfaces/IMetric';
+import { IMetric, MetricCategory, MetricType, ValidationRule } from '../interfaces/IMetric';
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
 import { api } from './api';
@@ -29,20 +29,21 @@ export interface MetricServiceResponse<T> {
   metadata?: Record<string, unknown>;
 }
 
+// Cache key and value types
+type MetricCacheKey = 'all_metrics' | `metric_${string}` | `benchmark_${string}_${string}` | 'metric_types';
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
 }
 
-type MetricCacheKey = 'all_metrics' | `metric_${string}` | `benchmark_${string}_${string}`;
+type CacheValue = 
+  | IMetric[] 
+  | IMetric 
+  | IBenchmark 
+  | Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>;
 
-type MetricCacheValue<K extends MetricCacheKey> = K extends 'all_metrics'
-  ? IMetric[]
-  : K extends `metric_${string}`
-  ? IMetric
-  : K extends `benchmark_${string}_${string}`
-  ? IBenchmark
-  : never;
+type MetricCache = Map<string, CacheEntry<CacheValue>>;
 
 /**
  * Validates metric data before sending to the API
@@ -70,14 +71,13 @@ const validateMetricData = (data: Partial<IMetric>): ValidationResult => {
  */
 export class MetricsService {
   private readonly cacheTimeout: number = 15 * 60 * 1000; // 15 minutes
-  private metricsCache: Map<MetricCacheKey, CacheEntry<MetricCacheValue<MetricCacheKey>>> =
-    new Map();
+  private metricsCache: MetricCache = new Map();
   private pendingRequests: Map<string, Promise<MetricServiceResponse<any>>> = new Map();
 
-  private getCachedValue<K extends MetricCacheKey>(key: K): MetricCacheValue<K> | null {
+  private getCachedValue<T extends CacheValue>(key: string): T | null {
     const cached = this.metricsCache.get(key);
     if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-      return cached.data as MetricCacheValue<K>;
+      return cached.data as T;
     }
     return null;
   }
@@ -93,7 +93,7 @@ export class MetricsService {
     try {
       // Check cache if enabled
       if (useCache) {
-        const cached = this.getCachedValue(cacheKey);
+        const cached = this.getCachedValue<IMetric[]>(cacheKey);
         if (cached) {
           return { data: cached };
         }
@@ -163,7 +163,7 @@ export class MetricsService {
 
     try {
       // Check cache
-      const cached = this.getCachedValue(cacheKey);
+      const cached = this.getCachedValue<IMetric>(cacheKey);
       if (cached) {
         return { data: cached };
       }
@@ -240,7 +240,7 @@ export class MetricsService {
 
     try {
       // Check cache
-      const cached = this.getCachedValue(cacheKey);
+      const cached = this.getCachedValue<IBenchmark>(cacheKey);
       if (cached) {
         return { data: cached };
       }
@@ -284,6 +284,42 @@ export class MetricsService {
       if (key.includes(pattern)) {
         this.metricsCache.delete(key);
       }
+    }
+  }
+
+  /**
+   * Get all available metric types for dropdowns
+   * @returns Promise resolving to array of metric types
+   */
+  public async getMetricTypes(): Promise<MetricServiceResponse<Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>>> {
+    const cacheKey = 'metric_types' as const;
+
+    try {
+      // Check cache
+      const cached = this.getCachedValue<Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>>(cacheKey);
+      if (cached && Array.isArray(cached)) {
+        return { data: cached };
+      }
+
+      const response = await api.get<{ data: any }>(
+        API_CONFIG.API_ENDPOINTS.METRIC_TYPES
+      );
+
+      const data: any = response.data.data.data;
+      
+      const metricTypes = Array.isArray(data) ? data : [];
+
+      // Update cache
+      this.metricsCache.set(cacheKey, {
+        data: metricTypes,
+        timestamp: Date.now(),
+      });
+
+      return { data: metricTypes };
+    } catch (error) {
+      const errorMessage = 'Failed to fetch metric types';
+      showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      return { data: [], error: errorMessage };
     }
   }
 }

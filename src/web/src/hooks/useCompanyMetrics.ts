@@ -170,24 +170,8 @@ export const useCompanyMetrics = () => {
   const createMetric = useCallback(
     async (metricData: Omit<ICompanyMetric, 'id'>) => {
       try {
-        // Safely parse and sanitize metadata
-        const processedMetadata: Record<string, unknown> =
-          typeof metricData.metadata === 'string'
-            ? JSON.parse(
-                sanitizeHtml(metricData.metadata, {
-                  allowedTags: [],
-                  allowedAttributes: {},
-                })
-              )
-            : metricData.metadata || {};
-
-        // Create sanitized data object with correct types
-        const sanitizedData: Omit<ICompanyMetric, 'id'> = {
-          ...metricData,
-          metadata: processedMetadata,
-        };
-
-        await dispatch(createCompanyMetric(sanitizedData)).unwrap();
+        const result = await dispatch(createCompanyMetric(metricData)).unwrap();
+        return result;
       } catch (error) {
         console.error('Error creating metric:', error);
         throw error;
@@ -215,22 +199,8 @@ export const useCompanyMetrics = () => {
           });
         }
 
-        // Safely parse and sanitize metadata if it exists
-        const processedMetadata: Record<string, unknown> | undefined = metricData.metadata
-          ? typeof metricData.metadata === 'string'
-            ? JSON.parse(
-                sanitizeHtml(metricData.metadata, {
-                  allowedTags: [],
-                  allowedAttributes: {},
-                })
-              )
-            : metricData.metadata
-          : undefined;
-
-        // Create sanitized data object with correct types
         const sanitizedData: Partial<ICompanyMetric> = {
           ...metricData,
-          metadata: processedMetadata,
         };
 
         await dispatch(updateCompanyMetric({ id, data: sanitizedData })).unwrap();

@@ -60,19 +60,26 @@ const validateUserRole = (
  * Protected Route Component
  * Implements route protection with authentication and authorization checks
  */
-const ProtectedRoute: FC<ProtectedRouteProps> = memo(
+const ProtectedRoute: React.FC<ProtectedRouteProps> = memo(
   ({ children, allowedRoles, redirectPath = DEFAULT_REDIRECT }) => {
     const { isAuthenticated, isLoading, user, validateSession } = useAuth();
     const validationTimeoutRef = useRef<NodeJS.Timeout>();
+    const lastValidationRef = useRef<number>(0);
 
-    // Validate session only on mount
+    // Validate session only on mount and with debouncing
     useEffect(() => {
       let mounted = true;
 
       const validateAuth = async () => {
         if (!isAuthenticated || !mounted) return;
 
-        // Only validate on initial mount
+        // Implement debouncing
+        const now = Date.now();
+        if (now - lastValidationRef.current < 5000) { // 5 second debounce
+          return;
+        }
+        lastValidationRef.current = now;
+
         try {
           await validateSession();
         } catch (error) {
@@ -80,7 +87,8 @@ const ProtectedRoute: FC<ProtectedRouteProps> = memo(
         }
       };
 
-      validateAuth();
+      // Add slight delay to prevent race conditions with other components
+      validationTimeoutRef.current = setTimeout(validateAuth, 1500);
 
       return () => {
         mounted = false;
@@ -115,20 +123,16 @@ const ProtectedRoute: FC<ProtectedRouteProps> = memo(
 
     // Redirect to login if not authenticated
     if (!isAuthenticated) {
-      return <Navigate to={LOGIN_ROUTE} replace state={{ from: window.location.pathname }} />;
+      return <Navigate to={LOGIN_ROUTE} replace />;
     }
 
-    // Check role-based access if roles are specified
-    if (allowedRoles && allowedRoles.length > 0) {
-      const hasPermission = validateUserRole(user?.role, allowedRoles);
-
-      if (!hasPermission) {
-        return <Navigate to={redirectPath} replace state={{ from: window.location.pathname }} />;
-      }
+    // Check role-based access
+    if (!validateUserRole(user?.role, allowedRoles)) {
+      return <Navigate to={redirectPath} replace />;
     }
 
-    // Render protected content
-    return <Outlet />;
+    // Render children or outlet
+    return children ? <>{children}</> : <Outlet />;
   }
 );
 

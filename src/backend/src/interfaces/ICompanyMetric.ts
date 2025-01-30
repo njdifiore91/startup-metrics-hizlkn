@@ -29,6 +29,23 @@ export interface ICompanyMetric {
 }
 
 /**
+ * Interface for creating a new company metric
+ * Omits auto-generated fields
+ */
+export interface ICreateCompanyMetric {
+  companyId: string;
+  metricId: string;
+  value: number;
+  date: Date;
+  source: string;
+  isVerified: boolean;
+  verifiedBy?: string;
+  verifiedAt?: Date;
+  notes?: string;
+  isActive: boolean;
+}
+
+/**
  * Type guard to validate metric values
  */
 export function isValidMetricValue(value: unknown): value is number {

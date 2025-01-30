@@ -95,10 +95,13 @@ const MetricCard: React.FC<MetricCardProps> = React.memo(
   ({ metric, onEdit, onDelete, className, testId = 'metric-card' }) => {
     const formattedValue = React.useMemo(() => {
       try {
+        if (!metric.metric) {
+          return 'N/A';
+        }
         return formatMetricValue(
           metric.value,
           metric.metric.valueType,
-          metric.metric.validationRules.precision || 2,
+          metric.metric.validationRules?.precision || 2,
           {
             ariaLabel: `${metric.metric.name}: ${metric.value}`,
           }
@@ -127,6 +130,9 @@ const MetricCard: React.FC<MetricCardProps> = React.memo(
 
     const cardClasses = classnames('metric-card', className);
 
+    const metricName = metric.metric?.displayName || 'Unknown Metric';
+    const metricCategory = metric.metric?.category || 'operational';
+
     return (
       <StyledCard
         className={cardClasses}
@@ -135,18 +141,18 @@ const MetricCard: React.FC<MetricCardProps> = React.memo(
         interactive={!!onEdit}
         testId={testId}
         role={onEdit ? 'button' : undefined}
-        ariaLabel={`${metric.metric.name} metric card`}
+        ariaLabel={`${metricName} metric card`}
         isSelected={false}
         isInteractive={!!onEdit}
       >
         <CardContent>
-          <Title>{metric.metric.name}</Title>
+          <Title>{metricName}</Title>
           <Value
-            categoryColor={getCategoryColor(metric.metric.category)}
+            categoryColor={getCategoryColor(metricCategory)}
             dangerouslySetInnerHTML={{ __html: formattedValue }}
           />
-          <Category>{metric.metric.category.toUpperCase()}</Category>
-          {metric.metric.description && <Description>{metric.metric.description}</Description>}
+          <Category>{metricCategory.toUpperCase()}</Category>
+          {metric.metric?.description && <Description>{metric.metric.description}</Description>}
           {onDelete && (
             <button
               onClick={(e) => {

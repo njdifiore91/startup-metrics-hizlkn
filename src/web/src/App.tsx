@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import React, { Suspense, useEffect, useCallback } from 'react';
+import React, { Suspense, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Provider, useDispatch } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -120,14 +120,18 @@ const LoadingFallback: React.FC = () => (
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const dispatch = useDispatch();
+  const initRef = useRef(false);
 
   console.log('AppContent rendered:', { isAuthenticated, authLoading });
 
   // Initialize authentication state on app load
   useEffect(() => {
-    console.log('Starting auth initialization');
-
     const initializeAuth = async () => {
+      // Prevent multiple initializations
+      if (initRef.current) return;
+      initRef.current = true;
+
+      console.log('Starting auth initialization');
       try {
         console.log('Setting loading state to true');
         dispatch(authActions.setLoading(true));

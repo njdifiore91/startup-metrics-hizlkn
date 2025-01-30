@@ -1,7 +1,8 @@
 import Joi from 'joi'; // v17.9.0
 import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { METRIC_VALIDATION_RULES } from '../constants/validations';
-import { METRIC_VALUE_TYPES } from '../constants/metricTypes';
+import { METRIC_VALUE_TYPES, MetricValueType } from '../constants/metricTypes';
+import { MetricType, ValueType } from '../interfaces/IMetric';
 
 /**
  * Interface for validation result containing either validated data or error details
@@ -20,12 +21,12 @@ interface ValidationResult {
  * Base schema for company metric validation with common fields
  */
 const baseCompanyMetricSchema = Joi.object({
-  userId: Joi.string()
+  companyId: Joi.string()
     .uuid()
     .required()
     .messages({
-      'string.guid': 'User ID must be a valid UUID',
-      'any.required': 'User ID is required'
+      'string.guid': 'Company ID must be a valid UUID',
+      'any.required': 'Company ID is required'
     }),
   metricId: Joi.string()
     .uuid()
@@ -34,12 +35,13 @@ const baseCompanyMetricSchema = Joi.object({
       'string.guid': 'Metric ID must be a valid UUID',
       'any.required': 'Metric ID is required'
     }),
-  timestamp: Joi.date()
+  date: Joi.date()
     .iso()
-    .default(Date.now)
+    .required()
     .messages({
-      'date.base': 'Timestamp must be a valid date',
-      'date.format': 'Timestamp must be in ISO format'
+      'date.base': 'Date must be a valid date',
+      'date.format': 'Date must be in ISO format',
+      'any.required': 'Date is required'
     })
 });
 
@@ -48,8 +50,17 @@ const baseCompanyMetricSchema = Joi.object({
  * @param metricType The type of metric being validated
  * @returns Joi validation schema with type-specific rules
  */
-const createMetricTypeSchema = (metricType: keyof typeof METRIC_VALUE_TYPES) => {
-  const rules = METRIC_VALIDATION_RULES[metricType];
+const createMetricTypeSchema = (metricType: MetricValueType) => {
+  const ruleKey = metricType.toUpperCase() as keyof typeof METRIC_VALUE_TYPES;
+  const rules = METRIC_VALIDATION_RULES[METRIC_VALUE_TYPES[ruleKey]];
+  
+  if (!rules || !('min' in rules) || !('max' in rules)) {
+    // Default rules if specific rules not found
+    return baseCompanyMetricSchema.keys({
+      value: Joi.number().required()
+    });
+  }
+
   let valueSchema = Joi.number()
     .required()
     .min(rules.min)
@@ -61,7 +72,7 @@ const createMetricTypeSchema = (metricType: keyof typeof METRIC_VALUE_TYPES) => 
       'any.required': 'Value is required'
     });
 
-  if (rules.decimalPrecision !== undefined) {
+  if ('decimalPrecision' in rules && rules.decimalPrecision !== undefined) {
     valueSchema = valueSchema.precision(rules.decimalPrecision);
   }
 
@@ -71,14 +82,57 @@ const createMetricTypeSchema = (metricType: keyof typeof METRIC_VALUE_TYPES) => 
 };
 
 /**
+ * Schema for validating company metric requests
+ */
+export const companyMetricSchema = Joi.object({
+  body: Joi.object({
+    companyId: Joi.string().uuid().required(),
+    metricId: Joi.string().uuid().required(),
+    date: Joi.date().iso().required(),
+    value: Joi.number().required(),
+    source: Joi.string().required(),
+    notes: Joi.string().allow(''),
+    isActive: Joi.boolean().default(true),
+    isVerified: Joi.boolean().default(false),
+    metric: Joi.object({
+      id: Joi.string().uuid().required(),
+      name: Joi.string().required(),
+      displayName: Joi.string().required(),
+      type: Joi.string()
+        .valid(...Object.values(MetricType))
+        .required(),
+      category: Joi.string().required(),
+      description: Joi.string(),
+      valueType: Joi.string()
+        .valid(...Object.values(ValueType))
+        .required(),
+      validationRules: Joi.object({
+        min: Joi.number(),
+        max: Joi.number(),
+        required: Joi.boolean(),
+        precision: Joi.number()
+      }),
+      metadata: Joi.object(),
+      tags: Joi.alternatives().try(
+        Joi.object(),
+        Joi.array().items(Joi.string())
+      ),
+      displayOrder: Joi.number(),
+      isActive: Joi.boolean(),
+      createdAt: Joi.date().iso(),
+      updatedAt: Joi.date().iso()
+    }).required()
+  }).required(),
+  query: Joi.object(),
+  params: Joi.object()
+});
+
+/**
  * Validates a single company metric entry with comprehensive error handling
- * @param companyMetric The metric data to validate
- * @param metricType The type of metric for validation rules
- * @returns Promise<ValidationResult> with validation status and details
  */
 export const validateCompanyMetric = async (
   companyMetric: Partial<ICompanyMetric>,
-  metricType: keyof typeof METRIC_VALUE_TYPES
+  metricType: MetricValueType
 ): Promise<ValidationResult> => {
   try {
     const schema = createMetricTypeSchema(metricType);
@@ -116,13 +170,11 @@ export const validateCompanyMetric = async (
 
 /**
  * Validates an array of company metrics with bulk processing optimization
- * @param companyMetrics Array of metric data to validate
- * @returns Promise<ValidationResult> with aggregated validation results
  */
 export const validateBulkCompanyMetrics = async (
   companyMetrics: Array<{
     metric: Partial<ICompanyMetric>;
-    metricType: keyof typeof METRIC_VALUE_TYPES;
+    metricType: MetricValueType;
   }>
 ): Promise<ValidationResult> => {
   if (!Array.isArray(companyMetrics) || companyMetrics.length === 0) {
@@ -135,18 +187,18 @@ export const validateBulkCompanyMetrics = async (
     };
   }
 
-  // Validate all metrics belong to the same user
-  const userId = companyMetrics[0].metric.userId;
-  const hasMultipleUsers = companyMetrics.some(
-    ({ metric }) => metric.userId !== userId
+  // Validate all metrics belong to the same company
+  const companyId = companyMetrics[0].metric.companyId;
+  const hasMultipleCompanies = companyMetrics.some(
+    ({ metric }) => metric.companyId !== companyId
   );
 
-  if (hasMultipleUsers) {
+  if (hasMultipleCompanies) {
     return {
       isValid: false,
       errors: [{
-        field: 'userId',
-        message: 'All metrics in bulk submission must belong to the same user'
+        field: 'companyId',
+        message: 'All metrics in bulk submission must belong to the same company'
       }]
     };
   }
