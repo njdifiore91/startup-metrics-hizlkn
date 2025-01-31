@@ -221,7 +221,7 @@ class UserService {
           'role',
           'createdAt',
           'lastLoginAt',
-          'profileImageUrl',
+          // 'profileImageUrl',
           'isActive',
         ],
         order: [['createdAt', 'DESC']],
