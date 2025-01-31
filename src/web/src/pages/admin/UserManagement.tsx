@@ -62,6 +62,7 @@ interface CreateUserData {
   isActive?: boolean;
   profileImageUrl?: string;
   tier?: 'free' | 'pro' | 'enterprise';
+  lastLoginAt?: string;
 }
 
 const UserManagement: React.FC = () => {
@@ -90,7 +91,7 @@ const UserManagement: React.FC = () => {
   });
   const [editUser, setEditUser] = useState<Partial<User>>({});
 
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isAuthenticated, logout } = useAuth();
 
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>, userId: string) => {
     setAnchorEl(event.currentTarget);
@@ -201,9 +202,38 @@ const UserManagement: React.FC = () => {
         return;
       }
 
+      // Check authentication
+      if (!isAuthenticated) {
+        showToast('You must be authenticated to perform this action', 'error');
+        return;
+      }
+
+      // Format and validate data according to rules
+      const name = editUser.name.trim();
+      const email = editUser.email.trim().toLowerCase();
+
+      // Validate name format
+      if (!/^[a-zA-Z0-9\s-']{2,50}$/.test(name)) {
+        showToast(
+          'Name must be 2-50 characters and can contain letters, numbers, spaces, hyphens and apostrophes',
+          'error'
+        );
+        return;
+      }
+
+      // Validate email format
+      if (
+        !/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/.test(
+          email
+        )
+      ) {
+        showToast('Please enter a valid email address', 'error');
+        return;
+      }
+
       const updateData = {
-        name: editUser.name.trim(),
-        email: editUser.email.trim(),
+        name,
+        email,
         role: editUser.role,
         isActive: editUser.isActive ?? true,
         profileImageUrl: editUser.profileImageUrl?.trim() || null,
@@ -230,6 +260,14 @@ const UserManagement: React.FC = () => {
         status: err.response?.status,
         data: err.response?.data,
       }); // Detailed error logging
+
+      // Handle authentication errors
+      if (err.response?.status === 401) {
+        showToast('Your session has expired. Please log in again.', 'error');
+        logout();
+        return;
+      }
+
       const errorMessage = err.response?.data?.message || 'Failed to update user';
       showToast(errorMessage, 'error');
     } finally {
@@ -256,18 +294,17 @@ const UserManagement: React.FC = () => {
   };
 
   const startEdit = (user: User) => {
-    console.log('startEdit called with user:', user);
     setEditUser({
       name: user.name,
       email: user.email,
       role: user.role,
       isActive: user.isActive,
-      profileImageUrl: user.profileImageUrl || undefined,
+      profileImageUrl: user.profileImageUrl,
       tier: user.tier,
+      lastLoginAt: user.lastLoginAt,
     });
     setSelectedUserId(user.id);
     setEditDialogOpen(true);
-    setAnchorEl(null); // Just close the menu, don't reset selectedUserId
   };
 
   const handleCloseEditDialog = () => {

@@ -110,7 +110,8 @@ export class AuthService {
   private tokenExpiration: Date = new Date();
   private googleAuthUrl: string = '';
   private lastValidationTime: number = 0;
-  private validationCache: { isValid: boolean; timestamp: number; user: IUser | null } | null = null;
+  private validationCache: { isValid: boolean; timestamp: number; user: IUser | null } | null =
+    null;
   private static VALIDATION_CACHE_TTL = 15 * 60 * 1000; // 15 minute cache TTL
   private validationInProgress: Promise<boolean> | null = null;
   private globalValidationTimer: NodeJS.Timeout | null = null;
@@ -123,7 +124,7 @@ export class AuthService {
     }
     AuthService.instance = this;
     this.initializeRateLimiter();
-    
+
     // Initialize service in constructor
     this.initializationPromise = this.initialize();
   }
@@ -136,7 +137,7 @@ export class AuthService {
         this.token = tokens.token;
         this.refreshToken = tokens.refreshToken;
         api.defaults.headers.common['Authorization'] = `Bearer ${tokens.token}`;
-        
+
         // Validate the session immediately
         const isValid = await this.validateSession();
         if (isValid) {
@@ -148,7 +149,7 @@ export class AuthService {
       }
 
       // Initialize Google Auth in background
-      this.initializeGoogleAuth().catch(error => {
+      this.initializeGoogleAuth().catch((error) => {
         console.warn('Background Google Auth initialization failed:', error);
       });
     } catch (error) {
@@ -163,32 +164,67 @@ export class AuthService {
       clearInterval(this.globalValidationTimer);
     }
 
-    // Set up periodic validation every 15 minutes
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 3;
+    let lastValidationAttempt = Date.now();
+    const MIN_VALIDATION_INTERVAL = 30000; // 30 seconds minimum between validations
+
     this.globalValidationTimer = setInterval(async () => {
       try {
+        const now = Date.now();
+        if (now - lastValidationAttempt < MIN_VALIDATION_INTERVAL) {
+          return;
+        }
+        lastValidationAttempt = now;
+
+        const tokenExp = this.getTokenExpiration();
+        if (tokenExp && tokenExp.getTime() - now < 5 * 60 * 1000) {
+          try {
+            await this.refreshAuthToken();
+            consecutiveFailures = 0;
+            return;
+          } catch (error) {
+            console.warn('Token refresh failed in global validation:', error);
+          }
+        }
+
         const isValid = await this.validateSession();
         if (!isValid) {
-          this.clearTokens();
-          window.dispatchEvent(new CustomEvent('auth-state-change', {
-            detail: {
-              isAuthenticated: false,
-              user: null,
-              token: null,
-              refreshToken: null,
-              tokenExpiration: null
-            }
-          }));
+          consecutiveFailures++;
+          console.warn(
+            `Session validation failed (attempt ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`
+          );
+
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            console.error('Multiple consecutive validation failures, logging out');
+            this.clearTokens();
+            window.dispatchEvent(
+              new CustomEvent('auth-state-change', {
+                detail: {
+                  isAuthenticated: false,
+                  user: null,
+                  token: null,
+                  refreshToken: null,
+                  tokenExpiration: null,
+                },
+              })
+            );
+          }
+        } else {
+          consecutiveFailures = 0;
         }
       } catch (error) {
-        // Only log the error but don't clear tokens for network issues
-        if (error instanceof AxiosError && 
-            ![404, 500, 503].includes(error.response?.status || 0)) {
-          console.error('Periodic session validation failed:', error);
+        if (error instanceof AxiosError && [401, 403].includes(error.response?.status || 0)) {
+          consecutiveFailures++;
+          console.warn(
+            `Auth error in global validation (attempt ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`
+          );
+        } else {
+          console.warn('Non-auth error in global validation:', error);
         }
       }
     }, AuthService.VALIDATION_CACHE_TTL);
 
-    // Clean up on window unload
     window.addEventListener('unload', () => {
       if (this.globalValidationTimer) {
         clearInterval(this.globalValidationTimer);
@@ -243,7 +279,7 @@ export class AuthService {
       // Skip initialization if we already have valid tokens
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const refreshToken = localStorage.getItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY);
-      
+
       if (token && refreshToken) {
         this.token = token;
         this.refreshToken = refreshToken;
@@ -259,12 +295,11 @@ export class AuthService {
         response_type: 'code',
         scope: authConfig.googleScopes.join(' '),
         access_type: 'offline',
-        prompt: 'consent'
+        prompt: 'consent',
       });
 
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
       this.googleAuthUrl = authUrl;
-
     } catch (error) {
       console.error('Google Auth initialization failed:', error);
       throw new Error('Authentication service initialization failed');
@@ -284,7 +319,7 @@ export class AuthService {
         response_type: 'code',
         scope: authConfig.googleScopes.join(' '),
         access_type: 'offline',
-        prompt: 'consent'
+        prompt: 'consent',
       });
 
       window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -304,12 +339,12 @@ export class AuthService {
     try {
       // Add delay if this is a retry attempt
       if (retryCount > 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+        await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
       }
 
       const response = await api.post<IAuthResponse>(authConfig.authEndpoints.googleAuth, {
         code,
-        redirectUri: `${window.location.origin}/auth/google/callback`
+        redirectUri: `${window.location.origin}/auth/google/callback`,
       });
       const data: any = response.data.data;
       const { accessToken: token, refreshToken, user } = data;
@@ -317,13 +352,13 @@ export class AuthService {
       // Store tokens securely
       localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, token);
       localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
-      
+
       // Update auth state
       this.isAuthenticated = true;
       this.currentUser = user;
       this.token = token;
       this.refreshToken = refreshToken;
-      
+
       // Set token expiration to 1 hour from now (typical JWT expiration)
       this.tokenExpiration = new Date(Date.now() + 3600 * 1000);
 
@@ -331,22 +366,24 @@ export class AuthService {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
       // Emit state change event with complete auth data
-      window.dispatchEvent(new CustomEvent('auth-state-change', {
-        detail: {
-          isAuthenticated: true,
-          user,
-          token,
-          refreshToken,
-          tokenExpiration: this.tokenExpiration
-        }
-      }));
+      window.dispatchEvent(
+        new CustomEvent('auth-state-change', {
+          detail: {
+            isAuthenticated: true,
+            user,
+            token,
+            refreshToken,
+            tokenExpiration: this.tokenExpiration,
+          },
+        })
+      );
 
       // Return complete auth response
       return {
         user,
         accessToken: token,
         refreshToken,
-        data: response.data
+        data: response.data,
       };
     } catch (error) {
       if (error instanceof AxiosError) {
@@ -366,8 +403,10 @@ export class AuthService {
   public async logout(): Promise<void> {
     try {
       const tokens = this.getStoredTokens();
-      if (tokens) {
-        await api.post(authConfig.authEndpoints.logout);
+      if (tokens?.refreshToken) {
+        await api.post(authConfig.authEndpoints.logout, {
+          refreshToken: tokens.refreshToken,
+        });
       }
 
       this.clearTokens();
@@ -394,20 +433,20 @@ export class AuthService {
       }
 
       const response = await api.post<IAuthResponse>(authConfig.authEndpoints.refreshToken, {
-        refreshToken: tokens.refreshToken
+        refreshToken: tokens.refreshToken,
       });
 
       const { accessToken, refreshToken } = response.data;
-      
+
       // Store new tokens
       localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, accessToken);
       localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
-      
+
       // Update instance state
       this.token = accessToken;
       this.refreshToken = refreshToken;
       this.tokenExpiration = new Date(Date.now() + 3600 * 1000);
-      
+
       return accessToken;
     } catch (error) {
       if (error instanceof AxiosError && error.response) {
@@ -424,7 +463,7 @@ export class AuthService {
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const refreshToken = localStorage.getItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY);
-      
+
       if (!token || !refreshToken) {
         return null;
       }
@@ -448,13 +487,16 @@ export class AuthService {
 
       const now = Date.now();
 
-      // If there's a validation in progress, wait for it
+      // If there's a validation in progress, return current auth state
       if (this.validationInProgress) {
-        return this.validationInProgress;
+        return this.isAuthenticated;
       }
 
       // Check cache with longer TTL
-      if (this.validationCache && (now - this.validationCache.timestamp) < AuthService.VALIDATION_CACHE_TTL) {
+      if (
+        this.validationCache &&
+        now - this.validationCache.timestamp < AuthService.VALIDATION_CACHE_TTL
+      ) {
         if (this.validationCache.user) {
           this.currentUser = this.validationCache.user;
         }
@@ -475,47 +517,99 @@ export class AuthService {
             return false;
           }
 
-          // Add retry logic for failed validations
+          // Check token expiration and try to refresh if needed
+          const tokenExp = this.getTokenExpiration();
+          if (tokenExp && tokenExp.getTime() - now < 5 * 60 * 1000) {
+            // 5 minutes before expiry
+            try {
+              const newToken = await this.refreshAuthToken();
+              if (newToken) {
+                // Update validation time to prevent immediate revalidation
+                this.lastValidationTime = now;
+                return true;
+              }
+            } catch (refreshError) {
+              console.warn('Token refresh failed:', refreshError);
+              // Continue with validation even if refresh fails
+            }
+          }
+
+          // Add retry logic for failed validations with exponential backoff
           let retries = 3;
+          let consecutiveFailures = 0;
+
           while (retries > 0) {
             try {
               const response = await api.post(authConfig.authEndpoints.validateToken, {});
               const innerResponse = response.data.data;
               const isValid = innerResponse.status === 'success' && innerResponse.data?.user;
-              
+
               if (isValid) {
                 const user = innerResponse.data.user;
                 this.updateAuthState(true, user, tokens);
                 this.validationCache = { isValid: true, timestamp: now, user };
                 this.lastValidationTime = now;
+                consecutiveFailures = 0; // Reset failure count on success
                 return true;
+              }
+
+              // If validation explicitly fails (not due to network error)
+              consecutiveFailures++;
+              if (consecutiveFailures >= 3) {
+                this.validationCache = { isValid: false, timestamp: now, user: null };
+                return false;
               }
               break;
             } catch (error) {
-              if (retries > 1 && error instanceof AxiosError && 
-                  (error.response?.status === 500 || error.response?.status === 503)) {
+              if (
+                retries > 1 &&
+                error instanceof AxiosError &&
+                (error.response?.status === 500 ||
+                  error.response?.status === 503 ||
+                  !error.response || // Network error
+                  error.code === 'ECONNABORTED')
+              ) {
+                // Timeout
                 retries--;
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)));
                 continue;
               }
               throw error;
             }
           }
 
+          // For network-related issues, maintain current state
+          if (retries === 0) {
+            console.warn('Validation retries exhausted, maintaining current session state');
+            return this.isAuthenticated;
+          }
+
           this.clearTokens();
           this.validationCache = { isValid: false, timestamp: now, user: null };
           return false;
         } catch (error) {
-          if (error instanceof AxiosError && error.response?.status === 404) {
-            // Consider 404 as valid for backward compatibility
-            const tokens = this.getStoredTokens();
-            if (tokens) {
-              this.updateAuthState(true, this.currentUser, tokens);
-              this.validationCache = { isValid: true, timestamp: now, user: this.currentUser };
-              return true;
+          if (error instanceof AxiosError) {
+            // Keep session active for network-related issues
+            if (
+              !error.response ||
+              error.code === 'ECONNABORTED' ||
+              [404, 500, 503].includes(error.response?.status || 0)
+            ) {
+              console.warn('Network-related validation error, maintaining session:', error);
+              return this.isAuthenticated;
+            }
+
+            // Only clear tokens for actual auth failures (401, 403)
+            if ([401, 403].includes(error.response?.status || 0)) {
+              this.clearTokens();
+              this.validationCache = { isValid: false, timestamp: now, user: null };
+              return false;
             }
           }
-          throw error;
+
+          // For unknown errors, maintain current session state
+          console.error('Unexpected validation error:', error);
+          return this.isAuthenticated;
         } finally {
           this.validationInProgress = null;
         }
@@ -524,14 +618,9 @@ export class AuthService {
       return this.validationInProgress;
     } catch (error) {
       console.error('validateSession: Error occurred:', error);
-      // Only clear tokens for specific error cases
-      if (error instanceof AxiosError && 
-          ![404, 500, 503].includes(error.response?.status || 0)) {
-        this.clearTokens();
-        this.validationCache = { isValid: false, timestamp: Date.now(), user: null };
-      }
       this.validationInProgress = null;
-      return false;
+      // Don't clear tokens on outer try-catch, maintain current state
+      return this.isAuthenticated;
     }
   }
 
@@ -541,7 +630,7 @@ export class AuthService {
   private updateAuthState(isAuthenticated: boolean, user: IUser | null, tokens?: ITokens): void {
     this.isAuthenticated = isAuthenticated;
     this.currentUser = user;
-    
+
     if (tokens) {
       this.token = tokens.token;
       this.refreshToken = tokens.refreshToken;
@@ -549,15 +638,17 @@ export class AuthService {
     }
 
     // Emit state change event
-    window.dispatchEvent(new CustomEvent('auth-state-change', {
-      detail: {
-        isAuthenticated,
-        user,
-        token: this.token,
-        refreshToken: this.refreshToken,
-        tokenExpiration: this.tokenExpiration
-      }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('auth-state-change', {
+        detail: {
+          isAuthenticated,
+          user,
+          token: this.token,
+          refreshToken: this.refreshToken,
+          tokenExpiration: this.tokenExpiration,
+        },
+      })
+    );
   }
 
   /**
@@ -647,7 +738,7 @@ export class AuthService {
   private async waitForRateLimit(retryCount: number): Promise<void> {
     const baseDelay = 1000; // 1 second
     const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   /**

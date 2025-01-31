@@ -9,7 +9,7 @@ import {
 } from '../controllers/adminController';
 import { createAuthMiddleware } from '../middleware/auth';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
-import { validateRequest } from '../middleware/validator';
+import { validateUserAdminRequest } from '../middleware/validator';
 import { USER_ROLES } from '../constants/roles';
 import rateLimit from 'express-rate-limit';
 import Joi from 'joi';
@@ -95,11 +95,15 @@ router.use(authenticate);
 
 // User Management Routes
 router.get('/users', getAllUsers);
-router.post('/users', createUserRateLimit, validateRequest(createUserSchema), createUser);
-router.put('/users/:userId', validateRequest(updateUserSchema), updateUser);
-router.patch('/users/:userId', validateRequest(editUserSchema), editUser);
-router.post('/users/:userId/deactivate', validateRequest(deactivateUserSchema), deactivateUser);
-router.delete('/users/:userId', validateRequest(deleteUserSchema), deleteUser);
+router.post('/users', createUserRateLimit, validateUserAdminRequest(createUserSchema), createUser);
+router.put('/users/:userId', validateUserAdminRequest(updateUserSchema), updateUser);
+router.patch('/users/:userId', validateUserAdminRequest(editUserSchema), editUser);
+router.post(
+  '/users/:userId/deactivate',
+  validateUserAdminRequest(deactivateUserSchema),
+  deactivateUser
+);
+router.delete('/users/:userId', validateUserAdminRequest(deleteUserSchema), deleteUser);
 
 // Mount Audit Log Routes
 router.use('/audit-logs', auditLogRoutes);
