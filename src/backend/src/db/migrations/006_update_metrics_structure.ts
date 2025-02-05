@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+import { DataTypes, QueryInterface } from 'sequelize';
 
 const METRIC_TYPES = {
   REVENUE: 'REVENUE',
@@ -9,14 +9,14 @@ const METRIC_TYPES = {
   CHURN: 'CHURN',
   ENGAGEMENT: 'ENGAGEMENT',
   CONVERSION: 'CONVERSION',
-};
+} as const;
 
 const VALUE_TYPES = {
   NUMBER: 'NUMBER',
   CURRENCY: 'CURRENCY',
   PERCENTAGE: 'PERCENTAGE',
   RATIO: 'RATIO',
-};
+} as const;
 
 const FREQUENCIES = {
   DAILY: 'DAILY',
@@ -24,10 +24,10 @@ const FREQUENCIES = {
   MONTHLY: 'MONTHLY',
   QUARTERLY: 'QUARTERLY',
   YEARLY: 'YEARLY',
-};
+} as const;
 
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     try {
       // 1. Drop foreign key constraints if they exist
       await queryInterface.sequelize.query(`
@@ -42,9 +42,9 @@ module.exports = {
 
           IF EXISTS (
             SELECT 1 FROM information_schema.table_constraints 
-            WHERE constraint_name = 'benchmark_data_metricId_fkey'
+            WHERE constraint_name = 'benchmark_data_metric_id_fkey'
           ) THEN
-            ALTER TABLE benchmark_data DROP CONSTRAINT benchmark_data_metricId_fkey;
+            ALTER TABLE benchmark_data DROP CONSTRAINT benchmark_data_metric_id_fkey;
           END IF;
         END
         $$;
@@ -152,14 +152,43 @@ module.exports = {
       await queryInterface.addIndex('metrics', ['value_type'], {
         name: 'idx_metrics_value_type',
       });
+
+      // 6. Recreate foreign key constraint for benchmark_data
+      await queryInterface.sequelize.query(`
+        DO $$ 
+        BEGIN 
+          IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'benchmark_data') THEN
+            ALTER TABLE benchmark_data
+            ADD CONSTRAINT benchmark_data_metric_id_fkey 
+            FOREIGN KEY (metric_id) 
+            REFERENCES metrics(id)
+            ON DELETE CASCADE;
+          END IF;
+        END
+        $$;
+      `);
     } catch (error) {
       console.error('Migration failed:', error);
       throw error;
     }
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     try {
+      // Drop foreign key constraint first
+      await queryInterface.sequelize.query(`
+        DO $$ 
+        BEGIN 
+          IF EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE constraint_name = 'benchmark_data_metric_id_fkey'
+          ) THEN
+            ALTER TABLE benchmark_data DROP CONSTRAINT benchmark_data_metric_id_fkey;
+          END IF;
+        END
+        $$;
+      `);
+
       // Drop tables
       await queryInterface.sequelize.query(`
         DROP TABLE IF EXISTS metrics CASCADE;

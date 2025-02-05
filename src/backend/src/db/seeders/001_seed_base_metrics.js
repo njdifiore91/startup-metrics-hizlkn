@@ -9,14 +9,14 @@ const MetricType = {
   GROWTH: 'GROWTH',
   CHURN: 'CHURN',
   ENGAGEMENT: 'ENGAGEMENT',
-  CONVERSION: 'CONVERSION'
+  CONVERSION: 'CONVERSION',
 };
 
 const ValueType = {
   NUMBER: 'NUMBER',
   CURRENCY: 'CURRENCY',
   PERCENTAGE: 'PERCENTAGE',
-  RATIO: 'RATIO'
+  RATIO: 'RATIO',
 };
 
 const Frequency = {
@@ -24,7 +24,7 @@ const Frequency = {
   WEEKLY: 'WEEKLY',
   MONTHLY: 'MONTHLY',
   QUARTERLY: 'QUARTERLY',
-  YEARLY: 'YEARLY'
+  YEARLY: 'YEARLY',
 };
 
 // Initial base metrics with comprehensive validation rules
@@ -32,73 +32,73 @@ const BASE_METRICS = [
   {
     id: uuidv4(),
     name: 'monthly_recurring_revenue',
-    displayName: 'Monthly Recurring Revenue',
+    display_name: 'Monthly Recurring Revenue',
     description: 'Total revenue that a company expects to receive on a monthly basis',
     type: MetricType.REVENUE,
-    valueType: ValueType.CURRENCY,
+    value_type: ValueType.CURRENCY,
     frequency: Frequency.MONTHLY,
     unit: 'USD',
     precision: 2,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted_at: null,
   },
   {
     id: uuidv4(),
     name: 'active_users',
-    displayName: 'Active Users',
+    display_name: 'Active Users',
     description: 'Number of unique users who engaged with the product in the last 30 days',
     type: MetricType.USERS,
-    valueType: ValueType.NUMBER,
+    value_type: ValueType.NUMBER,
     frequency: Frequency.MONTHLY,
     unit: 'Users',
     precision: 0,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted_at: null,
   },
   {
     id: uuidv4(),
     name: 'customer_churn_rate',
-    displayName: 'Customer Churn Rate',
+    display_name: 'Customer Churn Rate',
     description: 'Percentage of customers who stopped using the product in the last 30 days',
     type: MetricType.CHURN,
-    valueType: ValueType.PERCENTAGE,
+    value_type: ValueType.PERCENTAGE,
     frequency: Frequency.MONTHLY,
     unit: '%',
     precision: 2,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted_at: null,
   },
   {
     id: uuidv4(),
     name: 'customer_acquisition_cost',
-    displayName: 'Customer Acquisition Cost',
+    display_name: 'Customer Acquisition Cost',
     description: 'Average cost to acquire a new customer',
     type: MetricType.EXPENSES,
-    valueType: ValueType.CURRENCY,
+    value_type: ValueType.CURRENCY,
     frequency: Frequency.MONTHLY,
     unit: 'USD',
     precision: 2,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted_at: null,
   },
   {
     id: uuidv4(),
     name: 'conversion_rate',
-    displayName: 'Conversion Rate',
+    display_name: 'Conversion Rate',
     description: 'Percentage of visitors who become customers',
     type: MetricType.CONVERSION,
-    valueType: ValueType.PERCENTAGE,
+    value_type: ValueType.PERCENTAGE,
     frequency: Frequency.MONTHLY,
     unit: '%',
     precision: 2,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
+    created_at: new Date(),
+    updated_at: new Date(),
+    deleted_at: null,
+  },
 ];
 
 /**
@@ -107,12 +107,18 @@ const BASE_METRICS = [
 module.exports = {
   async up(queryInterface) {
     const transaction = await queryInterface.sequelize.transaction();
-    
+
     try {
-      // Perform batch insert with transaction support
+      // First delete any dependent benchmark data
+      await queryInterface.bulkDelete('benchmark_data', null, { transaction });
+
+      // Then delete existing metrics
+      await queryInterface.bulkDelete('metrics', null, { transaction });
+
+      // Finally insert new metrics
       await queryInterface.bulkInsert('metrics', BASE_METRICS, { transaction });
+
       await transaction.commit();
-      
       console.log(`Successfully seeded ${BASE_METRICS.length} base metrics`);
     } catch (error) {
       await transaction.rollback();
@@ -123,19 +129,26 @@ module.exports = {
 
   async down(queryInterface) {
     const transaction = await queryInterface.sequelize.transaction();
-    
+
     try {
-      // Remove all base metrics with transaction support
-      await queryInterface.bulkDelete('metrics', {
-        name: BASE_METRICS.map(metric => metric.name)
-      }, { transaction });
+      // First delete any dependent benchmark data
+      await queryInterface.bulkDelete('benchmark_data', null, { transaction });
+
+      // Then remove all base metrics with transaction support
+      await queryInterface.bulkDelete(
+        'metrics',
+        {
+          name: BASE_METRICS.map((metric) => metric.name),
+        },
+        { transaction }
+      );
+
       await transaction.commit();
-      
       console.log('Successfully reverted base metrics seeding');
     } catch (error) {
       await transaction.rollback();
       console.error('Error removing base metrics:', error);
       throw error;
     }
-  }
-}; 
+  },
+};

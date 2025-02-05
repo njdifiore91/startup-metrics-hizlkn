@@ -13,12 +13,13 @@ const DATA_SOURCES = [
       required: ['timestamp', 'value'],
       types: {
         timestamp: 'date',
-        value: 'number'
-      }
+        value: 'number',
+      },
     }),
+    metricCategories: ['REVENUE', 'USERS'],
     lastUpdated: new Date(),
     createdAt: new Date(),
-    updatedAt: new Date()
+    updatedAt: new Date(),
   },
   {
     id: uuidv4(),
@@ -33,12 +34,13 @@ const DATA_SOURCES = [
       types: {
         date: 'date',
         metric: 'string',
-        value: 'number'
-      }
+        value: 'number',
+      },
     }),
+    metricCategories: ['MARKET', 'COMPETITION'],
     lastUpdated: new Date(),
     createdAt: new Date(),
-    updatedAt: new Date()
+    updatedAt: new Date(),
   },
   {
     id: uuidv4(),
@@ -54,33 +56,55 @@ const DATA_SOURCES = [
         industry: 'string',
         metric: 'string',
         value: 'number',
-        period: 'date'
-      }
+        period: 'date',
+      },
     }),
+    metricCategories: ['BENCHMARKS', 'INDUSTRY'],
     lastUpdated: new Date(),
     createdAt: new Date(),
-    updatedAt: new Date()
-  }
+    updatedAt: new Date(),
+  },
 ];
 
 module.exports = {
   async up(queryInterface, Sequelize) {
+    const transaction = await queryInterface.sequelize.transaction();
+
     try {
-      await queryInterface.bulkInsert('data_sources', DATA_SOURCES);
+      // First delete any dependent benchmark data
+      await queryInterface.bulkDelete('benchmark_data', null, { transaction });
+
+      // Then delete existing data sources
+      await queryInterface.bulkDelete('data_sources', null, { transaction });
+
+      // Finally insert new data sources
+      await queryInterface.bulkInsert('data_sources', DATA_SOURCES, { transaction });
+
+      await transaction.commit();
       console.log('Successfully seeded data sources');
     } catch (error) {
+      await transaction.rollback();
       console.error('Error seeding data sources:', error);
       throw error;
     }
   },
 
   async down(queryInterface, Sequelize) {
+    const transaction = await queryInterface.sequelize.transaction();
+
     try {
-      await queryInterface.bulkDelete('data_sources', null, {});
+      // First delete any dependent benchmark data
+      await queryInterface.bulkDelete('benchmark_data', null, { transaction });
+
+      // Then delete data sources
+      await queryInterface.bulkDelete('data_sources', null, { transaction });
+
+      await transaction.commit();
       console.log('Successfully reverted data sources seeding');
     } catch (error) {
+      await transaction.rollback();
       console.error('Error reverting data sources seeding:', error);
       throw error;
     }
-  }
-}; 
+  },
+};
