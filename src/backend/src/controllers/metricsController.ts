@@ -424,13 +424,8 @@ export const getMetricTypes = asyncHandler(async (req: Request, res: Response): 
     res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
     res.set('X-Correlation-ID', correlationId);
 
-    res.json({
-      data: metrics,
-      meta: {
-        responseTime,
-        correlationId
-      }
-    });
+    // Return metrics array directly without wrapping in data object
+    res.json(metrics);
 
     logger.info('Metric types retrieved successfully', {
       correlationId,

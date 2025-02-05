@@ -1,23 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Select from '../common/Select';
-import { IMetric, MetricCategory, MetricType } from '../../interfaces/IMetric';
+import { IMetric, MetricCategory, MetricType, MetricValueType } from '../../interfaces/IMetric';
 import { useMetrics } from '../../hooks/useMetrics';
 import styled from '@emotion/styled';
-
-// Map MetricType to MetricCategory
-const typeToCategory: Record<MetricType, MetricCategory> = {
-  [MetricType.REVENUE]: 'financial',
-  [MetricType.EXPENSES]: 'financial',
-  [MetricType.PROFIT]: 'financial',
-  [MetricType.USERS]: 'operational',
-  [MetricType.GROWTH]: 'growth',
-  [MetricType.CHURN]: 'operational',
-  [MetricType.ENGAGEMENT]: 'operational',
-  [MetricType.CONVERSION]: 'growth'
-};
-
-// Debug: Log the typeToCategory mapping
-console.log('Type to Category Mapping:', typeToCategory);
+import { typeToCategory } from '../../constants/metricMappings';
 
 /**
  * Interface for MetricSelector component props with comprehensive validation
@@ -44,6 +30,14 @@ const StyledMetricSelector = styled.div`
   max-width: 400px;
 `;
 
+interface MetricTypeResponse {
+  id: string;
+  name: string;
+  displayName: string;
+  type: MetricType;
+  valueType: MetricValueType;
+}
+
 /**
  * A robust and accessible metric selector component
  */
@@ -57,148 +51,129 @@ const MetricSelector: React.FC<MetricSelectorProps> = React.memo(
     ariaLabel = 'Select a metric',
     errorRetryCount = 3,
   }) => {
-    // Debug: Log incoming props
-    console.log('MetricSelector Props:', {
-      selectedMetricId,
-      category,
-      disabled,
-      className,
-      ariaLabel,
-      errorRetryCount
-    });
-
-    const { loading, error, getMetricTypes } = useMetrics();
-    const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
+    const { loading: globalLoading, error: globalError, getMetricTypes } = useMetrics();
+    const [options, setOptions] = useState<Array<{ value: string; label: string; type: MetricType; valueType: MetricValueType }>>([]);
     const [retryCount, setRetryCount] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+    // Reset error state when category changes
     useEffect(() => {
+      setErrorMessage(null);
+      setRetryCount(0);
+    }, [category]);
+
+    useEffect(() => {
+      let isMounted = true;
+      let isLoading = false;
+
       const fetchMetricTypes = async () => {
-        setIsLoading(true);
-        setErrorMessage(null);
+        if (isLoading) {
+          return; // Prevent duplicate fetches
+        }
+        
+        isLoading = true;
+        if (isMounted) {
+          setIsLoading(true);
+          setErrorMessage(null);
+        }
         
         try {
-          console.log('Fetching metric types...'); // Debug: Log fetch start
-          const result = await getMetricTypes();
-          console.log('Raw API Response:', result);
+          const response = await getMetricTypes();
           
-          // Check if result is the direct array or nested in a data property
-          const metricTypes = Array.isArray(result) ? result : (result.data || []);
-          console.log('Extracted Metric Types:', metricTypes);
+          if (!isMounted) return;
           
-          if (Array.isArray(metricTypes) && metricTypes.length > 0) {
-            console.log('Current Category Filter:', category); // Debug: Log current category
+          if (!response.data) {
+            throw new Error('Failed to fetch metric types');
+          }
 
-            const filteredMetrics = metricTypes.filter(metric => {
-              const metricType = metric.type as MetricType;
-              const mappedCategory = typeToCategory[metricType];
-              
-              // Debug: Log each metric's filtering process
-              console.log('Processing Metric:', {
-                id: metric.id,
-                name: metric.name,
-                type: metricType,
-                mappedCategory,
-                targetCategory: category,
-                matches: mappedCategory === category,
-                typeToCategory: typeToCategory[metricType]
-              });
-              
-              return mappedCategory === category;
-            });
-            
-            console.log('Filtered Metrics:', filteredMetrics);
-            
-            const newOptions = filteredMetrics.map(metric => {
-              const option = {
-                value: metric.id,
-                label: metric.name
-              };
-              console.log('Created Option:', option); // Debug: Log each created option
-              return option;
-            });
-            
-            console.log('Final Options Array:', newOptions);
+          const metricTypes = response.data as MetricTypeResponse[];
+          console.log('Received metric types:', metricTypes);
+          
+          const newOptions = metricTypes.map(metric => ({
+            value: metric.id,
+            label: metric.displayName || metric.name,
+            type: metric.type as MetricType,
+            valueType: metric.valueType as MetricValueType
+          }));
+          
+          if (isMounted) {
             setOptions(newOptions);
-          } else {
-            console.warn('No metric types found or invalid response format:', {
-              result,
-              metricTypes
-            });
-            setOptions([]);
+            
+            // Only set error message if we have no options
+            if (newOptions.length === 0) {
+              setErrorMessage('No metrics available');
+            }
           }
         } catch (err) {
-          console.error('Error in fetchMetricTypes:', {
-            error: err,
-            retryCount,
-            maxRetries: errorRetryCount
-          });
-          
-          setErrorMessage(err instanceof Error ? err.message : 'Failed to fetch metrics');
+          if (!isMounted) return;
+
+          console.error('Error fetching metrics:', err);
+          const message = err instanceof Error ? err.message : 'Failed to fetch metrics';
+          setErrorMessage(message);
           
           if (retryCount < errorRetryCount) {
-            console.log('Retrying fetch...', {
-              attempt: retryCount + 1,
-              maxRetries: errorRetryCount
-            });
             setRetryCount(prev => prev + 1);
             setTimeout(() => {
-              fetchMetricTypes();
+              if (isMounted) {
+                fetchMetricTypes();
+              }
             }, Math.pow(2, retryCount) * 1000);
           }
         } finally {
-          setIsLoading(false);
+          isLoading = false;
+          if (isMounted) {
+            setIsLoading(false);
+          }
         }
       };
 
       fetchMetricTypes();
+
+      return () => {
+        isMounted = false;
+      };
     }, [category, getMetricTypes, errorRetryCount, retryCount]);
 
     const handleChange = useCallback((value: string | number) => {
-      console.log('Handle Change Called:', { value }); // Debug: Log change handler
-      
       const selectedOption = options.find(opt => opt.value === value);
-      console.log('Selected Option:', selectedOption); // Debug: Log selected option
       
-      onMetricSelect(String(value), {
-        id: String(value),
-        name: selectedOption?.label || '',
-        description: '',
-        category: category,
-        type: MetricType.REVENUE, // This will be overridden by the actual type
-        valueType: 'number',
-        validationRules: {},
-        isActive: true,
-        displayOrder: 0,
-        tags: [],
-        metadata: {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      if (selectedOption) {
+        const selectedMetric: IMetric = {
+          id: String(value),
+          name: selectedOption.label,
+          displayName: selectedOption.label,
+          description: '',
+          category: category,
+          type: selectedOption.type,
+          valueType: selectedOption.valueType,
+          validationRules: {},
+          isActive: true,
+          displayOrder: 0,
+          tags: [],
+          metadata: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        onMetricSelect(String(value), selectedMetric);
+      }
     }, [options, category, onMetricSelect]);
 
-    // Debug: Log component state before render
-    console.log('MetricSelector State:', {
-      options,
-      isLoading,
-      error: errorMessage,
-      selectedMetricId
-    });
+    // Get the appropriate error message to display
+    const displayError = globalError?.['metric_types'] || errorMessage;
 
     return (
       <StyledMetricSelector className={className}>
         <Select
-          options={options}
+          options={options.map(opt => ({ value: opt.value, label: opt.label }))}
           value={selectedMetricId}
           onChange={handleChange}
           name="metric-selector"
           id="metric-selector"
-          label="Select Metric"
-          placeholder="Choose a metric..."
-          disabled={disabled || isLoading}
-          error={errorMessage || ''}
-          loading={isLoading}
+          placeholder={`Choose a metric...`}
+          disabled={disabled || globalLoading['metric_types']}
+          error={!isLoading && !globalLoading['metric_types'] ? displayError || '' : ''}
+          loading={isLoading || globalLoading['metric_types']}
           required
           aria-label={ariaLabel}
         />

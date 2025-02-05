@@ -13,6 +13,7 @@ import {
 } from 'chart.js';
 import { IBenchmark } from '../../interfaces/IBenchmark';
 import { formatMetricValue } from '../../utils/chartHelpers';
+import { MetricValueType } from '../../interfaces/IMetric';
 
 // Register required Chart.js components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
@@ -33,6 +34,18 @@ interface BenchmarkChartProps {
   ariaLabel?: string;
 }
 
+const formatValue = (value: number, valueType: MetricValueType): string => {
+  switch (valueType) {
+    case 'percentage':
+    case 'ratio':
+    case 'number':
+    case 'currency':
+      return formatMetricValue(value, valueType);
+    default:
+      return value.toString();
+  }
+};
+
 /**
  * A highly optimized and accessible benchmark comparison chart component
  * Implements WCAG 2.1 compliance and performance best practices
@@ -50,27 +63,29 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
 
   const chartData: ChartData<'line'> = useMemo(
     () => ({
-      labels: benchmark.percentiles.map((p) => `${p}th percentile`),
+      labels: ['10th', '25th', '50th', '75th', '90th'],
       datasets: [
         {
           label: 'Industry Benchmark',
-          data: benchmark.values,
-          borderColor: '#151e2d',
-          backgroundColor: 'rgba(21, 30, 45, 0.1)',
+          data: [benchmark.p10, benchmark.p25, benchmark.p50, benchmark.p75, benchmark.p90],
+          borderColor: 'rgb(53, 162, 235)',
+          backgroundColor: 'rgba(53, 162, 235, 0.1)',
           fill: true,
           tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
+          pointRadius: 6,
+          pointHoverRadius: 8,
         },
-        ...(companyMetric
+        ...(companyMetric !== undefined
           ? [
               {
                 label: 'Your Company',
-                data: new Array(benchmark.percentiles.length).fill(companyMetric),
-                borderColor: '#46608C',
+                data: new Array(5).fill(companyMetric),
+                borderColor: 'rgb(255, 99, 132)',
                 borderDash: [5, 5],
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
                 fill: false,
                 tension: 0,
+                pointRadius: 0,
               },
             ]
           : []),
@@ -86,14 +101,24 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
       plugins: {
         legend: {
           position: 'top' as const,
+          labels: {
+            padding: 20,
+            usePointStyle: true,
+          },
         },
         tooltip: {
           mode: 'index' as const,
           intersect: false,
+          padding: 12,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: 'white',
+          bodyColor: 'white',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
           callbacks: {
             label: (context) => {
               const value = context.raw as number;
-              return `${context.dataset.label}: ${formatMetricValue(value, benchmark.valueType)}`;
+              return `${context.dataset.label}: ${formatValue(value, benchmark.metric.valueType)}`;
             },
           },
         },
@@ -104,13 +129,30 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
           title: {
             display: true,
             text: 'Percentile',
+            padding: { top: 10 },
+            font: {
+              weight: 'bold',
+            },
+          },
+          grid: {
+            display: false,
           },
         },
         y: {
           display: true,
           title: {
             display: true,
-            text: benchmark.name,
+            text: benchmark.metric.name,
+            padding: { bottom: 10 },
+            font: {
+              weight: 'bold',
+            },
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.1)',
+          },
+          ticks: {
+            callback: (value) => formatValue(value as number, benchmark.metric.valueType),
           },
         },
       },

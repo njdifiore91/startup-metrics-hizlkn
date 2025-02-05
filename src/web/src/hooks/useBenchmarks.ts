@@ -201,8 +201,8 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
 
   return {
     benchmarks,
-    loading: loading.fetchByMetric || loading.fetchByRevenue || loading.compare,
-    error: localError || errors.fetchByMetric?.message || errors.fetchByRevenue?.message,
+    loading: Object.values(loading).some(Boolean),
+    error: localError || (errors.fetchByMetric?.message || errors.fetchByRevenue?.message || null),
     fetchBenchmarkData,
     compareBenchmark,
     clearBenchmarkCache,

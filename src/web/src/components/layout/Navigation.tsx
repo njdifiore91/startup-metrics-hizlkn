@@ -58,14 +58,18 @@ const StyledList = styled(List)`
   z-index: 1;
 ` as typeof List;
 
-const StyledListItem = styled(ListItem)<{ active?: boolean }>`
+const StyledListItem = styled(ListItem)`
   padding: 0.75rem 1rem;
-  color: ${({ active }) => (active ? 'var(--color-accent)' : 'var(--color-text)')};
+  color: var(--color-text);
   margin: var(--spacing-xs) 0;
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   position: relative;
   z-index: 2;
+
+  &[data-active="true"] {
+    color: var(--color-accent);
+  }
 
   &:hover {
     background-color: var(--color-background);
@@ -255,7 +259,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       <React.Fragment key={item.id}>
         <StyledListItem
           onClick={() => (hasChildren ? toggleExpand(item.id) : handleNavClick(item.path))}
-          active={isActive}
+          data-active={isActive}
           style={{ paddingLeft: `${(level + 1) * 16}px` }}
           aria-expanded={hasChildren ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}

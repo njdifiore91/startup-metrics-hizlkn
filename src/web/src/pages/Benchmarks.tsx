@@ -9,7 +9,7 @@ import { AppDispatch } from '../store';
 import MetricSelector from '../components/metrics/MetricSelector';
 import RevenueRangeSelector from '../components/metrics/RevenueRangeSelector';
 import MetricComparison from '../components/metrics/MetricComparison';
-import { IMetric } from '../interfaces/IMetric';
+import { IMetric, MetricCategory } from '../interfaces/IMetric';
 import { useMetrics } from '../hooks/useMetrics';
 import { useBenchmarks } from '../hooks/useBenchmarks';
 import { useToast, ToastType } from '../hooks/useToast';
@@ -51,20 +51,35 @@ const Benchmarks: React.FC = () => {
 
   // Hooks
   const { showToast } = useToast();
-  const { metrics, loading: metricsLoading, error: metricsError } = useMetrics();
+  const { getMetricsByCategory, loading: metricsLoading, error: metricsError } = useMetrics();
   const { benchmarks, loading: benchmarksLoading, error: benchmarksError } = useBenchmarks();
 
   // Local state
   const [selectedMetricId, setSelectedMetricId] = useState<string>('');
+  const [metrics, setMetrics] = useState<IMetric[]>([]);
   const [selectedRange, setSelectedRange] = useState<RevenueRange>(
     REVENUE_RANGES.ranges[0] as RevenueRange
   );
   const [companyValue, setCompanyValue] = useState<number | undefined>(undefined);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // Fetch metrics when component mounts
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const result = await getMetricsByCategory(MetricCategory.FINANCIAL);
+        setMetrics(result);
+      } catch (error) {
+        const handledError = handleApiError(error as AxiosError<ApiError>);
+        showToast(handledError.message, ToastType.ERROR);
+      }
+    };
+    fetchMetrics();
+  }, [getMetricsByCategory, showToast]);
+
   // Memoized selected metric
   const selectedMetric = useMemo(
-    () => metrics.find((m) => m.id === selectedMetricId),
+    () => metrics?.find((m: IMetric) => m.id === selectedMetricId),
     [metrics, selectedMetricId]
   );
 
@@ -165,8 +180,8 @@ const Benchmarks: React.FC = () => {
           <MetricSelector
             selectedMetricId={selectedMetricId}
             onMetricSelect={handleMetricSelect}
-            disabled={!!metricsLoading}
-            category="financial"
+            disabled={false}
+            category={MetricCategory.FINANCIAL}
             className="metric-selector"
             ariaLabel="Select metric for benchmark analysis"
           />
@@ -174,7 +189,7 @@ const Benchmarks: React.FC = () => {
           <RevenueRangeSelector
             selectedRange={selectedRange}
             onRangeChange={handleRangeChange}
-            disabled={!!benchmarksLoading}
+            disabled={false}
             className="revenue-selector"
             ariaLabel="Select revenue range for comparison"
           />
@@ -194,13 +209,15 @@ const Benchmarks: React.FC = () => {
         )}
 
         {(metricsError || benchmarksError) && (
-          <div className="error-container" role="alert">
-            {metricsError || benchmarksError}
+          <div className="error-message" role="alert">
+            {typeof metricsError === 'string' ? metricsError : 
+             typeof benchmarksError === 'string' ? benchmarksError : 
+             'An error occurred'}
           </div>
         )}
 
         {(metricsLoading || benchmarksLoading || isAnalyzing) && (
-          <div className="loading-overlay" role="status">
+          <div className="loading-indicator" role="status">
             <span className="sr-only">Loading benchmark data...</span>
           </div>
         )}
@@ -210,6 +227,8 @@ const Benchmarks: React.FC = () => {
             padding: var(--spacing-lg);
             max-width: 1200px;
             margin: 0 auto;
+            min-height: 400px;
+            position: relative;
           }
 
           .selectors-container {
@@ -221,30 +240,30 @@ const Benchmarks: React.FC = () => {
 
           .comparison-container {
             margin-top: var(--spacing-lg);
-            position: relative;
           }
 
-          .error-container {
+          .error-message {
             padding: var(--spacing-md);
             margin-top: var(--spacing-md);
-            background-color: var(--color-error);
-            color: var(--color-surface);
+            background-color: var(--color-error-light);
+            color: var(--color-error);
             border-radius: var(--border-radius-md);
+            font-size: 0.875rem;
           }
 
-          .loading-overlay {
+          .loading-indicator {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--color-overlay);
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            top: 1rem;
+            right: 1rem;
+            width: auto;
+            padding: 0.5rem 1rem;
+            background-color: var(--color-background);
+            border: 1px solid var(--color-border);
+            border-radius: var(--border-radius-md);
+            box-shadow: var(--shadow-sm);
+            z-index: 10;
           }
 
-          /* Accessibility */
           .sr-only {
             position: absolute;
             width: 1px;
@@ -253,21 +272,8 @@ const Benchmarks: React.FC = () => {
             margin: -1px;
             overflow: hidden;
             clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
             border: 0;
-          }
-
-          /* High contrast mode support */
-          @media (forced-colors: active) {
-            .error-container {
-              border: 1px solid CanvasText;
-            }
-          }
-
-          /* Reduced motion */
-          @media (prefers-reduced-motion: reduce) {
-            .loading-overlay {
-              transition: none;
-            }
           }
         `}</style>
       </div>

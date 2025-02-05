@@ -8,16 +8,17 @@
 import Joi from 'joi'; // v17.9.0
 import { IBenchmarkData } from '../interfaces/IBenchmarkData';
 import { METRIC_VALIDATION_RULES } from '../constants/validations';
-import { RevenueRange } from '../types/metric';
 
 // Revenue ranges supported by the platform
 const RevenueRanges = [
-  '0M-1M',
+  '0-1M',
   '1M-5M',
   '5M-20M',
   '20M-50M',
   '50M+'
 ] as const;
+
+type RevenueRange = typeof RevenueRanges[number];
 
 // Custom error messages for enhanced user feedback
 const ERROR_MESSAGES = {
@@ -155,16 +156,31 @@ export const getBenchmarkSchema = Joi.object({
  * @returns Validation result with detailed error messages
  */
 export const validateBenchmarkCreate = Joi.object({
-  metricId: Joi.string().required(),
-  revenueRange: Joi.string().required(),
-  value: Joi.number()
-    .min(METRIC_VALIDATION_RULES.PERCENTAGE.min)
-    .max(METRIC_VALIDATION_RULES.PERCENTAGE.max)
-    .precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
-    .required(),
-  description: Joi.string()
-    .max(METRIC_VALIDATION_RULES.DESCRIPTION.maxLength)
-    .optional()
+  metricId: Joi.string().uuid().required().messages({
+    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
+    'string.guid': ERROR_MESSAGES.INVALID_UUID
+  }),
+  revenueRange: Joi.string().valid(...RevenueRanges).required().messages({
+    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
+    'any.only': ERROR_MESSAGES.REVENUE_RANGE
+  }),
+  p10: Joi.number().required().messages({
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+  }),
+  p25: Joi.number().required().messages({
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+  }),
+  p50: Joi.number().required().messages({
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+  }),
+  p75: Joi.number().required().messages({
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+  }),
+  p90: Joi.number().required().messages({
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+  }),
+  sampleSize: Joi.number().min(30).required(),
+  confidenceLevel: Joi.number().min(0.95).max(1).required()
 });
 
 /**
@@ -174,14 +190,30 @@ export const validateBenchmarkCreate = Joi.object({
  * @returns Validation result with detailed error messages
  */
 export const validateBenchmarkUpdate = Joi.object({
-  value: Joi.number()
-    .min(METRIC_VALIDATION_RULES.PERCENTAGE.min)
-    .max(METRIC_VALIDATION_RULES.PERCENTAGE.max)
-    .precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
-    .required(),
-  description: Joi.string()
-    .max(METRIC_VALIDATION_RULES.DESCRIPTION.maxLength)
-    .optional()
+  revenueRange: Joi.string().valid(...RevenueRanges).optional().messages({
+    'any.only': ERROR_MESSAGES.REVENUE_RANGE
+  }),
+  p10: Joi.number().optional(),
+  p25: Joi.number().optional(),
+  p50: Joi.number().optional(),
+  p75: Joi.number().optional(),
+  p90: Joi.number().optional(),
+  sampleSize: Joi.number().min(30).optional(),
+  confidenceLevel: Joi.number().min(0.95).max(1).optional()
+}).custom((value, helpers) => {
+  // Validate percentile ordering if any percentile is being updated
+  if (value.p10 || value.p25 || value.p50 || value.p75 || value.p90) {
+    const p10 = value.p10 ?? helpers.state.ancestors[0].p10;
+    const p25 = value.p25 ?? helpers.state.ancestors[0].p25;
+    const p50 = value.p50 ?? helpers.state.ancestors[0].p50;
+    const p75 = value.p75 ?? helpers.state.ancestors[0].p75;
+    const p90 = value.p90 ?? helpers.state.ancestors[0].p90;
+
+    if (!(p10 <= p25 && p25 <= p50 && p50 <= p75 && p75 <= p90)) {
+      return helpers.error('custom', { message: ERROR_MESSAGES.PERCENTILE_ORDER });
+    }
+  }
+  return value;
 });
 
 /**
@@ -191,6 +223,12 @@ export const validateBenchmarkUpdate = Joi.object({
  * @returns Validation result with detailed error messages
  */
 export const validateBenchmarkGet = Joi.object({
-  metricId: Joi.string().required(),
-  revenueRange: Joi.string().required()
+  metricId: Joi.string().uuid().required().messages({
+    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
+    'string.guid': ERROR_MESSAGES.INVALID_UUID
+  }),
+  revenueRange: Joi.string().valid(...RevenueRanges).required().messages({
+    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
+    'any.only': ERROR_MESSAGES.REVENUE_RANGE
+  })
 });

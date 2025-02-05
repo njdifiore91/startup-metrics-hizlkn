@@ -9,6 +9,7 @@ export interface IUser {
   name: string;
   role: keyof typeof USER_ROLES;
   tier: 'free' | 'pro' | 'enterprise';
+  revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
   isActive: boolean;
   lastLoginAt: Date;
   createdAt: Date;
@@ -22,6 +23,7 @@ class User extends Model<IUser> implements IUser {
   public name!: string;
   public role!: keyof typeof USER_ROLES;
   public tier!: 'free' | 'pro' | 'enterprise';
+  public revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
   public isActive!: boolean;
   public lastLoginAt!: Date;
   public readonly createdAt!: Date;
@@ -60,6 +62,10 @@ User.init(
       type: DataTypes.ENUM('free', 'pro', 'enterprise'),
       allowNull: false,
       defaultValue: 'free',
+    },
+    revenueRange: {
+      type: DataTypes.ENUM('0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'),
+      allowNull: true
     },
     isActive: {
       type: DataTypes.BOOLEAN,

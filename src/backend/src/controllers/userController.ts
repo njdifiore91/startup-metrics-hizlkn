@@ -118,52 +118,72 @@ const getUserProfile = async (req: Request, res: Response, next: NextFunction): 
 };
 
 /**
- * Updates user profile with enhanced validation and audit logging
+ * Updates a user's profile
  * @param req Express request object
  * @param res Express response object
  * @param next Express next function
  */
-const updateUserProfile = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+const updateUserProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const correlationId = uuidv4();
   logger.setCorrelationId(correlationId);
 
   try {
-    const userId = req.params.userId;
-    const updateData = req.body;
-    const requestingUserId = req.user?.id;
-
-    // Validate update permissions
-    const canUpdate =
-      requestingUserId === userId ||
-      (await userService.validateUserRole(requestingUserId, USER_ROLES.ADMIN));
-
-    if (!canUpdate) {
-      throw createHttpError(403, 'Insufficient permissions to update profile');
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new AppError('Unauthorized', 401);
     }
 
-    // Validate version for optimistic locking
-    if (!updateData.version) {
-      throw createHttpError(400, 'Version number is required');
+    const {
+      name,
+      email,
+      role,
+      isActive,
+      profileImageUrl,
+      tier,
+      revenueRange,
+      metadata
+    } = req.body;
+
+    // Validate revenue range if provided
+    if (revenueRange) {
+      const validRanges = ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'];
+      if (!validRanges.includes(revenueRange)) {
+        throw new AppError('Invalid revenue range specified', 400);
+      }
     }
 
-    // Perform update
-    const updatedUser = await userService.updateUser(userId, updateData, updateData.version);
+    // Update user profile
+    const updatedUser = await userService.updateUser(userId, {
+      name,
+      email,
+      role,
+      isActive,
+      profileImageUrl,
+      tier,
+      revenueRange,
+      metadata
+    });
 
-    // Invalidate caches
-    await Promise.all([
-      cacheService.delete(`${CACHE_PREFIX.user}${userId}`),
-      cacheService.delete(`${CACHE_PREFIX.admin}${userId}`),
-    ]);
-
-    logger.info('User profile updated', { userId, requestingUserId });
-    res.json({
-      data: updatedUser,
+    logger.info('User profile updated', {
+      userId,
       correlationId,
+      changes: {
+        name,
+        email,
+        role,
+        isActive,
+        profileImageUrl,
+        tier,
+        revenueRange,
+        metadata
+      }
+    });
+
+    res.json({
+      success: true,
+      data: updatedUser,
       message: 'Profile updated successfully',
+      correlationId
     });
   } catch (error) {
     logger.error('Error updating user profile', { error, correlationId });

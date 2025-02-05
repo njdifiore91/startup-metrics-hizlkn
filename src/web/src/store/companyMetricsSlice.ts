@@ -1,27 +1,60 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
+import { createSlice, createAsyncThunk, PayloadAction, createSelector } from '@reduxjs/toolkit';
+import { ICompanyMetric, IMetric, IMetricValidationRules, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
+import { MetricCategory, MetricType, MetricValueType } from '../interfaces/IMetric';
 import { companyMetricsService } from '../services/companyMetrics';
 import { ApiError, handleApiError } from '../utils/errorHandlers';
 import { AxiosError, AxiosHeaders } from 'axios';
-import { IMetric, MetricType, MetricValueType } from '../interfaces/IMetric';
-import { Draft } from '@reduxjs/toolkit';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
 
+// Types for API interactions
+export type CompanyMetricInput = Omit<ICompanyMetric, 'id'>;
+
+interface ApiMetadata {
+  timestamp: string;
+  duration: number;
+  headers?: unknown;
+}
+
 interface ApiResponse<T> {
   data: {
-    data: T;
+    data: T[];
     meta: {
       total: number;
       page: number;
       limit: number;
     };
   };
-  meta: {
+  meta?: {
     responseTime: number;
     correlationId: string;
   };
+  metadata?: ApiMetadata;
+}
+
+interface MetricDTO {
+  id: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+  category: string;
+  type: string;
+  valueType: string;
+  validationRules?: {
+    precision?: number;
+    min?: number;
+    max?: number;
+    required?: boolean;
+    format?: string;
+    customValidation?: string;
+  };
+  isActive?: boolean;
+  displayOrder?: number;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface CompanyMetricDTO {
@@ -32,39 +65,17 @@ interface CompanyMetricDTO {
   date: string;
   source: string;
   isVerified: boolean;
-  verifiedBy?: string;
-  verifiedAt?: string;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
   notes?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  metric?: {
-    id: string;
-    name: string;
-    displayName?: string;
-    description?: string;
-    category: string;
-    type: MetricType;
-    valueType: MetricValueType;
-    validationRules?: {
-      precision?: number;
-      min?: number;
-      max?: number;
-      required?: boolean;
-      format?: string;
-      customValidation?: string;
-    };
-    isActive?: boolean;
-    displayOrder?: number;
-    tags?: string[];
-    metadata?: Record<string, any>;
-    createdAt: string;
-    updatedAt: string;
-  };
+  metric?: MetricDTO;
 }
 
 // Update the service response type
-type ServiceResponse = ApiResponse<CompanyMetricDTO[]>;
+type ServiceResponse = ApiResponse<CompanyMetricDTO>;
 
 // State interface
 interface CompanyMetricsState {
@@ -147,13 +158,6 @@ const handleMetricError = (error: unknown) => {
   };
 };
 
-// Types for API interactions
-type CompanyMetricInput = Omit<ICompanyMetric, 'id' | 'createdAt' | 'updatedAt' | 'date'> & {
-  createdAt?: string;
-  updatedAt?: string;
-  date: string;
-};
-
 // Async thunks
 export const fetchCompanyMetricById = createAsyncThunk(
   'companyMetrics/fetchById',
@@ -175,25 +179,69 @@ export const fetchCompanyMetricById = createAsyncThunk(
 );
 
 export const fetchCompanyMetrics = createAsyncThunk<
-  ApiResponse<CompanyMetricDTO[]>,
+  { data: ICompanyMetric[]; meta: { responseTime: number; correlationId: string } },
   void,
   { rejectValue: ApiError }
 >('companyMetrics/fetchAll', async (_, { rejectWithValue }) => {
   try {
     const response = await companyMetricsService.getCompanyMetrics();
     
-    // The response is already in the correct format
-    return response;
+    // Convert DTO to internal type
+    const metrics = response.data.data.map(dto => ({
+      id: dto.id,
+      companyId: dto.companyId,
+      metricId: dto.metricId,
+      value: dto.value,
+      date: dto.date,
+      source: dto.source,
+      isVerified: dto.isVerified,
+      verifiedBy: dto.verifiedBy ?? null,
+      verifiedAt: dto.verifiedAt ?? null,
+      notes: dto.notes,
+      isActive: dto.isActive,
+      createdAt: dto.createdAt,
+      updatedAt: dto.updatedAt,
+      metric: dto.metric ? {
+        id: dto.metric.id,
+        name: dto.metric.name,
+        displayName: dto.metric.displayName || dto.metric.name,
+        description: dto.metric.description || '',
+        category: dto.metric.category as MetricCategory,
+        type: (dto.metric.type || 'CUSTOM') as MetricType,
+        valueType: (dto.metric.valueType || 'number') as MetricValueType,
+        validationRules: {
+          precision: dto.metric.validationRules?.precision ?? 2,
+          min: dto.metric.validationRules?.min,
+          max: dto.metric.validationRules?.max,
+          required: dto.metric.validationRules?.required,
+          format: dto.metric.validationRules?.format,
+          customValidation: dto.metric.validationRules?.customValidation
+        },
+        isActive: dto.metric.isActive ?? true,
+        displayOrder: dto.metric.displayOrder ?? 0,
+        tags: dto.metric.tags || [],
+        metadata: dto.metric.metadata || {},
+        createdAt: dto.metric.createdAt,
+        updatedAt: dto.metric.updatedAt
+      } : undefined
+    } as ICompanyMetric));
+    
+    return {
+      data: metrics,
+      meta: {
+        responseTime: response.meta?.responseTime || 0,
+        correlationId: response.meta?.correlationId || ''
+      }
+    };
   } catch (error) {
     if (error instanceof AxiosError) {
-      const apiError = handleApiError(error);
       return rejectWithValue({
         status: 'error',
-        code: 'API_ERROR',
-        message: apiError.message,
-        details: {},
+        code: error.response?.data?.code || 'API_ERROR',
+        message: error.response?.data?.message || error.message,
+        details: error.response?.data?.details || {},
         timestamp: new Date().toISOString()
-      } as ApiError);
+      });
     }
     return rejectWithValue({
       status: 'error',
@@ -201,7 +249,7 @@ export const fetchCompanyMetrics = createAsyncThunk<
       message: error instanceof Error ? error.message : 'Unknown error occurred',
       details: {},
       timestamp: new Date().toISOString()
-    } as ApiError);
+    });
   }
 });
 
@@ -314,66 +362,44 @@ export const deleteCompanyMetric = createAsyncThunk(
 );
 
 // Convert DTO to internal type
-const convertDTOToInternal = (dto: CompanyMetricDTO): ICompanyMetric => {
-  const metric: ICompanyMetric = {
-    id: dto.id,
-    companyId: dto.companyId,
-    metricId: dto.metricId,
-    value: dto.value,
-    date: new Date(dto.date),
-    source: dto.source,
-    isVerified: dto.isVerified,
-    verifiedBy: dto.verifiedBy,
-    verifiedAt: dto.verifiedAt ? new Date(dto.verifiedAt) : undefined,
-    notes: dto.notes,
-    isActive: dto.isActive,
-    createdAt: new Date(dto.createdAt),
-    updatedAt: new Date(dto.updatedAt),
-    metric: dto.metric ? {
-      id: dto.metric.id,
-      name: dto.metric.name,
-      displayName: dto.metric.displayName || dto.metric.name,
-      description: dto.metric.description || '',
-      category: dto.metric.category,
-      type: dto.metric.type,
-      valueType: dto.metric.valueType,
-      validationRules: {
-        precision: dto.metric.validationRules?.precision ?? 2,
-        min: dto.metric.validationRules?.min,
-        max: dto.metric.validationRules?.max,
-        required: dto.metric.validationRules?.required,
-        format: dto.metric.validationRules?.format,
-        customValidation: dto.metric.validationRules?.customValidation
-      },
-      isActive: dto.metric.isActive ?? true,
-      displayOrder: dto.metric.displayOrder ?? 0,
-      tags: dto.metric.tags || [],
-      metadata: dto.metric.metadata || {},
-      createdAt: new Date(dto.metric.createdAt),
-      updatedAt: new Date(dto.metric.updatedAt)
-    } : {
-      id: dto.metricId,
-      name: 'Unknown Metric',
-      displayName: 'Unknown Metric',
-      description: '',
-      category: 'operational',
-      type: MetricType.USERS,
-      valueType: 'number' as MetricValueType,
-      validationRules: {
-        precision: 2,
-        min: 0,
-        max: Number.MAX_SAFE_INTEGER
-      },
-      isActive: true,
-      displayOrder: 0,
-      tags: [],
-      metadata: {},
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  };
-  return metric;
-};
+const convertDTOToInternal = (dto: CompanyMetricDTO): ICompanyMetric => ({
+  id: dto.id,
+  companyId: dto.companyId,
+  metricId: dto.metricId,
+  value: dto.value,
+  date: dto.date,
+  source: dto.source,
+  isVerified: dto.isVerified,
+  verifiedBy: dto.verifiedBy ?? null,
+  verifiedAt: dto.verifiedAt ?? null,
+  notes: dto.notes,
+  isActive: dto.isActive,
+  createdAt: dto.createdAt,
+  updatedAt: dto.updatedAt,
+  metric: dto.metric ? {
+    id: dto.metric.id,
+    name: dto.metric.name,
+    displayName: dto.metric.displayName || dto.metric.name,
+    description: dto.metric.description || '',
+    category: dto.metric.category as MetricCategory,
+    type: (dto.metric.type || 'CUSTOM') as MetricType,
+    valueType: (dto.metric.valueType || 'number') as MetricValueType,
+    validationRules: {
+      precision: dto.metric.validationRules?.precision ?? 2,
+      min: dto.metric.validationRules?.min,
+      max: dto.metric.validationRules?.max,
+      required: dto.metric.validationRules?.required,
+      format: dto.metric.validationRules?.format,
+      customValidation: dto.metric.validationRules?.customValidation
+    },
+    isActive: dto.metric.isActive ?? true,
+    displayOrder: dto.metric.displayOrder ?? 0,
+    tags: dto.metric.tags || [],
+    metadata: dto.metric.metadata || {},
+    createdAt: dto.metric.createdAt,
+    updatedAt: dto.metric.updatedAt
+  } : undefined
+});
 
 // Slice
 export const companyMetricsSlice = createSlice({
@@ -403,11 +429,7 @@ export const companyMetricsSlice = createSlice({
       })
       .addCase(fetchCompanyMetrics.fulfilled, (state, action) => {
         console.log('Setting metrics in reducer:', action.payload);
-        // Extract metrics array from the response data structure
-        const metricsArray = action.payload.data.data;
-        
-        // Convert DTO to ICompanyMetric with proper Date objects
-        state.metrics = metricsArray.map(convertDTOToInternal);
+        state.metrics = action.payload.data;
         state.loadingStates['fetchAll'] = { isLoading: false, operation: 'fetch' };
         state.lastUpdated = Date.now();
       })
@@ -469,23 +491,92 @@ export const companyMetricsSlice = createSlice({
   },
 });
 
-// Selectors
-export const selectAllMetrics = (state: { companyMetrics: CompanyMetricsState }) =>
-  state.companyMetrics.metrics;
+// Memoized selectors
+const selectMetricsState = (state: { companyMetrics: CompanyMetricsState }) => state.companyMetrics;
 
-export const selectMetricById = (state: { companyMetrics: CompanyMetricsState }, id: string) =>
-  state.companyMetrics.metrics.find((m) => m.id === id);
+const selectRawMetrics = createSelector(
+  [selectMetricsState],
+  state => state.metrics
+);
 
-export const selectLoadingState = (
-  state: { companyMetrics: CompanyMetricsState },
-  operation: string
-) => state.companyMetrics.loadingStates[operation];
+export const selectAllMetrics = createSelector(
+  [selectRawMetrics],
+  metrics => {
+    console.log('Computing selectAllMetrics with metrics:', metrics);
+    return metrics.map(metric => {
+      const converted = {
+        ...metric,
+        date: metric.date,
+        createdAt: metric.createdAt,
+        updatedAt: metric.updatedAt,
+        verifiedAt: metric.verifiedAt
+      };
+      
+      if (metric.metric) {
+        converted.metric = {
+          ...metric.metric,
+          createdAt: metric.metric.createdAt,
+          updatedAt: metric.metric.updatedAt
+        };
+      }
+      
+      return converted;
+    });
+  }
+);
 
-export const selectError = (state: { companyMetrics: CompanyMetricsState }) =>
-  state.companyMetrics.error;
+// Add a selector for formatted dates if needed in the UI
+export const selectFormattedMetrics = createSelector(
+  [selectRawMetrics],
+  metrics => metrics.map(metric => ({
+    ...metric,
+    formattedDate: new Date(metric.date).toLocaleDateString(),
+    formattedCreatedAt: new Date(metric.createdAt).toLocaleDateString(),
+    formattedUpdatedAt: new Date(metric.updatedAt).toLocaleDateString(),
+    formattedVerifiedAt: metric.verifiedAt ? new Date(metric.verifiedAt).toLocaleDateString() : null,
+    metric: metric.metric ? {
+      ...metric.metric,
+      formattedCreatedAt: new Date(metric.metric.createdAt).toLocaleDateString(),
+      formattedUpdatedAt: new Date(metric.metric.updatedAt).toLocaleDateString()
+    } : undefined
+  }))
+);
 
-export const selectSelectedMetricId = (state: { companyMetrics: CompanyMetricsState }) =>
-  state.companyMetrics.selectedMetricId;
+export const selectMetricById = createSelector(
+  [selectMetricsState, (_state, id: string) => id],
+  (metricsState, id) => {
+    const metric = metricsState.metrics.find((m) => m.id === id);
+    if (!metric) return undefined;
+    
+    return {
+      ...metric,
+      date: new Date(metric.date),
+      createdAt: new Date(metric.createdAt),
+      updatedAt: new Date(metric.updatedAt),
+      verifiedAt: metric.verifiedAt ? new Date(metric.verifiedAt) : null,
+      metric: metric.metric ? {
+        ...metric.metric,
+        createdAt: new Date(metric.metric.createdAt),
+        updatedAt: new Date(metric.metric.updatedAt)
+      } : undefined
+    };
+  }
+);
+
+export const selectLoadingState = createSelector(
+  [selectMetricsState, (_state, operation: string) => operation],
+  (metricsState, operation) => metricsState.loadingStates[operation]
+);
+
+export const selectError = createSelector(
+  [selectMetricsState],
+  (metricsState) => metricsState.error
+);
+
+export const selectSelectedMetricId = createSelector(
+  [selectMetricsState],
+  (metricsState) => metricsState.selectedMetricId
+);
 
 // Actions
 export const { setSelectedMetric, clearError, invalidateCache } = companyMetricsSlice.actions;

@@ -101,37 +101,24 @@ const createErrorConfig = (): ErrorConfig => {
 
 // Helper function to handle errors
 const handleBenchmarkError = (error: unknown): BenchmarkError => {
-  const config = createErrorConfig();
+  if (error instanceof AxiosError) {
+    const errorMessage = error.response?.data?.message || error.message;
+    return {
+      message: errorMessage,
+      code: error.response?.data?.code || error.code || 'UNKNOWN_ERROR'
+    };
+  }
 
-  const axiosError: AxiosError<ApiError> = {
-    isAxiosError: true,
-    name: 'AxiosError',
-    message: error instanceof Error ? error.message : 'An unknown error occurred',
-    toJSON: () => ({
-      message: error instanceof Error ? error.message : 'An unknown error occurred',
-      code: 'UNKNOWN_ERROR',
-    }),
-    config,
-    response: {
-      data: {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'An unknown error occurred',
-        code: 'UNKNOWN_ERROR',
-        details: {},
-        timestamp: new Date().toISOString(),
-      },
-      status: 500,
-      statusText: 'Internal Server Error',
-      headers: config.headers,
-      config,
-    },
-  };
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      code: 'UNKNOWN_ERROR'
+    };
+  }
 
-  const handledError = handleApiError(axiosError);
   return {
-    message: handledError.message,
-    code:
-      typeof handledError.details?.code === 'string' ? handledError.details.code : 'UNKNOWN_ERROR',
+    message: 'Failed to process your request',
+    code: 'UNKNOWN_ERROR'
   };
 };
 
@@ -283,19 +270,19 @@ const benchmarkSlice = createSlice({
 });
 
 // Selectors
-export const selectBenchmarkState = (state: { benchmark: BenchmarkState }) => state.benchmark;
-export const selectBenchmarks = (state: { benchmark: BenchmarkState }) =>
-  state.benchmark.benchmarks;
-export const selectSelectedMetric = (state: { benchmark: BenchmarkState }) =>
-  state.benchmark.selectedMetricId;
-export const selectSelectedRevenueRange = (state: { benchmark: BenchmarkState }) =>
-  state.benchmark.selectedRevenueRange;
-export const selectComparisonResult = (state: { benchmark: BenchmarkState }) =>
-  state.benchmark.comparisonResult;
-export const selectBenchmarkLoading = (state: { benchmark: BenchmarkState }) =>
-  state.benchmark.loading;
-export const selectBenchmarkErrors = (state: { benchmark: BenchmarkState }) =>
-  state.benchmark.error;
+export const selectBenchmarkState = (state: { benchmarks: BenchmarkState }) => state.benchmarks;
+export const selectBenchmarks = (state: { benchmarks: BenchmarkState }) =>
+  state.benchmarks.benchmarks;
+export const selectSelectedMetric = (state: { benchmarks: BenchmarkState }) =>
+  state.benchmarks.selectedMetricId;
+export const selectSelectedRevenueRange = (state: { benchmarks: BenchmarkState }) =>
+  state.benchmarks.selectedRevenueRange;
+export const selectComparisonResult = (state: { benchmarks: BenchmarkState }) =>
+  state.benchmarks.comparisonResult;
+export const selectBenchmarkLoading = (state: { benchmarks: BenchmarkState }) =>
+  state.benchmarks.loading;
+export const selectBenchmarkErrors = (state: { benchmarks: BenchmarkState }) =>
+  state.benchmarks.error;
 
 // Actions
 export const {

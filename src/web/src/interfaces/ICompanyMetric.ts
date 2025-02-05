@@ -1,5 +1,5 @@
-import { IMetric, MetricValueType } from './IMetric';
-import { METRIC_VALIDATION_RULES } from '../config/constants';
+import { MetricCategory, MetricValueType } from './IMetric';
+import { METRIC_VALIDATION_RULES } from '../constants/validations';
 
 /**
  * Interface defining the structure of company-specific metric data
@@ -20,7 +20,7 @@ export interface ICompanyMetric {
   value: number;
 
   /** Date when the metric was recorded */
-  date: Date;
+  date: string;
 
   /** Source of the metric data */
   source: string;
@@ -29,10 +29,10 @@ export interface ICompanyMetric {
   isVerified: boolean;
 
   /** Reference to the user who verified the metric */
-  verifiedBy?: string;
+  verifiedBy?: string | null;
 
   /** Timestamp when the metric was verified */
-  verifiedAt?: Date;
+  verifiedAt?: string | null;
 
   /** Additional notes about the metric */
   notes?: string;
@@ -44,10 +44,10 @@ export interface ICompanyMetric {
   metric?: IMetric;
 
   /** Timestamp of initial creation */
-  createdAt: Date;
+  createdAt: string;
 
   /** Timestamp of last update */
-  updatedAt: Date;
+  updatedAt: string;
 }
 
 /**
@@ -64,17 +64,46 @@ export function isCompanyMetric(value: unknown): value is ICompanyMetric {
     typeof metric.companyId === 'string' &&
     typeof metric.metricId === 'string' &&
     typeof metric.value === 'number' &&
-    metric.date instanceof Date &&
+    typeof metric.date === 'string' &&
     typeof metric.source === 'string' &&
     typeof metric.isVerified === 'boolean' &&
     typeof metric.isActive === 'boolean' &&
     (metric.verifiedBy === undefined || typeof metric.verifiedBy === 'string') &&
-    (metric.verifiedAt === undefined || metric.verifiedAt instanceof Date) &&
+    (metric.verifiedAt === undefined || typeof metric.verifiedAt === 'string') &&
     (metric.notes === undefined || typeof metric.notes === 'string') &&
     (metric.metric === undefined || typeof metric.metric === 'object') &&
-    metric.createdAt instanceof Date &&
-    metric.updatedAt instanceof Date
+    typeof metric.createdAt === 'string' &&
+    typeof metric.updatedAt === 'string'
   );
+}
+
+export interface IMetricValidationRules {
+  precision?: number;
+  min?: number;
+  max?: number;
+  required?: boolean;
+  format?: string;
+  customValidation?: {
+    rule: string;
+    message: string;
+  }[];
+}
+
+export interface IMetric {
+  id: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+  category: MetricCategory;
+  type: string;
+  valueType: string;
+  validationRules: IMetricValidationRules;
+  isActive?: boolean;
+  displayOrder?: number;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -99,7 +128,8 @@ export function validateCompanyMetricValue(
 
   const valueType = metric.valueType as MetricValueType;
   console.log('valueType', valueType);
-  const rules = METRIC_VALIDATION_RULES[valueType];
+  const upperValueType = valueType.toUpperCase() as keyof typeof METRIC_VALIDATION_RULES;
+  const rules = METRIC_VALIDATION_RULES[upperValueType];
   console.log('rules', rules);
   if (!rules) {
     return false;

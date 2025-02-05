@@ -16,6 +16,7 @@ import {
   Email as EmailIcon,
   Notifications as NotificationsIcon,
   Shield as ShieldIcon,
+  Business as BusinessIcon,
 } from '@mui/icons-material';
 
 // Styled Components
@@ -72,15 +73,13 @@ const Select = styled.select`
   padding: var(--spacing-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius-sm);
-  background-color: var(--color-background);
+  background-color: var(--color-surface);
   color: var(--color-text-primary);
-  font-size: var(--font-size-md);
-  transition: border-color 0.2s ease;
+  font-size: var(--font-size-base);
 
   &:focus {
     outline: none;
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px var(--color-primary-light);
   }
 `;
 
@@ -168,6 +167,7 @@ interface UserPreferences {
     security: boolean;
   };
   twoFactorEnabled: boolean;
+  revenueRange?: string;
 }
 
 // Constants
@@ -312,6 +312,31 @@ const UserSettings: React.FC<UserSettingsProps> = React.memo(({ className }) => 
         <Field>
           <label>Last Login</label>
           <div className="value">{formatLastLogin(user.lastLoginAt)}</div>
+        </Field>
+      </StyledCard>
+
+      <StyledCard elevation="medium" className="section">
+        <SectionHeader>
+          <BusinessIcon />
+          <h2>Company Information</h2>
+        </SectionHeader>
+        <Field>
+          <label htmlFor="revenueRange">Annual Revenue Range</label>
+          <Select
+            id="revenueRange"
+            value={user.revenueRange || ''}
+            onChange={(e) => handlePreferenceChange('revenueRange', e.target.value)}
+          >
+            <option value="">Select Revenue Range</option>
+            <option value="0-1M">$0 - $1M</option>
+            <option value="1M-5M">$1M - $5M</option>
+            <option value="5M-20M">$5M - $20M</option>
+            <option value="20M-50M">$20M - $50M</option>
+            <option value="50M+">$50M+</option>
+          </Select>
+          <div className="description">
+            Select your company's annual revenue range for accurate benchmark comparisons
+          </div>
         </Field>
       </StyledCard>
 

@@ -28,12 +28,33 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
+// Type for API input with string dates
+type CompanyMetricApiInput = Omit<ICompanyMetric, 'id' | 'createdAt' | 'updatedAt' | 'date'> & {
+  createdAt?: string;
+  updatedAt?: string;
+  date: string;
+};
+
 // Validation schema for metric data
 const metricDataSchema = yup.object().shape({
   value: yup.number().required('Metric value is required'),
   metricId: yup.string().required('Metric ID is required'),
   timestamp: yup.string().required('Timestamp is required'),
 });
+
+// Helper function to format error messages
+const formatErrorMessage = (error: unknown): string => {
+  if (error instanceof AxiosError) {
+    return error.response?.data?.message || error.message || 'An error occurred';
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return 'An unknown error occurred';
+};
 
 /**
  * Enhanced hook for managing company metrics with security, caching, and error handling
@@ -105,11 +126,10 @@ export const useCompanyMetrics = () => {
         } catch (error) {
           if (error instanceof AxiosError && error.response?.status === 404) {
             // Return empty array for 404s
-            return [];
+            return { data: [], meta: { responseTime: 0, correlationId: '' } };
           }
           console.error('Error fetching metrics:', error);
-          // Don't throw the error, just return empty array
-          return [];
+          throw new Error(formatErrorMessage(error));
         }
       }, DEBOUNCE_DELAY),
     [dispatch]
@@ -151,7 +171,7 @@ export const useCompanyMetrics = () => {
           return result;
         } catch (error) {
           console.error('Error fetching metric:', error);
-          throw error;
+          throw new Error(formatErrorMessage(error));
         }
       }, DEBOUNCE_DELAY),
     [dispatch]
@@ -170,11 +190,19 @@ export const useCompanyMetrics = () => {
   const createMetric = useCallback(
     async (metricData: Omit<ICompanyMetric, 'id'>) => {
       try {
-        const result = await dispatch(createCompanyMetric(metricData)).unwrap();
+        // Convert dates to ISO strings for API input
+        const formattedData: CompanyMetricApiInput = {
+          ...metricData,
+          date: metricData.date.toISOString(),
+          createdAt: metricData.createdAt?.toISOString(),
+          updatedAt: metricData.updatedAt?.toISOString()
+        };
+
+        const result = await dispatch(createCompanyMetric(formattedData)).unwrap();
         return result;
       } catch (error) {
         console.error('Error creating metric:', error);
-        throw error;
+        throw new Error(formatErrorMessage(error));
       }
     },
     [dispatch]
@@ -199,14 +227,18 @@ export const useCompanyMetrics = () => {
           });
         }
 
-        const sanitizedData: Partial<ICompanyMetric> = {
+        // Convert dates to ISO strings for API input
+        const sanitizedData: Partial<CompanyMetricApiInput> = {
           ...metricData,
+          date: metricData.date?.toISOString(),
+          createdAt: metricData.createdAt?.toISOString(),
+          updatedAt: metricData.updatedAt?.toISOString()
         };
 
         await dispatch(updateCompanyMetric({ id, data: sanitizedData })).unwrap();
       } catch (error) {
         console.error('Error updating metric:', error);
-        throw error;
+        throw new Error(formatErrorMessage(error));
       }
     },
     [dispatch]
@@ -225,7 +257,7 @@ export const useCompanyMetrics = () => {
         await dispatch(deleteCompanyMetric(id)).unwrap();
       } catch (error) {
         console.error('Error deleting metric:', error);
-        throw error;
+        throw new Error(formatErrorMessage(error));
       }
     },
     [dispatch]
@@ -235,7 +267,7 @@ export const useCompanyMetrics = () => {
     // State
     metrics,
     loading,
-    error,
+    error: error ? formatErrorMessage(error) : null,
 
     // Operations
     fetchMetrics,

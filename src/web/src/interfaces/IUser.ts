@@ -20,6 +20,7 @@ import { UserRole } from '../config/constants';
  * @property {Date} createdAt - Timestamp of user account creation
  * @property {Date} lastLoginAt - Timestamp of user's last successful login
  * @property {boolean} isActive - Flag indicating if user account is active
+ * @property {string} revenueRange - Company's annual revenue range for benchmarking
  */
 export interface IUser {
   readonly id: string;
@@ -30,6 +31,7 @@ export interface IUser {
   readonly createdAt: Date;
   readonly lastLoginAt: Date;
   readonly isActive: boolean;
+  readonly revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
   preferences: UserPreferences;
   permissions: string[];
 }

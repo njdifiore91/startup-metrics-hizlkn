@@ -3,7 +3,7 @@ import { debounce } from 'lodash'; // ^4.17.21
 import styled from '@emotion/styled';
 
 // Internal imports
-import { IMetric, ValidationRule } from '../../interfaces/IMetric';
+import { IMetric, ValidationRule, MetricValueType } from '../../interfaces/IMetric';
 import { IBenchmark } from '../../interfaces/IBenchmark';
 import BenchmarkChart from '../charts/BenchmarkChart';
 import { useBenchmarks } from '../../hooks/useBenchmarks';
@@ -51,11 +51,62 @@ const ComparisonContainer = styled.div`
   box-shadow: var(--shadow-sm);
 `;
 
+const ChartContainer = styled.div`
+  position: relative;
+  height: 400px;
+  margin-bottom: var(--spacing-lg);
+`;
+
+const InsightsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background-color: var(--color-background-alt);
+  border-radius: var(--border-radius-sm);
+`;
+
+const InsightTitle = styled.h3`
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin: 0;
+`;
+
+const InsightText = styled.p`
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  background-color: var(--color-background-alt);
+  border-radius: var(--border-radius-md);
+`;
+
 const ErrorContainer = styled.div`
-  padding: var(--spacing-base);
+  padding: var(--spacing-md);
   color: var(--color-error);
+  background-color: var(--color-error-light);
+  border-radius: var(--border-radius-md);
   text-align: center;
 `;
+
+const formatValue = (value: number, valueType: MetricValueType): string => {
+  switch (valueType) {
+    case 'percentage':
+    case 'ratio':
+    case 'number':
+    case 'currency':
+      return formatMetricValue(value, valueType);
+    default:
+      return value.toString();
+  }
+};
 
 /**
  * Enterprise-grade metric comparison component with accessibility and performance optimizations
@@ -171,7 +222,11 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(
     }, [handleComparisonUpdate]);
 
     if (loading) {
-      return <div>Loading...</div>;
+      return (
+        <LoadingContainer role="status">
+          <span>Loading comparison data...</span>
+        </LoadingContainer>
+      );
     }
 
     if (localError || benchmarkError) {
@@ -181,17 +236,50 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(
     }
 
     if (!benchmarks || benchmarks.length === 0) {
-      return <div>No benchmark data available.</div>;
+      return (
+        <ErrorContainer role="alert">
+          No benchmark data available for {metric.name} in {revenueRange} range.
+        </ErrorContainer>
+      );
     }
+
+    const benchmark = benchmarks[0];
+    const formattedCompanyValue = companyValue !== undefined 
+      ? formatValue(companyValue, metric.valueType)
+      : 'Not provided';
 
     return (
       <ComparisonContainer className={className}>
-        <BenchmarkChart
-          benchmark={benchmarks[0]}
-          companyMetric={companyValue}
-          height="400px"
-          ariaLabel={`Benchmark comparison chart for ${benchmarks[0].metric.name}`}
-        />
+        <ChartContainer>
+          <BenchmarkChart
+            benchmark={benchmark}
+            companyMetric={companyValue}
+            height="100%"
+            ariaLabel={`Benchmark comparison chart for ${benchmark.metric.name}`}
+          />
+        </ChartContainer>
+
+        {comparison && (
+          <InsightsContainer>
+            <InsightTitle>Benchmark Insights</InsightTitle>
+            <InsightText>
+              Your {metric.name} of {formattedCompanyValue} is at the {comparison.percentile}th percentile
+              for companies in the {revenueRange} revenue range.
+            </InsightText>
+            {comparison.difference !== 0 && (
+              <InsightText>
+                This is {Math.abs(comparison.difference)}% {comparison.difference > 0 ? 'above' : 'below'} the median
+                benchmark value.
+              </InsightText>
+            )}
+            {comparison.trend && (
+              <InsightText>
+                This shows a {comparison.trend.direction} trend with a {comparison.trend.magnitude}% change
+                compared to the previous period.
+              </InsightText>
+            )}
+          </InsightsContainer>
+        )}
       </ComparisonContainer>
     );
   }

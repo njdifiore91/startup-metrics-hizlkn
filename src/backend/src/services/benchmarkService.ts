@@ -1,4 +1,4 @@
-import { IBenchmarkData } from '../interfaces/benchmark';
+import { IBenchmarkData } from '../interfaces/IBenchmarkData';
 import { logger } from '../utils/logger';
 import { AppError } from '../utils/errorHandler';
 import { BUSINESS_ERRORS } from '../constants/errorCodes';
@@ -8,8 +8,25 @@ export class BenchmarkService {
 
   public async getBenchmarksByMetric(metricId: string, revenueRange: string): Promise<IBenchmarkData[]> {
     try {
-      // TODO: Implement actual database query
-      return [];
+      // For now, return mock data for testing
+      return [{
+        id: 'mock-benchmark-1',
+        metricId: metricId,
+        sourceId: 'mock-source-1',
+        revenueRange: revenueRange,
+        p10: 10.5,
+        p25: 25.5,
+        p50: 50.5,
+        p75: 75.5,
+        p90: 90.5,
+        reportDate: new Date(),
+        sampleSize: 100,
+        confidenceLevel: 0.95,
+        isSeasonallyAdjusted: false,
+        dataQualityScore: 0.95,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }];
     } catch (error) {
       logger.error('Failed to get benchmarks', { error: error instanceof Error ? error : new Error(String(error)) });
       throw new AppError(
@@ -44,8 +61,20 @@ export class BenchmarkService {
       const benchmark: IBenchmarkData = {
         id,
         metricId: 'temp-metric',
-        revenueRange: 'temp-range',
-        value: 0,
+        sourceId: 'mock-source-1',
+        revenueRange: '1M-5M',
+        p10: 10.5,
+        p25: 25.5,
+        p50: 50.5,
+        p75: 75.5,
+        p90: 90.5,
+        reportDate: new Date(),
+        sampleSize: 100,
+        confidenceLevel: 0.95,
+        isSeasonallyAdjusted: false,
+        dataQualityScore: 0.95,
+        createdAt: new Date(),
+        updatedAt: new Date(),
         ...data
       };
       return benchmark;

@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
-import { IMetric, MetricCategory } from '../interfaces/IMetric';
+import { IMetric, MetricCategory, MetricType } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
 import type { MetricServiceResponse } from '../services/metrics';
+import { typeToCategory } from '@/constants/metricMappings';
 
 const MAX_RETRIES = 3;
 
@@ -76,16 +77,36 @@ export const useMetrics = (): UseMetricsReturn => {
       setLoading((prev) => ({ ...prev, [cacheKey]: true }));
       setError((prev) => ({ ...prev, [cacheKey]: null }));
 
-      const response = await metricsService.getMetricsByCategory(category);
+      const response = await metricsService.getMetricTypes();
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'No metrics found');
       }
 
-      return response.data || [];
+      const filteredMetrics = response.data.filter(metric => {
+        const metricType = metric.type as MetricType;
+        const mappedCategory = typeToCategory[metricType];
+        return mappedCategory === category;
+      }).map(metric => ({
+        id: metric.id,
+        name: metric.name,
+        displayName: metric.name,
+        description: '',
+        category: category,
+        type: metric.type,
+        valueType: metric.valueType,
+        validationRules: {},
+        isActive: true,
+        displayOrder: 0,
+        tags: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+
+      return filteredMetrics;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to fetch metrics by category';
+      const errorMessage = `Failed to fetch metrics for category: ${category}`;
       setError((prev) => ({ ...prev, [cacheKey]: errorMessage }));
       return [];
     } finally {
@@ -195,15 +216,23 @@ export const useMetrics = (): UseMetricsReturn => {
     
     try {
       setLoading((prev) => ({ ...prev, [cacheKey]: true }));
+      setError((prev) => ({ ...prev, [cacheKey]: null }));
+
       const response = await metricsService.getMetricTypes();
-      // console.log('response from getMetricTypes', response);
+      console.log('getMetricTypes response:', response);
+
+      if (!response || response.error) {
+        throw new Error(response?.error || 'Failed to fetch metric types');
+      }
+
+      // Check if response.data exists and is an array
       if (!response.data) {
-        throw new Error(response.error || 'Failed to fetch metric types');
+        throw new Error('Invalid response format for metric types');
       }
       
       return {
-        data: Array.isArray(response.data) ? response.data : [],
-        error: response.error
+        data: response.data,
+        error: undefined
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch metric types';

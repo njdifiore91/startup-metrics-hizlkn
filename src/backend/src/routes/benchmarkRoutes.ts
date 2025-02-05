@@ -10,9 +10,10 @@ import {
   validateBenchmarkUpdate 
 } from '../validators/benchmarkValidator';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
+import { BenchmarkService } from '../services/benchmarkService';
 
 const router = Router();
-const benchmarkController = new BenchmarkController();
+const benchmarkController = new BenchmarkController(new BenchmarkService());
 
 // Initialize auth middleware with Google auth provider
 const { authenticate, authorize } = createAuthMiddleware(new GoogleAuthProvider());
@@ -25,6 +26,14 @@ router.get('/public', benchmarkController.getPublicBenchmarks);
 
 // Protected routes
 router.get('/', 
+  authenticate, 
+  authorize([UserRole.USER, UserRole.ADMIN]),
+  validateRequest(validateBenchmarkGet),
+  benchmarkController.getBenchmarks
+);
+
+// Get benchmarks by metric ID
+router.get('/metrics/:metricId', 
   authenticate, 
   authorize([UserRole.USER, UserRole.ADMIN]),
   validateRequest(validateBenchmarkGet),

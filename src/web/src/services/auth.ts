@@ -136,12 +136,12 @@ export class AuthService {
       if (tokens) {
         this.token = tokens.token;
         this.refreshToken = tokens.refreshToken;
-        api.defaults.headers.common['Authorization'] = `Bearer ${tokens.token}`;
 
         // Validate the session immediately
         const isValid = await this.validateSession();
         if (isValid) {
           this.isAuthenticated = true;
+          api.defaults.headers.common['Authorization'] = `Bearer ${tokens.token}`;
           this.setupGlobalValidation();
         } else {
           this.clearTokens();
@@ -661,7 +661,9 @@ export class AuthService {
     this.refreshToken = '';
     this.isAuthenticated = false;
     this.currentUser = null;
-    api.defaults.headers.common['Authorization'] = '';
+    if (api?.defaults?.headers?.common) {
+      delete api.defaults.headers.common['Authorization'];
+    }
   }
 
   private handleUserChange(googleUser: GoogleUser): void {
