@@ -618,6 +618,127 @@ export class MetricsService {
     const cacheKey = `metrics:${category}:*`;
     await this.cache.del(cacheKey);
   }
+
+  /**
+   * Get benchmarks by metric ID
+   */
+  async getBenchmarksByMetric(metricId: string): Promise<any[]> {
+    try {
+      const cacheKey = `benchmark_metric_${metricId}`;
+      const cached = await this.cache.get(cacheKey);
+      if (cached) {
+        return cached as any[];
+      }
+
+      const metric = await Metric.findByPk(metricId);
+      if (!metric) {
+        throw new NotFoundError(`Metric not found: ${metricId}`);
+      }
+
+      const benchmarks = await CompanyMetric.findAll({
+        where: { metricId },
+        attributes: ['value', 'date'],
+        order: [['date', 'DESC']],
+        limit: 100,
+      });
+
+      const result = benchmarks.map((b) => ({
+        value: b.value,
+        date: b.date,
+      }));
+
+      await this.cache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      logger.error('Error getting benchmarks by metric:', {
+        error: error instanceof Error ? error.message : String(error),
+        metricId,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get benchmarks by revenue range
+   */
+  async getBenchmarksByRevenue(revenueRange: string): Promise<any[]> {
+    try {
+      const cacheKey = `benchmark_revenue_${revenueRange}`;
+      const cached = await this.cache.get(cacheKey);
+      if (cached) {
+        return cached as any[];
+      }
+
+      const benchmarks = await CompanyMetric.findAll({
+        include: [
+          {
+            model: Metric,
+            as: 'metric',
+            attributes: ['name', 'displayName', 'type'],
+          },
+        ],
+        attributes: ['value', 'date'],
+        order: [['date', 'DESC']],
+        limit: 100,
+      });
+
+      const result = benchmarks.map((b) => ({
+        value: b.value,
+        date: b.date,
+        metric: b.metric,
+      }));
+
+      await this.cache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      logger.error('Error getting benchmarks by revenue:', {
+        error: error instanceof Error ? error.message : String(error),
+        revenueRange,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Compare benchmarks for given metrics
+   */
+  async compareBenchmarks(metricIds: string[], companyValue: number): Promise<any> {
+    try {
+      const benchmarks = await CompanyMetric.findAll({
+        where: {
+          metricId: {
+            [Op.in]: metricIds,
+          },
+        },
+        attributes: ['value', 'metricId'],
+        order: [['value', 'ASC']],
+      });
+
+      const results = metricIds.reduce((acc, metricId) => {
+        const metricBenchmarks = benchmarks.filter((b) => b.metricId === metricId);
+        const values = metricBenchmarks.map((b) => b.value);
+
+        // Calculate percentile
+        const position = values.filter((v) => v <= companyValue).length;
+        const percentile = (position / values.length) * 100;
+
+        acc[metricId] = {
+          percentile,
+          totalComparisons: values.length,
+          averageValue: values.reduce((sum, v) => sum + v, 0) / values.length,
+        };
+        return acc;
+      }, {} as Record<string, any>);
+
+      return results;
+    } catch (error) {
+      logger.error('Error comparing benchmarks:', {
+        error: error instanceof Error ? error.message : String(error),
+        metricIds,
+      });
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

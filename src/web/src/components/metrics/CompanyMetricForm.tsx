@@ -3,7 +3,12 @@ import styled from '@emotion/styled';
 import { useForm } from 'react-hook-form';
 import { debounce } from 'lodash';
 import { Input } from '../common/Input';
-import { ICompanyMetric, validateCompanyMetricValue } from '../../interfaces/ICompanyMetric';
+import {
+  ICompanyMetric,
+  validateCompanyMetricValue,
+  IMetric,
+  IMetricValidationRules,
+} from '../../interfaces/ICompanyMetric';
 import { useCompanyMetrics } from '../../hooks/useCompanyMetrics';
 import { useMetrics } from '../../hooks/useMetrics';
 import { useDataSources } from '../../hooks/useDataSources';
@@ -11,9 +16,14 @@ import { AxiosError } from 'axios';
 import { useAuth } from '../../hooks/useAuth';
 import * as yup from 'yup';
 import LoadingSpinner from '../common/LoadingSpinner';
-import { IMetric, ValidationRule } from '../../interfaces/IMetric';
+import { ValidationRule } from '../../interfaces/IMetric';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { MetricCategory, METRIC_CATEGORIES, isValidMetricValueType, MetricValueType } from '../../../../backend/src/constants/metricTypes';
+import {
+  MetricCategory,
+  METRIC_CATEGORIES,
+  isValidMetricValueType,
+  MetricValueType,
+} from '../../../../backend/src/constants/metricTypes';
 import { METRIC_VALIDATION_RULES } from '../../../../backend/src/constants/validations';
 
 interface ApiError {
@@ -38,7 +48,7 @@ const validationSchema = yup.object().shape({
   date: yup.string().required('Date is required'),
   source: yup.string().required('Source is required'),
   notes: yup.string().optional(),
-  isVerified: yup.boolean().default(false)
+  isVerified: yup.boolean().default(false),
 });
 
 // Styled components
@@ -175,21 +185,32 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
   const { getMetricTypes, getMetricById } = useMetrics();
   const { dataSources, loading: dataSourcesLoading, error: dataSourcesError } = useDataSources();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [metricTypes, setMetricTypes] = React.useState<Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>>>([]);
+  const [metricTypes, setMetricTypes] = React.useState<
+    Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>>
+  >([]);
   const [selectedMetric, setSelectedMetric] = React.useState<IMetric | null>(null);
   const lastValidationRef = useRef<number>(0);
   const lastApiCallRef = useRef<number>(0);
-  const { register, handleSubmit, formState: { errors }, reset, watch, setValue, control } = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+    setValue,
+    control,
+  } = useForm<FormValues>({
     resolver: yupResolver(validationSchema),
     defaultValues: {
       value: initialData?.value ?? 0,
       metricId: initialData?.metricId || '',
-      date: initialData?.date?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
+      date:
+        initialData?.date?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0],
       source: initialData?.source || '',
       notes: initialData?.notes || '',
-      isVerified: initialData?.isVerified || false
+      isVerified: initialData?.isVerified || false,
     },
-    mode: 'onChange'
+    mode: 'onChange',
   });
 
   // Watch for changes in metricId
@@ -231,39 +252,42 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
           min: 0,
           max: 1000000,
           required: true,
-          precision: metricData.precision || 0
+          precision: metricData.precision || 0,
         },
         isActive: metricData.isActive ?? true,
         displayOrder: 0,
         tags: [],
         metadata: {},
         createdAt: metricData.createdAt ? new Date(metricData.createdAt) : new Date(),
-        updatedAt: metricData.updatedAt ? new Date(metricData.updatedAt) : new Date()
+        updatedAt: metricData.updatedAt ? new Date(metricData.updatedAt) : new Date(),
       };
     }
     return null;
   };
 
   // Handle metric selection
-  const handleMetricChange = useCallback(async (id: string) => {
-    console.log('Metric selection changed to:', id);
-    if (id) {
-      try {
-        const response = await getMetricById(id);
-        console.log('Direct metric fetch response:', response);
-        const metricData = extractMetricData(response);
-        if (metricData && isValidMetric(metricData)) {
-          console.log('Setting selected metric directly:', metricData);
-          setSelectedMetric(metricData);
+  const handleMetricChange = useCallback(
+    async (id: string) => {
+      console.log('Metric selection changed to:', id);
+      if (id) {
+        try {
+          const response = await getMetricById(id);
+          console.log('Direct metric fetch response:', response);
+          const metricData = extractMetricData(response);
+          if (metricData && isValidMetric(metricData)) {
+            console.log('Setting selected metric directly:', metricData);
+            setSelectedMetric(metricData);
+          }
+        } catch (error) {
+          console.error('Error fetching metric:', error);
+          setSelectedMetric(null);
         }
-      } catch (error) {
-        console.error('Error fetching metric:', error);
+      } else {
         setSelectedMetric(null);
       }
-    } else {
-      setSelectedMetric(null);
-    }
-  }, [getMetricById]);
+    },
+    [getMetricById]
+  );
 
   // Effect to handle metric ID changes
   useEffect(() => {
@@ -275,14 +299,16 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
   }, [selectedMetricId, handleMetricChange]);
 
   // Helper function to extract metric types from API response
-  const extractMetricTypes = (response: any): Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>> => {
+  const extractMetricTypes = (
+    response: any
+  ): Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>> => {
     if (response && response.data && Array.isArray(response.data)) {
       return response.data.map((metric: any) => ({
         id: metric.id || '',
         name: metric.name || '',
         displayName: metric.displayName || metric.name || '',
         type: metric.type || '',
-        valueType: metric.valueType || ''
+        valueType: metric.valueType || '',
       }));
     }
     return [];
@@ -306,7 +332,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
     fetchMetricTypes();
   }, [getMetricTypes]);
 
-  const [inputValue, setInputValue] = useState<string>(initialData?.value?.toString() || "0");
+  const [inputValue, setInputValue] = useState<string>(initialData?.value?.toString() || '0');
 
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
@@ -317,85 +343,35 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
 
   const onSubmit = async (data: FormValues) => {
     try {
-      console.log('Form submission started with data:', data);
-      const now = new Date();
-      
       if (!selectedMetric) {
-        console.error('No metric definition found. Please select a metric type.');
-        throw new Error('No metric definition found. Please select a metric type.');
+        throw new Error('No metric selected');
       }
 
-      console.log('Selected metric:', selectedMetric);
-
-      // Convert valueType to lowercase for validation
-      const valueType = selectedMetric.valueType.toLowerCase() as MetricValueType;
-      console.log('Normalized value type:', valueType);
-
-      // Validate metric value type
-      if (!isValidMetricValueType(valueType)) {
-        console.error(`Invalid metric value type: ${valueType}`);
-        throw new Error(`Invalid metric value type: ${valueType}`);
-      }
-
-      // Get validation rules based on metric value type
-      const rules = METRIC_VALIDATION_RULES[valueType];
-      console.log('Validation rules for type:', valueType, rules);
-
-      if (!rules) {
-        console.error(`No validation rules found for type: ${valueType}`);
-        throw new Error(`No validation rules found for type: ${valueType}`);
-      }
-
-      // Validate the value against rules
+      // Convert form data to proper types
       const value = Number(data.value);
-      console.log('Validating value:', value, 'against rules:', rules);
-
-      if (isNaN(value) || value < rules.min || value > rules.max) {
-        console.error(`Value ${value} is outside allowed range: ${rules.min} - ${rules.max}`);
-        throw new Error(`Value must be between ${rules.min} and ${rules.max}`);
-      }
-
-      // Check if the value matches the required format
-      if (rules.format && !rules.format.test(value.toString())) {
-        console.error(`Value ${value} does not match required format: ${rules.format}`);
-        throw new Error(`Value must be a whole number for this metric type`);
-      }
-
-      // Check decimal precision
-      const decimalPlaces = (value.toString().split('.')[1] || '').length;
-      if (decimalPlaces > rules.decimalPrecision) {
-        console.error(`Value has ${decimalPlaces} decimal places, max allowed is ${rules.decimalPrecision}`);
-        throw new Error(`Value cannot have more than ${rules.decimalPrecision} decimal places`);
-      }
-
-      // Round the value to match the required precision
-      const roundedValue = Number(value.toFixed(rules.decimalPrecision));
-      
-      // Validate the value using the validateCompanyMetricValue function
-      if (!validateCompanyMetricValue(roundedValue, selectedMetric)) {
-        console.error('Value failed validation against metric rules');
-        throw new Error('Invalid metric value');
-      }
+      const now = new Date().toISOString();
 
       const metricData: Omit<ICompanyMetric, 'id'> = {
-        metricId: data.metricId,
-        value: roundedValue,
-        date: new Date(data.date),
+        value,
         source: data.source,
         notes: data.notes || '',
         isVerified: data.isVerified,
-        companyId: user?.id || '',
-        isActive: true,
+        date: data.date,
         createdAt: now,
         updatedAt: now,
-        metric: selectedMetric
+        metric: selectedMetric,
+        metricId: data.metricId,
+        companyId: user?.id || '',
+        isActive: true,
+        verifiedBy: null,
+        verifiedAt: null,
       };
-      
+
       console.log('Attempting to save metric with data:', metricData);
-      
+
       const createdMetric = await createMetric(metricData);
       console.log('Metric creation response:', createdMetric);
-      
+
       if (createdMetric) {
         await onSubmitSuccess(createdMetric);
       } else {
@@ -406,6 +382,12 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
       // Re-throw the error to be handled by the form's error handling
       throw error;
     }
+  };
+
+  // Helper function to get step value based on metric type
+  const getStepValue = (metric: IMetric | null): string => {
+    if (!metric?.validationRules) return 'any';
+    return metric.validationRules.precision === 0 ? '1' : 'any';
   };
 
   if (authLoading) {
@@ -436,9 +418,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
             </option>
           ))}
         </select>
-        {errors.metricId && (
-          <span className="error">{errors.metricId.message}</span>
-        )}
+        {errors.metricId && <span className="error">{errors.metricId.message}</span>}
       </div>
 
       <div>
@@ -446,21 +426,18 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
           type="number"
           id="value"
           label="Value"
-          step={selectedMetric?.validationRules.decimalPrecision === 0 ? "1" : "any"}
+          step={getStepValue(selectedMetric)}
           {...register('value')}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
             // Round the value if precision is 0
-            const roundedValue = selectedMetric?.validationRules.decimalPrecision === 0 
-              ? Math.round(value)
-              : value;
+            const roundedValue =
+              selectedMetric?.validationRules.decimalPrecision === 0 ? Math.round(value) : value;
             setValue('value', roundedValue);
           }}
           disabled={isSubmitting}
         />
-        {errors.value && (
-          <span className="error">{errors.value.message}</span>
-        )}
+        {errors.value && <span className="error">{errors.value.message}</span>}
       </div>
 
       <div>
@@ -470,18 +447,16 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
           label="Date"
           {...register('date')}
           disabled={isSubmitting}
-          onFocus={(e) => e.target.type = 'date'}
-          onBlur={(e) => e.target.type = 'text'}
+          onFocus={(e) => (e.target.type = 'date')}
+          onBlur={(e) => (e.target.type = 'text')}
         />
-        {errors.date && (
-          <span className="error">{errors.date.message}</span>
-        )}
+        {errors.date && <span className="error">{errors.date.message}</span>}
       </div>
 
       <div>
         <StyledLabel htmlFor="source">Source</StyledLabel>
-        <StyledSelect 
-          {...register('source')} 
+        <StyledSelect
+          {...register('source')}
           id="source"
           disabled={isSubmitting || dataSourcesLoading}
         >
@@ -492,9 +467,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
             </option>
           ))}
         </StyledSelect>
-        {errors.source && (
-          <StyledErrorMessage>{errors.source.message}</StyledErrorMessage>
-        )}
+        {errors.source && <StyledErrorMessage>{errors.source.message}</StyledErrorMessage>}
       </div>
 
       <div>
@@ -505,23 +478,15 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = ({
           {...register('notes')}
           disabled={isSubmitting}
         />
-        {errors.notes && (
-          <span className="error">{errors.notes.message}</span>
-        )}
+        {errors.notes && <span className="error">{errors.notes.message}</span>}
       </div>
 
       <div>
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            {...register('isVerified')}
-            disabled={isSubmitting}
-          />
+          <input type="checkbox" {...register('isVerified')} disabled={isSubmitting} />
           <span>Mark as Verified</span>
         </label>
-        {errors.isVerified && (
-          <span className="error">{errors.isVerified.message}</span>
-        )}
+        {errors.isVerified && <span className="error">{errors.isVerified.message}</span>}
       </div>
 
       <StyledButtonContainer>

@@ -21,17 +21,17 @@ import { createMetricSchema, updateMetricSchema } from '../validators/metricsVal
 import { errorHandler } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
-import { USER_ROLES } from '../constants/roles';
+import { USER_ROLES, FEATURES } from '../constants/roles';
 import { metricsService } from '../services/metricsService';
+import { getRateLimiter } from '../middleware/rateLimiter';
 
 // Initialize auth middleware with Google auth provider
 const { authenticate, authorize } = createAuthMiddleware(new GoogleAuthProvider() as any);
 
-// Constants for rate limiting and caching
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const STANDARD_RATE_LIMIT = 100;
-const WRITE_RATE_LIMIT = 50;
-const CACHE_DURATION = 300; // 5 minutes
+// Rate limit constants
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
+const STANDARD_RATE_LIMIT = 100; // 100 requests per hour
+const WRITE_RATE_LIMIT = 50; // 50 write requests per hour
 
 /**
  * Initialize and configure metrics router with comprehensive middleware stack
@@ -52,21 +52,8 @@ router.use(
 );
 
 // Configure rate limiters
-const standardLimiter = rateLimit({
-  windowMs: RATE_LIMIT_WINDOW,
-  max: STANDARD_RATE_LIMIT,
-  message: 'Too many requests, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const writeLimiter = rateLimit({
-  windowMs: RATE_LIMIT_WINDOW,
-  max: WRITE_RATE_LIMIT,
-  message: 'Too many write requests, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const standardLimiter = getRateLimiter({ max: STANDARD_RATE_LIMIT, windowMs: RATE_LIMIT_WINDOW });
+const writeLimiter = getRateLimiter({ max: WRITE_RATE_LIMIT, windowMs: RATE_LIMIT_WINDOW });
 
 // Health check endpoint (no auth required)
 router.get('/health', (req: Request, res: Response) => {
@@ -86,15 +73,21 @@ router.get(
 );
 
 // GET /metrics/types - Get all metric types for dropdown
-router.get('/types', standardLimiter, authenticate, authorize(USER_ROLES.USER), getMetricTypes);
+router.get(
+  '/types',
+  standardLimiter,
+  authenticate,
+  authorize([USER_ROLES.USER, USER_ROLES.ADMIN]),
+  getMetricTypes
+);
 
 // GET /metrics/:id - Retrieve single metric by ID
 router.get(
   '/:id',
   standardLimiter,
   authenticate,
-  authorize(USER_ROLES.USER),
-  metricsController.getMetricById[1]
+  authorize([USER_ROLES.USER, USER_ROLES.ANALYST, USER_ROLES.ADMIN]),
+  metricsController.getMetricById
 );
 
 // GET /metrics - Get all metrics
@@ -102,8 +95,8 @@ router.get(
   '/',
   standardLimiter,
   authenticate,
-  authorize(USER_ROLES.USER),
-  metricsController.getMetrics[1]
+  authorize([USER_ROLES.USER]),
+  metricsController.getMetrics
 );
 
 // POST /metrics - Create new metric
@@ -111,9 +104,9 @@ router.post(
   '/',
   writeLimiter,
   authenticate,
-  authorize(USER_ROLES.USER),
+  authorize([USER_ROLES.ADMIN]),
   validateRequest(createMetricSchema),
-  metricsController.createMetric[1]
+  metricsController.createMetric
 );
 
 // PUT /metrics/:id - Update existing metric
@@ -121,13 +114,35 @@ router.put(
   '/:id',
   writeLimiter,
   authenticate,
-  authorize(USER_ROLES.USER),
+  authorize([USER_ROLES.ADMIN]),
   validateRequest(updateMetricSchema),
   updateCompanyMetrics
 );
 
-// Industry benchmark routes
-router.get('/benchmarks/:industry', getBenchmarkMetrics);
+// Benchmark routes
+router.get(
+  '/benchmarks/metrics/:metricId',
+  standardLimiter,
+  authenticate,
+  authorize([USER_ROLES.USER, USER_ROLES.ANALYST, USER_ROLES.ADMIN]),
+  getBenchmarkMetrics
+);
+
+router.get(
+  '/benchmarks/revenue/:revenueRange',
+  standardLimiter,
+  authenticate,
+  authorize([USER_ROLES.USER, USER_ROLES.ANALYST, USER_ROLES.ADMIN]),
+  getBenchmarkMetrics
+);
+
+router.post(
+  '/benchmarks/compare',
+  standardLimiter,
+  authenticate,
+  authorize([USER_ROLES.USER, USER_ROLES.ANALYST, USER_ROLES.ADMIN]),
+  getBenchmarkMetrics
+);
 
 // Apply error handling middleware last
 router.use(errorHandler);

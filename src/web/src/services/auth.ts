@@ -458,72 +458,57 @@ export class AuthService {
    */
   public async refreshAuthToken(): Promise<string> {
     try {
-      // Check if we have a refresh token
       if (!this.refreshToken) {
         throw new Error('No refresh token available');
       }
 
-      // Get stored tokens as backup
-      const storedTokens = this.getStoredTokens();
-      if (!storedTokens && !this.token) {
-        throw new Error('No tokens available for refresh');
+      const response = await api.post<IAuthResponse>('/auth/refresh', {
+        refreshToken: this.refreshToken,
+      });
+
+      if (!response.data || !response.data.accessToken) {
+        throw new Error('Invalid response from refresh token endpoint');
       }
 
-      // Use current token or stored token
-      const currentToken = this.token || storedTokens?.token;
-
-      // Attempt to refresh the token
-      const response = await api.post<IAuthResponse>(
-        `${authConfig.authEndpoints.refreshToken}`,
-        {
-          refreshToken: this.refreshToken,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${currentToken}`,
-          },
-        }
-      );
-
-      if (!response.data.accessToken) {
-        throw new Error('No access token received from refresh');
-      }
-
-      // Update tokens
+      // Update tokens and state
       this.token = response.data.accessToken;
       if (response.data.refreshToken) {
         this.refreshToken = response.data.refreshToken;
-        localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, response.data.refreshToken);
-      }
-      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, response.data.accessToken);
-
-      // Update API header
-      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.accessToken}`;
-
-      // Update user data if available
-      if (response.data.user) {
-        this.currentUser = response.data.user;
-        this.isAuthenticated = true;
       }
 
-      // Update token expiration
-      this.tokenExpiration = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+      // Update token in localStorage
+      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, this.token);
+      if (response.data.refreshToken) {
+        localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, this.refreshToken);
+      }
 
-      return response.data.accessToken;
+      // Update axios default headers
+      api.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
+
+      return this.token;
     } catch (error) {
       console.error('Token refresh failed:', error);
 
-      // Only clear tokens for specific error cases
-      if (
-        error instanceof Error &&
-        (error.message.includes('invalid_token') ||
-          error.message.includes('token_expired') ||
-          error.message.includes('invalid_grant'))
-      ) {
-        this.clearTokens();
-      }
+      // Clear tokens and trigger logout
+      this.clearTokens();
 
-      throw error;
+      // Dispatch auth state change event
+      window.dispatchEvent(
+        new CustomEvent('auth-state-change', {
+          detail: {
+            isAuthenticated: false,
+            user: null,
+            token: null,
+            refreshToken: null,
+            tokenExpiration: null,
+          },
+        })
+      );
+
+      // Redirect to login page
+      window.location.href = '/login';
+
+      throw new Error('Token refresh failed. Please log in again.');
     }
   }
 

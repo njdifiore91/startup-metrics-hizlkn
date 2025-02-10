@@ -29,9 +29,9 @@ interface CacheEntry<T> {
 }
 
 // Type for API input with string dates
-type CompanyMetricApiInput = Omit<ICompanyMetric, 'id' | 'createdAt' | 'updatedAt' | 'date'> & {
-  createdAt?: string;
-  updatedAt?: string;
+type CompanyMetricApiInput = Omit<ICompanyMetric, 'id'> & {
+  createdAt: string;
+  updatedAt: string;
   date: string;
 };
 
@@ -103,7 +103,7 @@ export const useCompanyMetrics = () => {
           // Check cache first
           const cacheKey = 'all_metrics';
           const cachedData = cacheRef.current.get(cacheKey);
-          
+
           if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
             return cachedData.data;
           }
@@ -115,7 +115,7 @@ export const useCompanyMetrics = () => {
           abortControllerRef.current = new AbortController();
 
           const result = await dispatch(fetchCompanyMetrics()).unwrap();
-          
+
           // Cache the result
           cacheRef.current.set(cacheKey, {
             data: result,
@@ -149,7 +149,7 @@ export const useCompanyMetrics = () => {
           // Check cache first
           const cacheKey = `metric_${id}`;
           const cachedData = cacheRef.current.get(cacheKey);
-          
+
           if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
             return cachedData.data;
           }
@@ -161,7 +161,7 @@ export const useCompanyMetrics = () => {
           abortControllerRef.current = new AbortController();
 
           const result = await dispatch(fetchCompanyMetricById(id)).unwrap();
-          
+
           // Cache the result
           cacheRef.current.set(cacheKey, {
             data: result,
@@ -193,9 +193,19 @@ export const useCompanyMetrics = () => {
         // Convert dates to ISO strings for API input
         const formattedData: CompanyMetricApiInput = {
           ...metricData,
-          date: metricData.date.toISOString(),
-          createdAt: metricData.createdAt?.toISOString(),
-          updatedAt: metricData.updatedAt?.toISOString()
+          date: metricData.date,
+          createdAt: metricData.createdAt,
+          updatedAt: metricData.updatedAt,
+          metric: metricData.metric,
+          metricId: metricData.metricId,
+          companyId: metricData.companyId,
+          value: metricData.value,
+          source: metricData.source,
+          notes: metricData.notes || '',
+          isVerified: metricData.isVerified,
+          isActive: metricData.isActive,
+          verifiedBy: metricData.verifiedBy,
+          verifiedAt: metricData.verifiedAt,
         };
 
         const result = await dispatch(createCompanyMetric(formattedData)).unwrap();
@@ -232,7 +242,7 @@ export const useCompanyMetrics = () => {
           ...metricData,
           date: metricData.date?.toISOString(),
           createdAt: metricData.createdAt?.toISOString(),
-          updatedAt: metricData.updatedAt?.toISOString()
+          updatedAt: metricData.updatedAt?.toISOString(),
         };
 
         await dispatch(updateCompanyMetric({ id, data: sanitizedData })).unwrap();

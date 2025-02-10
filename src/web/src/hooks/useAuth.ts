@@ -81,28 +81,39 @@ export const useAuth = (): UseAuthReturn => {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const sessionStatus = useSelector((state: RootState) => state.auth.sessionStatus);
 
+  // Handle token refresh failure
+  const handleTokenRefreshFailure = useCallback(() => {
+    dispatch(authActions.logout());
+    window.location.href = '/login';
+  }, [dispatch]);
+
   // Listen for auth state changes
   useEffect(() => {
     let mounted = true;
     const handleAuthStateChange = (
       event: CustomEvent<{
         isAuthenticated: boolean;
-        user: IUser;
-        token: string;
-        refreshToken: string;
-        tokenExpiration: Date;
+        user: IUser | null;
+        token: string | null;
+        refreshToken: string | null;
+        tokenExpiration: Date | null;
       }>
     ) => {
       if (!mounted) return;
       const { isAuthenticated, user, token, refreshToken, tokenExpiration } = event.detail;
+
+      if (!isAuthenticated || !user || !token) {
+        dispatch(authActions.logout());
+        return;
+      }
 
       // Update Redux store
       dispatch(authActions.setUser(user));
       dispatch(
         authActions.setTokens({
           token,
-          refreshToken,
-          expiration: tokenExpiration,
+          refreshToken: refreshToken || '',
+          expiration: tokenExpiration || new Date(Date.now() + 3600 * 1000),
         })
       );
       dispatch(authActions.setAuthenticated(isAuthenticated));
@@ -122,7 +133,7 @@ export const useAuth = (): UseAuthReturn => {
             authActions.setTokens({
               token: tokens.token,
               refreshToken: tokens.refreshToken,
-              expiration: new Date(Date.now() + 3600 * 1000), // Default to 1 hour if no expiration
+              expiration: new Date(Date.now() + 3600 * 1000),
             })
           );
 
@@ -136,13 +147,13 @@ export const useAuth = (): UseAuthReturn => {
               dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
             }
           } else if (mounted) {
-            dispatch(authActions.logout());
+            handleTokenRefreshFailure();
           }
         }
       } catch (error) {
         console.error('Failed to check existing auth:', error);
         if (mounted) {
-          dispatch(authActions.logout());
+          handleTokenRefreshFailure();
         }
       }
     };
@@ -153,7 +164,7 @@ export const useAuth = (): UseAuthReturn => {
       mounted = false;
       window.removeEventListener('auth-state-change', handleAuthStateChange as EventListener);
     };
-  }, [dispatch, authService]);
+  }, [dispatch, authService, handleTokenRefreshFailure]);
 
   // Return the hook interface
   return {
@@ -181,8 +192,24 @@ export const useAuth = (): UseAuthReturn => {
         window.location.href = '/login';
       }
     }, [authService, dispatch]),
-    refreshToken: useCallback(() => authService.refreshAuthToken(), [authService]),
-    validateSession: useCallback(() => authService.validateSession(), [authService]),
+    refreshToken: useCallback(async () => {
+      try {
+        return await authService.refreshAuthToken();
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+        handleTokenRefreshFailure();
+        throw error;
+      }
+    }, [authService, handleTokenRefreshFailure]),
+    validateSession: useCallback(async () => {
+      try {
+        return await authService.validateSession();
+      } catch (error) {
+        console.error('Session validation failed:', error);
+        handleTokenRefreshFailure();
+        return false;
+      }
+    }, [authService, handleTokenRefreshFailure]),
     updateUserSettings: useCallback(
       (params: UpdateUserSettingsParams) => authService.updateUserSettings(params),
       [authService]

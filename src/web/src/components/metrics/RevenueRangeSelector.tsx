@@ -6,9 +6,39 @@ import { REVENUE_RANGES, RevenueRange } from '../../config/constants';
 const StyledContainer = styled.div`
   width: 100%;
   max-width: 200px;
-  margin-bottom: var(--spacing-3);
+  padding: var(--spacing-md) 0;
   font-family: var(--font-family-base);
   font-size: var(--font-size-base);
+
+  select {
+    padding: 16px 20px;
+    width: 100%;
+    height: 56px;
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+  }
+
+  /* Style the Select component's container */
+  div[class*='Select'] {
+    min-height: 56px;
+  }
+
+  /* Style the Select component's control */
+  div[class*='control'] {
+    min-height: 56px !important;
+    padding: 4px 8px;
+  }
+
+  /* Style the Select component's value container */
+  div[class*='valueContainer'] {
+    padding: 8px 12px;
+  }
+
+  /* Style the Select component's input */
+  div[class*='input'] {
+    margin: 0;
+    padding: 0;
+  }
 
   @media (forced-colors: active) {
     select {
@@ -62,7 +92,11 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(
     const revenueOptions = useMemo(() => {
       return REVENUE_RANGES.ranges.map((range) => ({
         value: range,
-        label: range.replace('M', ' Million').replace('+', ' or more'),
+        label: range
+          .replace('M', ' Million')
+          .replace('B', ' Billion')
+          .replace('+', ' or more')
+          .replace('-', ' to '),
       }));
     }, []);
 
@@ -74,21 +108,40 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(
       [onRangeChange]
     );
 
+    // Format the selected range for display
+    const formattedRange = useMemo(() => {
+      if (!selectedRange) return '';
+      return selectedRange
+        .replace('M', ' Million')
+        .replace('B', ' Billion')
+        .replace('+', ' or more')
+        .replace('-', ' to ');
+    }, [selectedRange]);
+
     return (
       <StyledContainer className={className} role="group" aria-label={ariaLabel}>
-        <Select
-          name="revenue-range"
-          id="revenue-range-select"
-          value={selectedRange}
-          onChange={handleRangeChange}
-          options={revenueOptions}
-          disabled={disabled}
-          label="Revenue Range"
-          placeholder="Select revenue range"
-          required
-          aria-label={ariaLabel}
-          data-testid="revenue-range-selector"
-        />
+        <div className="select-wrapper">
+          <div className="select-container">
+            <Select
+              name="revenue-range"
+              id="revenue-range-select"
+              value={selectedRange}
+              onChange={handleRangeChange}
+              options={revenueOptions}
+              disabled={disabled}
+              placeholder="Select revenue range"
+              required
+              aria-label={ariaLabel}
+              data-testid="revenue-range-selector"
+            />
+          </div>
+          {selectedRange && (
+            <div className="range-info">
+              <span>Range:</span>
+              <span className="range-type">{formattedRange}</span>
+            </div>
+          )}
+        </div>
       </StyledContainer>
     );
   }

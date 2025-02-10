@@ -339,33 +339,71 @@ export const getCompanyMetrics = asyncHandler(
 );
 
 /**
- * Get benchmark metrics for a specific industry
+ * Get benchmark metrics based on the request type (by metric ID, revenue range, or comparison)
  */
 export const getBenchmarkMetrics = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const correlationId = `benchmark-${Date.now()}`;
+  logger.setCorrelationId(correlationId);
+
   try {
-    const { industry } = req.params;
-    if (!industry) {
+    const startTime = process.hrtime();
+    let metrics;
+
+    // Handle different types of benchmark requests
+    if (req.params.metricId) {
+      // Get benchmarks by metric ID
+      metrics = await metricsService.getBenchmarksByMetric(req.params.metricId);
+    } else if (req.params.revenueRange) {
+      // Get benchmarks by revenue range
+      metrics = await metricsService.getBenchmarksByRevenue(req.params.revenueRange);
+    } else if (req.path.includes('/compare')) {
+      // Handle benchmark comparison
+      const { metricIds, companyValue } = req.body;
+      metrics = await metricsService.compareBenchmarks(metricIds, companyValue);
+    } else {
       throw new AppError(
-        VALIDATION_ERRORS.MISSING_REQUIRED.message,
-        VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
-        VALIDATION_ERRORS.MISSING_REQUIRED.code
+        'Invalid benchmark request',
+        VALIDATION_ERRORS.INVALID_REQUEST.httpStatus,
+        VALIDATION_ERRORS.INVALID_REQUEST.code
       );
     }
 
-    const metrics = await metricsService.getIndustryBenchmarks(industry);
+    // Calculate response time
+    const [seconds, nanoseconds] = process.hrtime(startTime);
+    const responseTime = seconds * 1000 + nanoseconds / 1e6;
+
+    // Set response headers
+    res.set('Cache-Control', `public, max-age=${CACHE_DURATION}`);
+    res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
+    res.set('X-Correlation-ID', correlationId);
 
     res.json({
       status: 'success',
       data: metrics,
+      meta: {
+        responseTime,
+        correlationId,
+      },
+    });
+
+    logger.info('Benchmark metrics retrieved successfully', {
+      correlationId,
+      type: req.params.metricId
+        ? 'by-metric'
+        : req.params.revenueRange
+        ? 'by-revenue'
+        : 'comparison',
+      responseTime,
     });
   } catch (error) {
     logger.error('Failed to get benchmark metrics:', {
+      correlationId,
       error: error instanceof Error ? error.message : 'Unknown error',
-      industry: req.params.industry,
+      params: req.params,
     });
     next(error);
   }

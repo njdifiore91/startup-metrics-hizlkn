@@ -176,23 +176,29 @@ const Benchmarks: React.FC = () => {
       <div className="benchmarks-container">
         <h1>Benchmark Analysis</h1>
 
-        <div className="selectors-container">
-          <MetricSelector
-            selectedMetricId={selectedMetricId}
-            onMetricSelect={handleMetricSelect}
-            disabled={false}
-            category={MetricCategory.FINANCIAL}
-            className="metric-selector"
-            ariaLabel="Select metric for benchmark analysis"
-          />
+        <div className="selectors-wrapper">
+          <div className="selector-group">
+            <label className="selector-label">Metric</label>
+            <MetricSelector
+              selectedMetricId={selectedMetricId}
+              onMetricSelect={handleMetricSelect}
+              disabled={false}
+              category={MetricCategory.FINANCIAL}
+              className="selector-container"
+              ariaLabel="Select metric for benchmark analysis"
+            />
+          </div>
 
-          <RevenueRangeSelector
-            selectedRange={selectedRange}
-            onRangeChange={handleRangeChange}
-            disabled={false}
-            className="revenue-selector"
-            ariaLabel="Select revenue range for comparison"
-          />
+          <div className="selector-group">
+            <label className="selector-label">Revenue Range</label>
+            <RevenueRangeSelector
+              selectedRange={selectedRange}
+              onRangeChange={handleRangeChange}
+              disabled={false}
+              className="selector-container"
+              ariaLabel="Select revenue range for comparison"
+            />
+          </div>
         </div>
 
         {selectedMetric && (
@@ -210,9 +216,11 @@ const Benchmarks: React.FC = () => {
 
         {(metricsError || benchmarksError) && (
           <div className="error-message" role="alert">
-            {typeof metricsError === 'string' ? metricsError : 
-             typeof benchmarksError === 'string' ? benchmarksError : 
-             'An error occurred'}
+            {typeof metricsError === 'string'
+              ? metricsError
+              : typeof benchmarksError === 'string'
+              ? benchmarksError
+              : 'An error occurred'}
           </div>
         )}
 
@@ -231,11 +239,33 @@ const Benchmarks: React.FC = () => {
             position: relative;
           }
 
-          .selectors-container {
+          .selectors-wrapper {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+            padding: var(--spacing-lg);
+            background: var(--color-background-secondary);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+          }
+
+          .selector-group {
             display: flex;
-            gap: var(--spacing-md);
-            margin-bottom: var(--spacing-lg);
-            align-items: center;
+            flex-direction: column;
+            gap: var(--spacing-xs);
+          }
+
+          .selector-label {
+            font-weight: 600;
+            color: var(--color-text-primary);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--spacing-xs);
+          }
+
+          .selector-container {
+            position: relative;
+            padding: var(--spacing-sm) 0;
           }
 
           .comparison-container {
