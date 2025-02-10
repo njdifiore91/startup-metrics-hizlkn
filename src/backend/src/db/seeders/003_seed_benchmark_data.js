@@ -81,7 +81,7 @@ module.exports = {
 
       // Get existing data source IDs
       const sources = await queryInterface.sequelize.query(
-        'SELECT id, name FROM data_sources WHERE "isActive" = true;',
+        'SELECT id, name FROM data_sources WHERE is_active = true;',
         { type: Sequelize.QueryTypes.SELECT }
       );
 

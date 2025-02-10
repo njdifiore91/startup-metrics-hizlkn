@@ -67,7 +67,7 @@ interface UseAuthReturn {
 export const useAuth = (): UseAuthReturn => {
   const dispatch = useDispatch();
   const authServiceRef = useRef<AuthService>();
-  
+
   // Initialize auth service only once
   if (!authServiceRef.current) {
     authServiceRef.current = new AuthService();
@@ -84,56 +84,65 @@ export const useAuth = (): UseAuthReturn => {
   // Listen for auth state changes
   useEffect(() => {
     let mounted = true;
-    const handleAuthStateChange = (event: CustomEvent<{
-      isAuthenticated: boolean;
-      user: IUser;
-      token: string;
-      refreshToken: string;
-      tokenExpiration: Date;
-    }>) => {
+    const handleAuthStateChange = (
+      event: CustomEvent<{
+        isAuthenticated: boolean;
+        user: IUser;
+        token: string;
+        refreshToken: string;
+        tokenExpiration: Date;
+      }>
+    ) => {
       if (!mounted) return;
       const { isAuthenticated, user, token, refreshToken, tokenExpiration } = event.detail;
-      
+
       // Update Redux store
       dispatch(authActions.setUser(user));
-      dispatch(authActions.setTokens({
-        token,
-        refreshToken,
-        expiration: tokenExpiration
-      }));
+      dispatch(
+        authActions.setTokens({
+          token,
+          refreshToken,
+          expiration: tokenExpiration,
+        })
+      );
       dispatch(authActions.setAuthenticated(isAuthenticated));
       dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
     };
 
     window.addEventListener('auth-state-change', handleAuthStateChange as EventListener);
-    
+
     // Check for existing auth on mount only
     const checkExistingAuth = async () => {
       if (!mounted) return;
       try {
         const tokens = authService.getStoredTokens();
         if (tokens) {
-          const tokenExpiration = authService.getTokenExpiration();
-          const now = Date.now();
-          const timeUntilExpiry = tokenExpiration ? tokenExpiration.getTime() - now : 0;
-          
-          if (!tokenExpiration || timeUntilExpiry <= REFRESH_BEFORE_EXPIRY) {
-            const isValid = await authService.validateSession();
-            if (isValid && mounted) {
+          // Set initial tokens in Redux store
+          dispatch(
+            authActions.setTokens({
+              token: tokens.token,
+              refreshToken: tokens.refreshToken,
+              expiration: new Date(Date.now() + 3600 * 1000), // Default to 1 hour if no expiration
+            })
+          );
+
+          // Try to validate session and get user data
+          const isValid = await authService.validateSession();
+          if (isValid && mounted) {
+            const currentUser = authService.getCurrentUser();
+            if (currentUser) {
+              dispatch(authActions.setUser(currentUser));
               dispatch(authActions.setAuthenticated(true));
               dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
-            } else if (mounted) {
-              authService.logout().catch(console.error);
             }
           } else if (mounted) {
-            dispatch(authActions.setAuthenticated(true));
-            dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
+            dispatch(authActions.logout());
           }
         }
       } catch (error) {
         console.error('Failed to check existing auth:', error);
         if (mounted) {
-          authService.logout().catch(console.error);
+          dispatch(authActions.logout());
         }
       }
     };
@@ -144,7 +153,7 @@ export const useAuth = (): UseAuthReturn => {
       mounted = false;
       window.removeEventListener('auth-state-change', handleAuthStateChange as EventListener);
     };
-  }, []); // Only run on mount
+  }, [dispatch, authService]);
 
   // Return the hook interface
   return {
@@ -164,15 +173,11 @@ export const useAuth = (): UseAuthReturn => {
     logout: useCallback(async () => {
       try {
         await authService.logout();
-        dispatch(authActions.setUser(null));
-        dispatch(authActions.setAuthenticated(false));
-        dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+        dispatch(authActions.logout());
         window.location.href = '/login';
       } catch (error) {
         console.error('Logout failed:', error);
-        dispatch(authActions.setUser(null));
-        dispatch(authActions.setAuthenticated(false));
-        dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+        dispatch(authActions.logout());
         window.location.href = '/login';
       }
     }, [authService, dispatch]),

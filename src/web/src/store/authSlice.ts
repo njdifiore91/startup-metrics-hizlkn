@@ -106,14 +106,16 @@ export const authSlice = createSlice({
     ) => {
       const { token, refreshToken, expiration } = action.payload;
 
-      // Encrypt tokens before storing
+      // Store unencrypted tokens in state for immediate use
+      state.token = token;
+      state.refreshToken = refreshToken;
+      state.tokenExpiration = expiration;
+      state.isAuthenticated = true;
+      state.sessionStatus = SessionStatus.ACTIVE;
+
+      // Encrypt tokens for storage
       const encryptedToken = encryptData(token);
       const encryptedRefreshToken = encryptData(refreshToken);
-
-      // Store encrypted tokens in state
-      state.token = encryptedToken;
-      state.refreshToken = encryptedRefreshToken;
-      state.tokenExpiration = expiration;
 
       // Store encrypted tokens in secure storage
       localStorage.setItem(authConfig.tokenStorageKey, encryptedToken);

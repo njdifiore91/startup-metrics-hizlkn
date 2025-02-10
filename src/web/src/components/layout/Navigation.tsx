@@ -67,7 +67,7 @@ const StyledListItem = styled(ListItem)`
   position: relative;
   z-index: 2;
 
-  &[data-active="true"] {
+  &[data-active='true'] {
     color: var(--color-accent);
   }
 
@@ -116,7 +116,8 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
         label: 'Company Data',
         path: '/company-metrics',
         icon: <TimelineIcon />,
-        visible: userRole === USER_ROLES.USER || userRole === USER_ROLES.ANALYST,
+        // visible: userRole === USER_ROLES.USER || userRole === USER_ROLES.ANALYST,
+        visible: hasPermission(userRole, FEATURES.companyData, 'read'),
       },
     ],
   },

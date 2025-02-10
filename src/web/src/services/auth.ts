@@ -138,26 +138,47 @@ export class AuthService {
         this.refreshToken = tokens.refreshToken;
 
         // Set the Authorization header immediately
-        api.defaults.headers.common['Authorization'] = `Bearer ${tokens.token}`;
+        if (this.token) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
+        }
 
-        // Try to refresh token first if it's close to expiry
+        // Try to refresh token first if it's close to expiry or if expiration is unknown
         const tokenExp = this.getTokenExpiration();
-        if (tokenExp && tokenExp.getTime() - Date.now() < 5 * 60 * 1000) {
+        if (!tokenExp || tokenExp.getTime() - Date.now() < 15 * 60 * 1000) {
+          // 15 minutes threshold
           try {
-            await this.refreshAuthToken();
+            const newToken = await this.refreshAuthToken();
+            if (newToken) {
+              this.token = newToken;
+              api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+              localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, newToken);
+            }
           } catch (refreshError) {
             console.warn('Token refresh failed during initialization:', refreshError);
-            // Continue with validation even if refresh fails
+            // Only clear tokens if the refresh error indicates invalid token
+            if (refreshError instanceof Error && refreshError.message.includes('invalid')) {
+              this.clearTokens();
+              return;
+            }
           }
         }
 
         // Validate the session
-        const isValid = await this.validateSession();
-        if (isValid) {
-          this.isAuthenticated = true;
-          this.setupGlobalValidation();
-        } else {
-          this.clearTokens();
+        try {
+          const isValid = await this.validateSession();
+          if (isValid) {
+            this.isAuthenticated = true;
+            this.setupGlobalValidation();
+          } else {
+            // Only clear tokens if validation explicitly fails
+            this.clearTokens();
+          }
+        } catch (validationError) {
+          console.warn('Session validation failed:', validationError);
+          // Don't clear tokens on network errors
+          if (!(validationError instanceof Error && validationError.message.includes('network'))) {
+            this.clearTokens();
+          }
         }
       }
 
@@ -167,9 +188,8 @@ export class AuthService {
       });
     } catch (error) {
       console.error('Auth service initialization failed:', error);
-      // Don't clear tokens on initialization error, maintain current state
-      // This prevents logout on temporary network issues
-      if (error instanceof Error && error.message.includes('token')) {
+      // Only clear tokens if there's a critical error
+      if (error instanceof Error && error.message.includes('critical')) {
         this.clearTokens();
       }
     }
@@ -438,62 +458,71 @@ export class AuthService {
    */
   public async refreshAuthToken(): Promise<string> {
     try {
-      const tokens = this.getStoredTokens();
-      if (!tokens) {
+      // Check if we have a refresh token
+      if (!this.refreshToken) {
         throw new Error('No refresh token available');
       }
 
-      const response = await api.post<IAuthResponse>(authConfig.authEndpoints.refreshToken, {
-        refreshToken: tokens.refreshToken,
-      });
+      // Get stored tokens as backup
+      const storedTokens = this.getStoredTokens();
+      if (!storedTokens && !this.token) {
+        throw new Error('No tokens available for refresh');
+      }
 
-      const { accessToken, refreshToken } = response.data;
+      // Use current token or stored token
+      const currentToken = this.token || storedTokens?.token;
 
-      // Update instance state
-      this.token = accessToken;
-      this.refreshToken = refreshToken;
-      this.tokenExpiration = new Date(Date.now() + 3600 * 1000); // 1 hour from now
-      this.isAuthenticated = true;
-
-      // Update API client authorization header
-      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-
-      // Store new tokens securely
-      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, accessToken);
-      localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
-
-      // Emit state change event
-      window.dispatchEvent(
-        new CustomEvent('auth-state-change', {
-          detail: {
-            isAuthenticated: true,
-            token: accessToken,
-            refreshToken: refreshToken,
-            tokenExpiration: this.tokenExpiration,
+      // Attempt to refresh the token
+      const response = await api.post<IAuthResponse>(
+        `${authConfig.authEndpoints.refreshToken}`,
+        {
+          refreshToken: this.refreshToken,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
           },
-        })
+        }
       );
 
-      return accessToken;
-    } catch (error) {
-      if (error instanceof AxiosError && error.response) {
-        // If refresh token is invalid/expired, clear tokens and force re-login
-        if ([401, 403].includes(error.response.status)) {
-          this.clearTokens();
-          window.dispatchEvent(
-            new CustomEvent('auth-state-change', {
-              detail: {
-                isAuthenticated: false,
-                user: null,
-                token: null,
-                refreshToken: null,
-                tokenExpiration: null,
-              },
-            })
-          );
-        }
-        throw this.handleAuthError(error as AxiosError<ApiError>);
+      if (!response.data.accessToken) {
+        throw new Error('No access token received from refresh');
       }
+
+      // Update tokens
+      this.token = response.data.accessToken;
+      if (response.data.refreshToken) {
+        this.refreshToken = response.data.refreshToken;
+        localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, response.data.refreshToken);
+      }
+      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, response.data.accessToken);
+
+      // Update API header
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.accessToken}`;
+
+      // Update user data if available
+      if (response.data.user) {
+        this.currentUser = response.data.user;
+        this.isAuthenticated = true;
+      }
+
+      // Update token expiration
+      this.tokenExpiration = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+      return response.data.accessToken;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+
+      // Only clear tokens for specific error cases
+      if (
+        error instanceof Error &&
+        (error.message.includes('invalid_token') ||
+          error.message.includes('token_expired') ||
+          error.message.includes('invalid_grant'))
+      ) {
+        this.clearTokens();
+      }
+
       throw error;
     }
   }
@@ -515,6 +544,13 @@ export class AuthService {
       console.error('Token retrieval failed:', error);
       return null;
     }
+  }
+
+  /**
+   * Gets the current authenticated user
+   */
+  public getCurrentUser(): IUser | null {
+    return this.currentUser;
   }
 
   /**
@@ -564,72 +600,50 @@ export class AuthService {
           if (tokenExp && tokenExp.getTime() - now < 5 * 60 * 1000) {
             // 5 minutes before expiry
             try {
-              const newToken = await this.refreshAuthToken();
-              if (newToken) {
-                // Update validation time to prevent immediate revalidation
-                this.lastValidationTime = now;
-                return true;
-              }
+              await this.refreshAuthToken();
             } catch (refreshError) {
               console.warn('Token refresh failed:', refreshError);
               // Continue with validation even if refresh fails
             }
           }
 
-          // Add retry logic for failed validations with exponential backoff
-          let retries = 3;
-          let consecutiveFailures = 0;
+          const response = await api.post(authConfig.authEndpoints.validateToken, {});
+          const innerResponse = response.data.data;
+          const isValid = innerResponse.status === 'success' && innerResponse.data?.user;
 
-          while (retries > 0) {
-            try {
-              const response = await api.post(authConfig.authEndpoints.validateToken, {});
-              const innerResponse = response.data.data;
-              const isValid = innerResponse.status === 'success' && innerResponse.data?.user;
+          if (isValid) {
+            const user = innerResponse.data.user;
+            this.currentUser = user;
+            this.isAuthenticated = true;
+            this.validationCache = { isValid: true, timestamp: now, user };
+            this.lastValidationTime = now;
 
-              if (isValid) {
-                const user = innerResponse.data.user;
-                this.updateAuthState(true, user, tokens);
-                this.validationCache = { isValid: true, timestamp: now, user };
-                this.lastValidationTime = now;
-                consecutiveFailures = 0; // Reset failure count on success
-                return true;
-              }
-
-              // If validation explicitly fails (not due to network error)
-              consecutiveFailures++;
-              if (consecutiveFailures >= 3) {
-                this.validationCache = { isValid: false, timestamp: now, user: null };
-                return false;
-              }
-              break;
-            } catch (error) {
-              if (
-                retries > 1 &&
-                error instanceof AxiosError &&
-                (error.response?.status === 500 ||
-                  error.response?.status === 503 ||
-                  !error.response || // Network error
-                  error.code === 'ECONNABORTED')
-              ) {
-                // Timeout
-                retries--;
-                await new Promise((resolve) => setTimeout(resolve, 1000 * (4 - retries)));
-                continue;
-              }
-              throw error;
+            // Update API header with current token
+            if (this.token) {
+              api.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
             }
-          }
 
-          // For network-related issues, maintain current state
-          if (retries === 0) {
-            console.warn('Validation retries exhausted, maintaining current session state');
-            return this.isAuthenticated;
+            // Emit state change event
+            window.dispatchEvent(
+              new CustomEvent('auth-state-change', {
+                detail: {
+                  isAuthenticated: true,
+                  user,
+                  token: this.token,
+                  refreshToken: this.refreshToken,
+                  tokenExpiration: this.tokenExpiration,
+                },
+              })
+            );
+
+            return true;
           }
 
           this.clearTokens();
           this.validationCache = { isValid: false, timestamp: now, user: null };
           return false;
         } catch (error) {
+          console.error('Session validation failed:', error);
           if (error instanceof AxiosError) {
             // Keep session active for network-related issues
             if (

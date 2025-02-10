@@ -32,7 +32,7 @@ let metricCache: Cache;
 (async () => {
   metricCache = await caching('memory', {
     ttl: METRIC_CACHE_TTL,
-    max: 1000
+    max: 1000,
   });
 })();
 
@@ -52,14 +52,16 @@ export class MetricsService {
    * @returns Promise<IMetric> - The created metric
    * @throws ValidationError | DuplicateError
    */
-  async createMetric(metricData: Omit<IMetric, 'id' | 'createdAt' | 'updatedAt'>): Promise<IMetric> {
+  async createMetric(
+    metricData: Omit<IMetric, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<IMetric> {
     try {
       // Validate metric data
       this.validateMetricData(metricData);
 
       // Check for existing metric with same name
       const existingMetric = await Metric.findOne({
-        where: { name: metricData.name }
+        where: { name: metricData.name },
       });
 
       if (existingMetric) {
@@ -69,7 +71,7 @@ export class MetricsService {
       // Create metric with validated data
       const metric = await Metric.create({
         ...metricData,
-        isActive: true
+        isActive: true,
       });
 
       // Map metric type to category for cache invalidation
@@ -81,7 +83,7 @@ export class MetricsService {
       return metric.toJSON() as IMetric;
     } catch (error) {
       const logMetadata: LogMetadata = {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
       logger.error('Error creating metric:', logMetadata);
       throw error;
@@ -102,7 +104,7 @@ export class MetricsService {
       [MetricType.GROWTH]: METRIC_CATEGORIES.GROWTH,
       [MetricType.CHURN]: METRIC_CATEGORIES.OPERATIONAL,
       [MetricType.ENGAGEMENT]: METRIC_CATEGORIES.OPERATIONAL,
-      [MetricType.CONVERSION]: METRIC_CATEGORIES.GROWTH
+      [MetricType.CONVERSION]: METRIC_CATEGORIES.GROWTH,
     };
 
     const category = typeToCategory[type];
@@ -146,7 +148,7 @@ export class MetricsService {
         limit = DEFAULT_METRIC_LIMIT,
         offset = 0,
         includeInactive = false,
-        searchTerm
+        searchTerm,
       } = options;
 
       // Build query conditions
@@ -157,10 +159,10 @@ export class MetricsService {
           ? {
               [Op.or]: [
                 { name: { [Op.iLike]: `%${searchTerm}%` } },
-                { description: { [Op.iLike]: `%${searchTerm}%` } }
-              ]
+                { description: { [Op.iLike]: `%${searchTerm}%` } },
+              ],
             }
-          : {})
+          : {}),
       };
 
       // Execute query with pagination
@@ -169,12 +171,12 @@ export class MetricsService {
         limit: Math.min(limit, DEFAULT_METRIC_LIMIT),
         offset,
         order: [['name', 'ASC']],
-        attributes: { exclude: ['validationRules'] }
+        attributes: { exclude: ['validationRules'] },
       });
 
       const result = {
-        metrics: metrics.map(metric => this.formatMetricResponse(metric)),
-        total
+        metrics: metrics.map((metric) => this.formatMetricResponse(metric)),
+        total,
       };
 
       // Cache results
@@ -186,7 +188,7 @@ export class MetricsService {
     } catch (error) {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
-        category
+        category,
       };
       logger.error('Error retrieving metrics:', logMetadata);
       throw error;
@@ -239,7 +241,7 @@ export class MetricsService {
     } catch (error) {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
-        metricId: id
+        metricId: id,
       };
       logger.error('Error updating metric:', logMetadata);
       throw error;
@@ -254,14 +256,12 @@ export class MetricsService {
   ): Promise<Map<string, number>> {
     try {
       const results = new Map<string, number>();
-      
+
       for (const { id, value } of metrics) {
         const metric = await Metric.findByPk(id);
         if (!metric) continue;
 
-        const calculatedValue = new Big(value)
-          .round(CALCULATION_PRECISION)
-          .toNumber();
+        const calculatedValue = new Big(value).round(CALCULATION_PRECISION).toNumber();
 
         results.set(id, calculatedValue);
       }
@@ -269,7 +269,7 @@ export class MetricsService {
       return results;
     } catch (error) {
       const logMetadata: LogMetadata = {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
       logger.error('Error calculating metric values:', logMetadata);
       throw error;
@@ -288,26 +288,30 @@ export class MetricsService {
       const metrics = await CompanyMetric.findAll({
         where: {
           companyId,
-          isActive: true
+          isActive: true,
         },
-        include: [{
-          model: Metric,
-          as: 'metric',
-          required: false,
-          attributes: [
-            'id',
-            'name',
-            'displayName',
-            'description',
-            'type',
-            'valueType',
-            'frequency',
-            'unit',
-            'precision',
-            'isActive'
-          ]
-        }],
-        order: [['date', 'DESC']]
+        include: [
+          {
+            model: Metric,
+            as: 'metric',
+            required: false,
+            where: {
+              isActive: true,
+            },
+            attributes: [
+              'id',
+              'name',
+              ['display_name', 'displayName'],
+              'description',
+              'type',
+              ['value_type', 'valueType'],
+              'frequency',
+              'unit',
+              'precision',
+            ],
+          },
+        ],
+        order: [['date', 'DESC']],
       });
 
       if (!metrics || metrics.length === 0) {
@@ -316,11 +320,12 @@ export class MetricsService {
       }
 
       // Convert to plain objects to avoid Sequelize instance issues
-      return metrics.map(metric => metric.get({ plain: true }));
+      return metrics.map((metric) => metric.get({ plain: true }));
     } catch (error) {
-      logger.error('Failed to retrieve company metrics:', { 
+      logger.error('Failed to retrieve company metrics:', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        companyId 
+        companyId,
+        stack: error instanceof Error ? error.stack : undefined,
       });
       throw new AppError('Failed to retrieve company metrics', 500);
     }
@@ -333,14 +338,14 @@ export class MetricsService {
     try {
       const metrics = await Metric.findAll({
         where: { industry },
-        order: [['date', 'DESC']]
+        order: [['date', 'DESC']],
       });
 
       return metrics;
     } catch (error) {
-      logger.error('Failed to get industry benchmarks:', { 
+      logger.error('Failed to get industry benchmarks:', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        industry 
+        industry,
       });
       throw new AppError(
         BUSINESS_ERRORS.OPERATION_FAILED.message,
@@ -356,7 +361,7 @@ export class MetricsService {
   async updateMetrics(companyId: string, data: Partial<IMetric & { date: Date }>): Promise<Metric> {
     try {
       const metric = await Metric.findOne({
-        where: { companyId, date: data.date }
+        where: { companyId, date: data.date },
       });
 
       if (metric) {
@@ -369,7 +374,7 @@ export class MetricsService {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
         companyId,
-        data: JSON.stringify(data)
+        data: JSON.stringify(data),
       };
       logger.error('Failed to update metrics:', logMetadata);
       throw new AppError(
@@ -394,7 +399,7 @@ export class MetricsService {
     } catch (error) {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
-        metricId: id
+        metricId: id,
       };
       logger.error('Error retrieving metric by ID:', logMetadata);
       throw error;
@@ -405,24 +410,26 @@ export class MetricsService {
    * Get all available metric types for dropdowns
    * Returns a list of active metrics with fields needed for the dropdown
    */
-  async getAllMetricTypes(): Promise<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>[]> {
+  async getAllMetricTypes(): Promise<
+    Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>[]
+  > {
     try {
       const metrics = await Metric.findAll({
         where: { isActive: true },
         attributes: ['id', 'name', 'displayName', 'type', 'valueType'],
-        order: [['name', 'ASC']]
+        order: [['name', 'ASC']],
       });
 
-      return metrics.map(metric => ({
+      return metrics.map((metric) => ({
         id: metric.id,
         name: metric.name,
         displayName: metric.displayName,
         type: metric.type,
-        valueType: metric.valueType
+        valueType: metric.valueType,
       }));
     } catch (error) {
       const logMetadata: LogMetadata = {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
       logger.error('Error retrieving metric types:', logMetadata);
       throw error;
@@ -459,12 +466,12 @@ export class MetricsService {
         verifiedBy: metricData.verifiedBy,
         verifiedAt: metricData.verifiedAt,
         notes: metricData.notes,
-        isActive: metricData.isActive ?? true
+        isActive: metricData.isActive ?? true,
       } as const;
 
       // Create the record with type assertion
       const companyMetric = await CompanyMetric.create(companyMetricData as any);
-      
+
       // Invalidate cache
       await this.invalidateCompanyMetricsCache(metricData.companyId);
 
@@ -481,7 +488,10 @@ export class MetricsService {
    * @param updateData - The data to update
    * @returns Promise<ICompanyMetric> - The updated company metric
    */
-  async updateCompanyMetric(id: string, updateData: Partial<ICompanyMetric>): Promise<ICompanyMetric> {
+  async updateCompanyMetric(
+    id: string,
+    updateData: Partial<ICompanyMetric>
+  ): Promise<ICompanyMetric> {
     try {
       // Find existing company metric
       const companyMetric = await CompanyMetric.findByPk(id);
@@ -491,7 +501,7 @@ export class MetricsService {
 
       // Prepare update data with type safety
       const updateFields: Partial<ICompanyMetric> = {};
-      
+
       if (updateData.value !== undefined) updateFields.value = updateData.value;
       if (updateData.date !== undefined) updateFields.date = updateData.date;
       if (updateData.source !== undefined) updateFields.source = updateData.source;
@@ -503,7 +513,7 @@ export class MetricsService {
 
       // Update company metric
       const updatedMetric = await companyMetric.update(updateFields);
-      
+
       // Get the company ID from the metric for cache invalidation
       const metricData = updatedMetric.toJSON() as ICompanyMetric;
       await this.invalidateCompanyMetricsCache(metricData.companyId);
@@ -534,7 +544,7 @@ export class MetricsService {
   private validateMetricData(data: Partial<IMetric>): void {
     // Validate required fields
     const requiredFields = ['name', 'type', 'valueType', 'description'];
-    const missingFields = requiredFields.filter(field => !data[field as keyof IMetric]);
+    const missingFields = requiredFields.filter((field) => !data[field as keyof IMetric]);
 
     if (missingFields.length > 0) {
       throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);

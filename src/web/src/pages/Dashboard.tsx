@@ -85,10 +85,28 @@ const ComparisonSection = styled.div`
   border-radius: var(--border-radius-lg);
 `;
 
-// Initialize analytics outside component
-const analytics = AnalyticsBrowser.load({
-  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
-});
+// Initialize analytics outside component with error handling
+let analytics;
+try {
+  const writeKey = import.meta.env.VITE_SEGMENT_WRITE_KEY;
+  if (writeKey) {
+    analytics = AnalyticsBrowser.load({ writeKey });
+  } else {
+    console.warn('Segment write key not found. Analytics will be disabled.');
+    analytics = {
+      track: () => Promise.resolve(),
+      page: () => Promise.resolve(),
+      identify: () => Promise.resolve(),
+    };
+  }
+} catch (error) {
+  console.error('Failed to initialize analytics:', error);
+  analytics = {
+    track: () => Promise.resolve(),
+    page: () => Promise.resolve(),
+    identify: () => Promise.resolve(),
+  };
+}
 
 // Interfaces
 interface DashboardState {
@@ -346,11 +364,11 @@ const Dashboard: React.FC = () => {
 
         {(metricsError || benchmarksError) && (
           <div role="alert" className="error-container">
-            {typeof metricsError === 'string' 
-              ? metricsError 
-              : typeof benchmarksError === 'string' 
-                ? benchmarksError 
-                : 'An error occurred while loading data'}
+            {typeof metricsError === 'string'
+              ? metricsError
+              : typeof benchmarksError === 'string'
+              ? benchmarksError
+              : 'An error occurred while loading data'}
           </div>
         )}
       </DashboardContainer>

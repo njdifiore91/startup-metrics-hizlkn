@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'; // ^4.18.2
 import { IAuthProvider } from '../interfaces/auth';
 import { IUser } from '../interfaces/user';
 import { USER_ROLES, ROLE_PERMISSIONS } from '../constants/roles';
-import { AUTH_ERRORS } from '../constants/errors';
+import { AUTH_ERRORS } from '../constants/errorCodes';
 import { AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
 
@@ -39,32 +39,41 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader?.startsWith('Bearer ')) {
-        throw new AppError(AUTH_ERRORS.UNAUTHORIZED);
+        throw new AppError('Unauthorized access', 401, 'AUTH_001');
       }
 
       const token = authHeader.split(' ')[1];
-      const user = await authProvider.validateToken(token);
-      req.user = user;
-      next();
+
+      // Validate token format before processing
+      if (!token || typeof token !== 'string' || token.length < 10) {
+        throw new AppError('Invalid token format', 401, 'AUTH_002');
+      }
+
+      try {
+        const user = await authProvider.validateToken(token);
+        if (!user || !user.id) {
+          throw new AppError('Invalid user data in token', 401, 'AUTH_002');
+        }
+        req.user = user;
+        next();
+      } catch (tokenError) {
+        logger.error('Token validation failed', {
+          error:
+            tokenError instanceof Error ? tokenError.message : 'Unknown token validation error',
+          stack: tokenError instanceof Error ? tokenError.stack : undefined,
+        });
+        throw new AppError('Invalid or expired token', 401, 'AUTH_002');
+      }
     } catch (error) {
       logger.error('Authentication failed', {
-        error:
-          error instanceof Error
-            ? {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-              }
-            : {
-                name: 'UnknownError',
-                message: String(error),
-                stack: undefined,
-              },
+        error: error instanceof Error ? error.message : 'Unknown authentication error',
+        stack: error instanceof Error ? error.stack : undefined,
       });
+
       if (error instanceof AppError) {
         next(error);
       } else {
-        next(new AppError(AUTH_ERRORS.UNAUTHORIZED));
+        next(new AppError('Authentication failed', 401, 'AUTH_006'));
       }
     }
   };
@@ -79,33 +88,24 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
     return (req: Request, res: Response, next: NextFunction) => {
       try {
         if (!req.user) {
-          throw new AppError(AUTH_ERRORS.UNAUTHORIZED);
+          throw new AppError('Unauthorized access', 401, 'AUTH_001');
         }
 
         if (!roles.includes(req.user.role)) {
-          throw new AppError(AUTH_ERRORS.INSUFFICIENT_PERMISSIONS);
+          throw new AppError('Insufficient permissions', 403, 'AUTH_004');
         }
 
         next();
       } catch (error) {
         logger.error('Authorization failed', {
-          error:
-            error instanceof Error
-              ? {
-                  name: error.name,
-                  message: error.message,
-                  stack: error.stack,
-                }
-              : {
-                  name: 'UnknownError',
-                  message: String(error),
-                  stack: undefined,
-                },
+          error: error instanceof Error ? error.message : 'Unknown authorization error',
+          stack: error instanceof Error ? error.stack : undefined,
         });
+
         if (error instanceof AppError) {
           next(error);
         } else {
-          next(new AppError(AUTH_ERRORS.UNAUTHORIZED));
+          next(new AppError('Unauthorized access', 401, 'AUTH_001'));
         }
       }
     };

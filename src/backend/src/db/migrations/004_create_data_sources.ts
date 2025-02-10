@@ -60,50 +60,50 @@ module.exports = {
       },
 
       // Data format and update specifications
-      dataFormat: {
+      data_format: {
         type: DataTypes.ENUM('JSON', 'CSV', 'XML', 'API'),
         allowNull: false,
       },
 
-      updateFrequency: {
+      update_frequency: {
         type: DataTypes.ENUM('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'ANNUALLY'),
         allowNull: false,
       },
 
       // Validation and categorization
-      validationRules: {
+      validation_rules: {
         type: DataTypes.JSONB,
         allowNull: false,
         defaultValue: {},
       },
 
-      metricCategories: {
+      metric_categories: {
         type: DataTypes.ARRAY(DataTypes.STRING),
         allowNull: false,
         defaultValue: [],
       },
 
       // Status tracking
-      lastUpdated: {
+      last_updated: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
 
-      isActive: {
+      is_active: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: true,
       },
 
       // Timestamps
-      createdAt: {
+      created_at: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
 
-      updatedAt: {
+      updated_at: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
@@ -113,11 +113,11 @@ module.exports = {
     // Create indexes with IF NOT EXISTS
     await queryInterface.sequelize.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS data_sources_name_idx ON ${TABLE_NAME} (name);
-      CREATE INDEX IF NOT EXISTS data_sources_active_idx ON ${TABLE_NAME} ("isActive");
-      CREATE INDEX IF NOT EXISTS data_sources_format_idx ON ${TABLE_NAME} ("dataFormat");
-      CREATE INDEX IF NOT EXISTS data_sources_frequency_idx ON ${TABLE_NAME} ("updateFrequency");
-      CREATE INDEX IF NOT EXISTS data_sources_last_updated_idx ON ${TABLE_NAME} ("lastUpdated");
-      CREATE INDEX IF NOT EXISTS data_sources_categories_idx ON ${TABLE_NAME} USING gin ("metricCategories");
+      CREATE INDEX IF NOT EXISTS data_sources_active_idx ON ${TABLE_NAME} (is_active);
+      CREATE INDEX IF NOT EXISTS data_sources_format_idx ON ${TABLE_NAME} (data_format);
+      CREATE INDEX IF NOT EXISTS data_sources_frequency_idx ON ${TABLE_NAME} (update_frequency);
+      CREATE INDEX IF NOT EXISTS data_sources_last_updated_idx ON ${TABLE_NAME} (last_updated);
+      CREATE INDEX IF NOT EXISTS data_sources_categories_idx ON ${TABLE_NAME} USING gin (metric_categories);
     `);
   },
 
