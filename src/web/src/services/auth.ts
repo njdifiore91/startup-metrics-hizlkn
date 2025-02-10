@@ -137,11 +137,24 @@ export class AuthService {
         this.token = tokens.token;
         this.refreshToken = tokens.refreshToken;
 
-        // Validate the session immediately
+        // Set the Authorization header immediately
+        api.defaults.headers.common['Authorization'] = `Bearer ${tokens.token}`;
+
+        // Try to refresh token first if it's close to expiry
+        const tokenExp = this.getTokenExpiration();
+        if (tokenExp && tokenExp.getTime() - Date.now() < 5 * 60 * 1000) {
+          try {
+            await this.refreshAuthToken();
+          } catch (refreshError) {
+            console.warn('Token refresh failed during initialization:', refreshError);
+            // Continue with validation even if refresh fails
+          }
+        }
+
+        // Validate the session
         const isValid = await this.validateSession();
         if (isValid) {
           this.isAuthenticated = true;
-          api.defaults.headers.common['Authorization'] = `Bearer ${tokens.token}`;
           this.setupGlobalValidation();
         } else {
           this.clearTokens();
@@ -154,20 +167,23 @@ export class AuthService {
       });
     } catch (error) {
       console.error('Auth service initialization failed:', error);
-      this.clearTokens();
+      // Don't clear tokens on initialization error, maintain current state
+      // This prevents logout on temporary network issues
+      if (error instanceof Error && error.message.includes('token')) {
+        this.clearTokens();
+      }
     }
   }
 
   private setupGlobalValidation(): void {
-    // Clear any existing timer
     if (this.globalValidationTimer) {
       clearInterval(this.globalValidationTimer);
     }
 
+    let lastValidationAttempt = 0;
     let consecutiveFailures = 0;
+    const MIN_VALIDATION_INTERVAL = 30000; // 30 seconds
     const MAX_CONSECUTIVE_FAILURES = 3;
-    let lastValidationAttempt = Date.now();
-    const MIN_VALIDATION_INTERVAL = 30000; // 30 seconds minimum between validations
 
     this.globalValidationTimer = setInterval(async () => {
       try {
@@ -177,6 +193,7 @@ export class AuthService {
         }
         lastValidationAttempt = now;
 
+        // Check token expiration and refresh if needed
         const tokenExp = this.getTokenExpiration();
         if (tokenExp && tokenExp.getTime() - now < 5 * 60 * 1000) {
           try {
@@ -214,17 +231,11 @@ export class AuthService {
           consecutiveFailures = 0;
         }
       } catch (error) {
-        if (error instanceof AxiosError && [401, 403].includes(error.response?.status || 0)) {
-          consecutiveFailures++;
-          console.warn(
-            `Auth error in global validation (attempt ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`
-          );
-        } else {
-          console.warn('Non-auth error in global validation:', error);
-        }
+        console.error('Global validation error:', error);
       }
-    }, AuthService.VALIDATION_CACHE_TTL);
+    }, 60000); // Check every minute
 
+    // Clean up timer on page unload
     window.addEventListener('unload', () => {
       if (this.globalValidationTimer) {
         clearInterval(this.globalValidationTimer);
@@ -438,18 +449,49 @@ export class AuthService {
 
       const { accessToken, refreshToken } = response.data;
 
-      // Store new tokens
-      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, accessToken);
-      localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
-
       // Update instance state
       this.token = accessToken;
       this.refreshToken = refreshToken;
-      this.tokenExpiration = new Date(Date.now() + 3600 * 1000);
+      this.tokenExpiration = new Date(Date.now() + 3600 * 1000); // 1 hour from now
+      this.isAuthenticated = true;
+
+      // Update API client authorization header
+      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
+      // Store new tokens securely
+      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, accessToken);
+      localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
+
+      // Emit state change event
+      window.dispatchEvent(
+        new CustomEvent('auth-state-change', {
+          detail: {
+            isAuthenticated: true,
+            token: accessToken,
+            refreshToken: refreshToken,
+            tokenExpiration: this.tokenExpiration,
+          },
+        })
+      );
 
       return accessToken;
     } catch (error) {
       if (error instanceof AxiosError && error.response) {
+        // If refresh token is invalid/expired, clear tokens and force re-login
+        if ([401, 403].includes(error.response.status)) {
+          this.clearTokens();
+          window.dispatchEvent(
+            new CustomEvent('auth-state-change', {
+              detail: {
+                isAuthenticated: false,
+                user: null,
+                token: null,
+                refreshToken: null,
+                tokenExpiration: null,
+              },
+            })
+          );
+        }
         throw this.handleAuthError(error as AxiosError<ApiError>);
       }
       throw error;
@@ -744,22 +786,34 @@ export class AuthService {
   }
 
   /**
-   * Gets the current token's expiration date
-   * @returns Date object representing token expiration or null if no token
+   * Gets the token expiration date
    */
-  public getTokenExpiration(): Date | null {
-    const token = this.getStoredTokens()?.token;
-    if (!token) return null;
-
+  private getTokenExpiration(): Date | null {
     try {
-      // Decode the JWT token to get expiration
-      const base64Payload = token.split('.')[1];
-      const payload = JSON.parse(atob(base64Payload));
-      return payload.exp ? new Date(payload.exp * 1000) : null;
+      const token = this.token;
+      if (!token) return null;
+
+      // Decode token without verification to get expiration
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      if (!decoded.exp) return null;
+
+      return new Date(decoded.exp * 1000);
     } catch (error) {
-      console.error('Error getting token expiration:', error);
+      console.warn('Error getting token expiration:', error);
       return null;
     }
+  }
+
+  /**
+   * Checks if the current token is expired or about to expire
+   */
+  private isTokenExpired(): boolean {
+    const expiration = this.getTokenExpiration();
+    if (!expiration) return true;
+
+    // Consider token expired if it's within 5 minutes of expiration
+    const expirationBuffer = 5 * 60 * 1000; // 5 minutes in milliseconds
+    return expiration.getTime() - Date.now() <= expirationBuffer;
   }
 }
 
