@@ -220,6 +220,8 @@ const Benchmarks: React.FC = () => {
               ? metricsError
               : typeof benchmarksError === 'string'
               ? benchmarksError
+              : benchmarksError === null
+              ? 'No metrics data available for benchmark comparison. Please check back later or contact support if this persists.'
               : 'An error occurred'}
           </div>
         )}

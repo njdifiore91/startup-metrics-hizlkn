@@ -112,10 +112,7 @@ export interface IMetric {
  * @param metric - Metric definition containing validation rules
  * @returns Boolean indicating if the value is valid for the metric
  */
-export function validateCompanyMetricValue(
-  value: number,
-  metric?: IMetric
-): boolean {
+export function validateCompanyMetricValue(value: number, metric?: IMetric): boolean {
   if (!metric) {
     return false;
   }
@@ -124,39 +121,47 @@ export function validateCompanyMetricValue(
   if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
     return false;
   }
-  console.log('first validation passed');
 
-  const valueType = metric.valueType as MetricValueType;
-  console.log('valueType', valueType);
-  const upperValueType = valueType.toUpperCase() as keyof typeof METRIC_VALIDATION_RULES;
-  const rules = METRIC_VALIDATION_RULES[upperValueType];
-  console.log('rules', rules);
+  // Get the value type from the metric
+  const valueType = metric.valueType.toLowerCase();
+
+  // Map to a valid METRIC_VALUE_TYPES key
+  let validationType: keyof typeof METRIC_VALIDATION_RULES = 'NUMBER';
+  if (valueType === 'percentage') {
+    validationType = 'PERCENTAGE';
+  } else if (valueType === 'currency') {
+    validationType = 'CURRENCY';
+  } else if (valueType === 'ratio') {
+    validationType = 'RATIO';
+  }
+
+  // Get validation rules
+  const rules = METRIC_VALIDATION_RULES[validationType];
   if (!rules) {
     return false;
   }
-  console.log('second validation passed');
 
   // Check if negative values are allowed
   if (!rules.allowNegative && value < 0) {
     return false;
   }
-  console.log('third validation passed');
+
   // Check range constraints
   if (value < rules.min || value > rules.max) {
     return false;
   }
-  console.log('fourth validation passed');
+
   // Check decimal precision
   const decimalStr = value.toString();
   const decimalMatch = decimalStr.match(/\.(\d+)$/);
   const decimalPlaces = decimalMatch ? decimalMatch[1].length : 0;
-  
+
   if (decimalPlaces > rules.decimalPrecision) {
     return false;
   }
-  console.log('fifth validation passed');
-  // Check format using regex
-  if (!rules.format.test(decimalStr)) {
+
+  // For NUMBER type, ensure it's a whole number
+  if (validationType === 'NUMBER' && !Number.isInteger(value)) {
     return false;
   }
 

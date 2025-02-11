@@ -88,7 +88,13 @@ interface MetricData {
   lastUpdated: number;
 }
 
-// Interfaces
+// Add these interfaces near the top with other interfaces
+interface ApiError {
+  message: string;
+  details?: any;
+}
+
+// Update the state interface to properly type the error
 interface CompanyMetricsState {
   selectedMetric: ICompanyMetric | null;
   isFormExpanded: boolean;
@@ -108,7 +114,8 @@ const CompanyMetrics: React.FC = () => {
   });
 
   // Custom hooks
-  const { metrics, loading, error, fetchMetrics, createMetric, updateMetric, deleteMetric } = useCompanyMetrics();
+  const { metrics, loading, error, fetchMetrics, createMetric, updateMetric, deleteMetric } =
+    useCompanyMetrics();
   const { validateSession } = useAuth();
   const toast = useToast();
 
@@ -168,9 +175,7 @@ const CompanyMetrics: React.FC = () => {
     if (!Array.isArray(metrics)) {
       return [];
     }
-    return [...metrics].sort(
-      (a, b) => b.date.getTime() - a.date.getTime()
-    );
+    return [...metrics].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [metrics]);
 
   // Initialize data with debounce and caching
@@ -192,7 +197,7 @@ const CompanyMetrics: React.FC = () => {
         }
 
         if (!mounted) return;
-        
+
         setState((prev) => ({
           ...prev,
           loadingStates: { ...prev.loadingStates, init: true },
@@ -207,9 +212,9 @@ const CompanyMetrics: React.FC = () => {
         cacheRef.current.set(cacheKey, {
           data: {
             metrics: result,
-            lastUpdated: now
+            lastUpdated: now,
           },
-          cacheTimestamp: now
+          cacheTimestamp: now,
         });
 
         setState((prev) => ({
@@ -222,19 +227,20 @@ const CompanyMetrics: React.FC = () => {
         // Track page load with reduced frequency
         analytics.track('Company Metrics Page Loaded', {
           metricsCount: metrics?.length ?? 0,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
         });
       } catch (error) {
         if (!mounted) return;
-        
-        const errorMessage = error instanceof Error 
-          ? error.message 
-          : typeof error === 'string'
+
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : typeof error === 'string'
             ? error
             : 'Failed to load metrics';
 
         console.error('Error loading metrics:', error);
-        
+
         toast.showToast(errorMessage, ToastType.ERROR);
         setState((prev) => ({
           ...prev,
@@ -280,7 +286,7 @@ const CompanyMetrics: React.FC = () => {
         analytics.track(state.selectedMetric ? 'Metric Updated' : 'Metric Created', {
           metricId: metricData.metricId,
           category: metricData.metric?.category ?? 'unknown',
-          date: metricData.date.toISOString()
+          date: new Date(metricData.date).toISOString(),
         });
 
         setState((prev) => ({
@@ -298,9 +304,9 @@ const CompanyMetrics: React.FC = () => {
           cacheRef.current.set(cacheKey, {
             data: {
               metrics: result,
-              lastUpdated: now
+              lastUpdated: now,
             },
-            cacheTimestamp: now
+            cacheTimestamp: now,
           });
         }
       } catch (error) {
@@ -328,7 +334,7 @@ const CompanyMetrics: React.FC = () => {
     analytics.track('Metric Selected', {
       metricId: metric.metricId,
       category: metric.metric?.category ?? 'unknown',
-      date: metric.date.toISOString()
+      date: new Date(metric.date).toISOString(),
     });
   }, []);
 
@@ -356,37 +362,38 @@ const CompanyMetrics: React.FC = () => {
         </Header>
 
         {error && (
-          <Alert 
-            severity="error" 
+          <Alert
+            severity="error"
             sx={{ mb: 2 }}
             onClose={() => {
-              // Clear the error when user dismisses the alert
-              setState(prev => ({ ...prev, errors: {} }));
+              setState((prev) => ({ ...prev, errors: {} }));
             }}
           >
-            {error.message || 'An unexpected error occurred'}
-            {error.details && (
+            {typeof error === 'string'
+              ? error
+              : (error as ApiError).message || 'An unexpected error occurred'}
+            {typeof error !== 'string' && (error as ApiError).details && (
               <details>
                 <summary>Error Details</summary>
-                <pre>{JSON.stringify(error.details, null, 2)}</pre>
+                <pre>{JSON.stringify((error as ApiError).details, null, 2)}</pre>
               </details>
             )}
           </Alert>
         )}
 
         {Object.entries(state.errors).map(([key, message]) => (
-          <Alert 
-            key={key} 
-            severity="error" 
+          <Alert
+            key={key}
+            severity="error"
             sx={{ mb: 2 }}
             onClose={() => {
               // Clear this specific error when user dismisses the alert
-              setState(prev => {
+              setState((prev) => {
                 const newErrors = { ...prev.errors };
                 delete newErrors[key];
                 return {
                   ...prev,
-                  errors: newErrors
+                  errors: newErrors,
                 };
               });
             }}
@@ -420,14 +427,14 @@ const CompanyMetrics: React.FC = () => {
         ) : (
           <MetricsGrid>
             {sortedMetrics.length === 0 ? (
-              <Alert 
-                severity="info" 
-                sx={{ 
+              <Alert
+                severity="info"
+                sx={{
                   gridColumn: '1 / -1',
                   '& .MuiAlert-message': {
                     width: '100%',
-                    textAlign: 'center'
-                  }
+                    textAlign: 'center',
+                  },
                 }}
               >
                 <p style={{ margin: 0 }}>No metrics found.</p>
