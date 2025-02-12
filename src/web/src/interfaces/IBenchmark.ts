@@ -70,3 +70,62 @@ export interface IBenchmark {
   /** Date when the benchmark was last updated */
   updatedAt: string;
 }
+
+/**
+ * Interface for basic benchmark data available to regular users
+ */
+export interface IBasicBenchmark {
+  metricId: string;
+  revenueRange: string;
+  p10: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p90: number;
+  industry: string;
+  category: string;
+  lastUpdated: Date;
+}
+
+/**
+ * Interface for analyst-level benchmark data
+ */
+export interface IAnalystBenchmark extends IBasicBenchmark {
+  standardDeviation: number;
+  sampleSize: number;
+  confidenceInterval: {
+    lower: number;
+    upper: number;
+  };
+  trendData: {
+    period: string;
+    value: number;
+  }[];
+  sourceDetails: {
+    source: string;
+    reliability: number;
+    lastVerified: Date;
+  };
+}
+
+/**
+ * Interface for admin-level benchmark data
+ */
+export interface IAdminBenchmark extends IAnalystBenchmark {
+  dataQualityScore: number;
+  validationRules: {
+    min: number;
+    max: number;
+    outlierThreshold: number;
+  };
+  usageMetrics: {
+    viewCount: number;
+    exportCount: number;
+    lastAccessed: Date;
+  };
+  sourceManagement: {
+    sourceId: string;
+    status: 'active' | 'pending' | 'archived';
+    verificationStatus: 'verified' | 'unverified' | 'flagged';
+  };
+}

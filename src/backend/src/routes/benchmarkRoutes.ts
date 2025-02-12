@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { createAuthMiddleware } from '../middleware/auth';
 import BenchmarkController from '../controllers/benchmarkController';
-import { UserRole } from '../types/auth';
+import { USER_ROLES } from '../constants/roles';
 import correlator from 'express-correlation-id';
 import { validateRequest } from '../middleware/validator';
-import { 
+import {
   validateBenchmarkGet,
   validateBenchmarkCreate,
-  validateBenchmarkUpdate 
+  validateBenchmarkUpdate,
 } from '../validators/benchmarkValidator';
 import { GoogleAuthProvider } from '../services/googleAuthProvider';
 import { BenchmarkService } from '../services/benchmarkService';
@@ -24,39 +24,47 @@ router.use(correlator());
 // Public routes
 router.get('/public', benchmarkController.getPublicBenchmarks);
 
-// Protected routes
-router.get('/', 
-  authenticate, 
-  authorize([UserRole.USER, UserRole.ADMIN]),
+// Protected routes - Base benchmark queries
+router.get(
+  '/',
+  authenticate,
+  authorize([USER_ROLES.USER, USER_ROLES.ANALYST, USER_ROLES.ADMIN]),
   validateRequest(validateBenchmarkGet),
   benchmarkController.getBenchmarks
 );
 
 // Get benchmarks by metric ID
-router.get('/metrics/:metricId', 
-  authenticate, 
-  authorize([UserRole.USER, UserRole.ADMIN]),
+router.get(
+  '/metrics/:metricId',
+  authenticate,
+  authorize([USER_ROLES.USER, USER_ROLES.ANALYST, USER_ROLES.ADMIN]),
   validateRequest(validateBenchmarkGet),
   benchmarkController.getBenchmarks
 );
 
-router.post('/', 
-  authenticate, 
-  authorize([UserRole.USER, UserRole.ADMIN]),
+// Create benchmark
+router.post(
+  '/',
+  authenticate,
+  authorize([USER_ROLES.ADMIN, USER_ROLES.ANALYST]),
   validateRequest(validateBenchmarkCreate),
   benchmarkController.createBenchmark
 );
 
-router.put('/:id', 
-  authenticate, 
-  authorize([UserRole.USER, UserRole.ADMIN]),
+// Update benchmark
+router.put(
+  '/:id',
+  authenticate,
+  authorize([USER_ROLES.ADMIN]),
   validateRequest(validateBenchmarkUpdate),
   benchmarkController.updateBenchmark
 );
 
-router.delete('/:id', 
-  authenticate, 
-  authorize(UserRole.ADMIN),
+// Delete benchmark
+router.delete(
+  '/:id',
+  authenticate,
+  authorize([USER_ROLES.ADMIN]),
   benchmarkController.deleteBenchmark
 );
 

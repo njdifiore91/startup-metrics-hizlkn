@@ -122,32 +122,6 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
     ],
   },
   {
-    id: 'reports',
-    label: 'Reports',
-    path: '/reports',
-    icon: <DescriptionIcon />,
-    visible: hasPermission(userRole, FEATURES.reports, 'read'),
-    children:
-      userRole === USER_ROLES.ADMIN
-        ? [
-            {
-              id: 'system-reports',
-              label: 'System Analytics',
-              path: '/reports/system',
-              icon: <AssessmentIcon />,
-              visible: true,
-            },
-            {
-              id: 'custom-reports',
-              label: 'Custom Reports',
-              path: '/reports/custom',
-              icon: <DescriptionIcon />,
-              visible: true,
-            },
-          ]
-        : [],
-  },
-  {
     id: 'profile',
     label: 'Profile',
     path: '/profile',

@@ -79,6 +79,7 @@ export function isCompanyMetric(value: unknown): value is ICompanyMetric {
 
 export interface IMetricValidationRules {
   precision?: number;
+  decimalPrecision?: number;
   min?: number;
   max?: number;
   required?: boolean;

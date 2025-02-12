@@ -88,10 +88,24 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
     return (req: Request, res: Response, next: NextFunction) => {
       try {
         if (!req.user) {
+          logger.error('Authorization failed: No user in request');
           throw new AppError('Unauthorized access', 401, 'AUTH_001');
         }
 
+        logger.info('Authorization check', {
+          userRole: req.user.role,
+          allowedRoles: roles,
+          path: req.path,
+          method: req.method,
+        });
+
         if (!roles.includes(req.user.role)) {
+          logger.error('Authorization failed: Insufficient permissions', {
+            userRole: req.user.role,
+            allowedRoles: roles,
+            path: req.path,
+            method: req.method,
+          });
           throw new AppError('Insufficient permissions', 403, 'AUTH_004');
         }
 
@@ -100,6 +114,10 @@ export function createAuthMiddleware(authProvider: IAuthProvider) {
         logger.error('Authorization failed', {
           error: error instanceof Error ? error.message : 'Unknown authorization error',
           stack: error instanceof Error ? error.stack : undefined,
+          userRole: req.user?.role,
+          allowedRoles: roles,
+          path: req.path,
+          method: req.method,
         });
 
         if (error instanceof AppError) {

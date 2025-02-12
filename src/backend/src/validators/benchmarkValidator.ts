@@ -10,15 +10,9 @@ import { IBenchmarkData } from '../interfaces/IBenchmarkData';
 import { METRIC_VALIDATION_RULES } from '../constants/validations';
 
 // Revenue ranges supported by the platform
-const RevenueRanges = [
-  '0-1M',
-  '1M-5M',
-  '5M-20M',
-  '20M-50M',
-  '50M+'
-] as const;
+const RevenueRanges = ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'] as const;
 
-type RevenueRange = typeof RevenueRanges[number];
+type RevenueRange = (typeof RevenueRanges)[number];
 
 // Custom error messages for enhanced user feedback
 const ERROR_MESSAGES = {
@@ -27,7 +21,7 @@ const ERROR_MESSAGES = {
   DECIMAL_PRECISION: (precision: number) => `Value must have at most ${precision} decimal places`,
   REQUIRED_FIELD: (field: string) => `${field} is required`,
   INVALID_UUID: 'Invalid UUID format',
-  INVALID_NUMBER: 'Value must be a valid number'
+  INVALID_NUMBER: 'Value must be a valid number',
 };
 
 /**
@@ -40,7 +34,7 @@ export const createBenchmarkSchema = Joi.object({
     .required()
     .messages({
       'string.guid': ERROR_MESSAGES.INVALID_UUID,
-      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('metricId')
+      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
     }),
 
   sourceId: Joi.string()
@@ -48,7 +42,7 @@ export const createBenchmarkSchema = Joi.object({
     .required()
     .messages({
       'string.guid': ERROR_MESSAGES.INVALID_UUID,
-      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('sourceId')
+      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('sourceId'),
     }),
 
   revenueRange: Joi.string()
@@ -56,7 +50,7 @@ export const createBenchmarkSchema = Joi.object({
     .required()
     .messages({
       'any.only': ERROR_MESSAGES.REVENUE_RANGE,
-      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange')
+      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
     }),
 
   p10: Joi.number()
@@ -65,7 +59,9 @@ export const createBenchmarkSchema = Joi.object({
     .required()
     .messages({
       'number.base': ERROR_MESSAGES.INVALID_NUMBER,
-      'number.precision': ERROR_MESSAGES.DECIMAL_PRECISION(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
+      'number.precision': ERROR_MESSAGES.DECIMAL_PRECISION(
+        METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision
+      ),
     }),
 
   p25: Joi.number()
@@ -73,7 +69,7 @@ export const createBenchmarkSchema = Joi.object({
     .greater(Joi.ref('p10'))
     .required()
     .messages({
-      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER
+      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER,
     }),
 
   p50: Joi.number()
@@ -81,7 +77,7 @@ export const createBenchmarkSchema = Joi.object({
     .greater(Joi.ref('p25'))
     .required()
     .messages({
-      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER
+      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER,
     }),
 
   p75: Joi.number()
@@ -89,7 +85,7 @@ export const createBenchmarkSchema = Joi.object({
     .greater(Joi.ref('p50'))
     .required()
     .messages({
-      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER
+      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER,
     }),
 
   p90: Joi.number()
@@ -97,8 +93,8 @@ export const createBenchmarkSchema = Joi.object({
     .greater(Joi.ref('p75'))
     .required()
     .messages({
-      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER
-    })
+      'number.greater': ERROR_MESSAGES.PERCENTILE_ORDER,
+    }),
 });
 
 /**
@@ -106,9 +102,7 @@ export const createBenchmarkSchema = Joi.object({
  * Supports partial updates while maintaining percentile ordering.
  */
 export const updateBenchmarkSchema = Joi.object({
-  p10: Joi.number()
-    .precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
-    .min(0),
+  p10: Joi.number().precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision).min(0),
 
   p25: Joi.number()
     .precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
@@ -124,7 +118,7 @@ export const updateBenchmarkSchema = Joi.object({
 
   p90: Joi.number()
     .precision(METRIC_VALIDATION_RULES.PERCENTAGE.decimalPrecision)
-    .greater(Joi.ref('p75'))
+    .greater(Joi.ref('p75')),
 }).min(1);
 
 /**
@@ -132,21 +126,34 @@ export const updateBenchmarkSchema = Joi.object({
  * Validates required parameters for benchmark queries.
  */
 export const getBenchmarkSchema = Joi.object({
-  metricId: Joi.string()
-    .uuid()
-    .required()
-    .messages({
-      'string.guid': ERROR_MESSAGES.INVALID_UUID,
-      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('metricId')
-    }),
+  query: Joi.object({
+    metricId: Joi.string()
+      .uuid()
+      .required()
+      .messages({
+        'string.guid': ERROR_MESSAGES.INVALID_UUID,
+        'any.required': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
+      }),
 
-  revenueRange: Joi.string()
-    .valid(...RevenueRanges)
-    .required()
-    .messages({
-      'any.only': ERROR_MESSAGES.REVENUE_RANGE,
-      'any.required': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange')
-    })
+    revenueRange: Joi.string()
+      .valid(...RevenueRanges)
+      .required()
+      .messages({
+        'any.only': ERROR_MESSAGES.REVENUE_RANGE,
+        'any.required': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
+      }),
+
+    dataSourceId: Joi.string()
+      .uuid()
+      .required()
+      .messages({
+        'string.guid': ERROR_MESSAGES.INVALID_UUID,
+        'any.required': ERROR_MESSAGES.REQUIRED_FIELD('dataSourceId'),
+      }),
+  }).required(),
+  params: Joi.object({
+    metricId: Joi.string().uuid(),
+  }).optional(),
 });
 
 /**
@@ -156,31 +163,37 @@ export const getBenchmarkSchema = Joi.object({
  * @returns Validation result with detailed error messages
  */
 export const validateBenchmarkCreate = Joi.object({
-  metricId: Joi.string().uuid().required().messages({
-    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
-    'string.guid': ERROR_MESSAGES.INVALID_UUID
-  }),
-  revenueRange: Joi.string().valid(...RevenueRanges).required().messages({
-    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
-    'any.only': ERROR_MESSAGES.REVENUE_RANGE
-  }),
+  metricId: Joi.string()
+    .uuid()
+    .required()
+    .messages({
+      'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
+      'string.guid': ERROR_MESSAGES.INVALID_UUID,
+    }),
+  revenueRange: Joi.string()
+    .valid(...RevenueRanges)
+    .required()
+    .messages({
+      'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
+      'any.only': ERROR_MESSAGES.REVENUE_RANGE,
+    }),
   p10: Joi.number().required().messages({
-    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER,
   }),
   p25: Joi.number().required().messages({
-    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER,
   }),
   p50: Joi.number().required().messages({
-    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER,
   }),
   p75: Joi.number().required().messages({
-    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER,
   }),
   p90: Joi.number().required().messages({
-    'number.base': ERROR_MESSAGES.INVALID_NUMBER
+    'number.base': ERROR_MESSAGES.INVALID_NUMBER,
   }),
   sampleSize: Joi.number().min(30).required(),
-  confidenceLevel: Joi.number().min(0.95).max(1).required()
+  confidenceLevel: Joi.number().min(0.95).max(1).required(),
 });
 
 /**
@@ -190,16 +203,19 @@ export const validateBenchmarkCreate = Joi.object({
  * @returns Validation result with detailed error messages
  */
 export const validateBenchmarkUpdate = Joi.object({
-  revenueRange: Joi.string().valid(...RevenueRanges).optional().messages({
-    'any.only': ERROR_MESSAGES.REVENUE_RANGE
-  }),
+  revenueRange: Joi.string()
+    .valid(...RevenueRanges)
+    .optional()
+    .messages({
+      'any.only': ERROR_MESSAGES.REVENUE_RANGE,
+    }),
   p10: Joi.number().optional(),
   p25: Joi.number().optional(),
   p50: Joi.number().optional(),
   p75: Joi.number().optional(),
   p90: Joi.number().optional(),
   sampleSize: Joi.number().min(30).optional(),
-  confidenceLevel: Joi.number().min(0.95).max(1).optional()
+  confidenceLevel: Joi.number().min(0.95).max(1).optional(),
 }).custom((value, helpers) => {
   // Validate percentile ordering if any percentile is being updated
   if (value.p10 || value.p25 || value.p50 || value.p75 || value.p90) {
@@ -223,12 +239,30 @@ export const validateBenchmarkUpdate = Joi.object({
  * @returns Validation result with detailed error messages
  */
 export const validateBenchmarkGet = Joi.object({
-  metricId: Joi.string().uuid().required().messages({
-    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
-    'string.guid': ERROR_MESSAGES.INVALID_UUID
-  }),
-  revenueRange: Joi.string().valid(...RevenueRanges).required().messages({
-    'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
-    'any.only': ERROR_MESSAGES.REVENUE_RANGE
-  })
+  query: Joi.object({
+    metricId: Joi.string()
+      .uuid()
+      .required()
+      .messages({
+        'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('metricId'),
+        'string.guid': ERROR_MESSAGES.INVALID_UUID,
+      }),
+    revenueRange: Joi.string()
+      .valid(...RevenueRanges)
+      .required()
+      .messages({
+        'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('revenueRange'),
+        'any.only': ERROR_MESSAGES.REVENUE_RANGE,
+      }),
+    dataSourceId: Joi.string()
+      .uuid()
+      .required()
+      .messages({
+        'string.empty': ERROR_MESSAGES.REQUIRED_FIELD('dataSourceId'),
+        'string.guid': ERROR_MESSAGES.INVALID_UUID,
+      }),
+  }).required(),
+  params: Joi.object({
+    metricId: Joi.string().uuid(),
+  }).optional(),
 });

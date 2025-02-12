@@ -1,6 +1,7 @@
 // External imports with versions
 import { useSelector } from 'react-redux'; // ^8.1.0
-import { useState, useCallback } from 'react'; // ^18.2.0
+import { useState, useCallback, useEffect } from 'react'; // ^18.2.0
+import axios from 'axios';
 
 // Internal imports
 import { IBenchmark } from '../interfaces/IBenchmark';
@@ -17,6 +18,10 @@ import {
 import { ApiError } from '../utils/errorHandlers';
 import { AxiosError } from 'axios';
 import { useAppDispatch } from '../store';
+import * as apiService from '../services/api';
+import { ICompanyMetric } from '../interfaces/ICompanyMetric';
+import { api } from '../services/api';
+import type { IApiResponse } from '../services/api';
 
 // Constants
 const CACHE_DURATION = 300000; // 5 minutes
@@ -27,6 +32,7 @@ const RETRY_DELAY_BASE = 1000;
 interface UseBenchmarksOptions {
   metricId?: string;
   revenueRange?: RevenueRange;
+  dataSourceId?: string;
   retryAttempts?: number;
 }
 
@@ -39,16 +45,53 @@ interface BenchmarkComparison {
   };
 }
 
+interface BenchmarkData {
+  id: string;
+  metricId: string;
+  sourceId: string;
+  revenueRange: RevenueRange;
+  p10: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p90: number;
+  reportDate: string;
+  sampleSize: number;
+  confidenceLevel: number;
+  isStatisticallySignificant: boolean;
+  dataQualityScore: number;
+  isSeasonallyAdjusted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface BenchmarkResponse {
+  data: BenchmarkData[];
+}
+
+interface UseBenchmarksReturn {
+  benchmarkData: BenchmarkResponse | null;
+  companyMetrics: ICompanyMetric[];
+  loading: boolean;
+  error: Error | null;
+  fetchBenchmarksByMetric: (metricId: string) => Promise<void>;
+  fetchBenchmarksByRevenue: (revenueRange: string) => Promise<void>;
+  fetchCompanyMetrics: (companyId: string) => Promise<void>;
+  compareBenchmarks: (metricIds: string[], companyValue: number) => Promise<any>;
+}
+
 // Cache management
 const benchmarkCache = new Map<string, { data: IBenchmark[]; timestamp: number }>();
-
-// Helper function to create properly typed error
 
 /**
  * Custom hook for managing benchmark data with enhanced error handling and caching
  * @version 1.0.0
  */
-export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
+export const useBenchmarks = ({
+  metricId,
+  revenueRange,
+  dataSourceId,
+}: UseBenchmarksOptions): UseBenchmarksReturn => {
   const dispatch = useAppDispatch();
   const benchmarks = useSelector(selectBenchmarks);
   const loading = useSelector(selectBenchmarkLoading);
@@ -56,6 +99,8 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
 
   const [localError, setLocalError] = useState<string | null>(null);
   const [activeRequests] = useState(new Set<string>());
+  const [benchmarkData, setBenchmarkData] = useState<BenchmarkResponse | null>(null);
+  const [companyMetrics, setCompanyMetrics] = useState<ICompanyMetric[]>([]);
 
   /**
    * Generates cache key for benchmark data
@@ -82,129 +127,104 @@ export const useBenchmarks = (options: UseBenchmarksOptions = {}) => {
     return error instanceof Error ? error.message : 'An unknown error occurred';
   }, []);
 
-  /**
-   * Fetches benchmark data with retry logic and caching
-   */
-  const fetchBenchmarkData = useCallback(
-    async (
-      metricId?: string,
-      revenueRange?: RevenueRange,
-      retryAttempts: number = MAX_RETRY_ATTEMPTS
-    ): Promise<void> => {
-      if (!metricId && !revenueRange) {
-        setLocalError('Either metricId or revenueRange must be provided');
-        return;
-      }
+  const fetchBenchmarkData = useCallback(async () => {
+    if (!metricId || !revenueRange || !dataSourceId) {
+      return;
+    }
 
-      const cacheKey = generateCacheKey(metricId, revenueRange);
-
-      // Check for duplicate requests
-      if (activeRequests.has(cacheKey)) {
-        return;
-      }
-
-      // Check cache
-      const cached = benchmarkCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        return;
-      }
-
-      activeRequests.add(cacheKey);
-      setLocalError(null);
-
-      let attempt = 0;
-      while (attempt < retryAttempts) {
-        try {
-          if (metricId) {
-            const result = await dispatch(fetchBenchmarksByMetric(metricId)).unwrap();
-            benchmarkCache.set(cacheKey, {
-              data: result,
-              timestamp: Date.now(),
-            });
-          } else if (revenueRange) {
-            const result = await dispatch(
-              fetchBenchmarksByRevenue({
-                revenueRange,
-                metricIds: [],
-              })
-            ).unwrap();
-            benchmarkCache.set(cacheKey, {
-              data: result,
-              timestamp: Date.now(),
-            });
-          }
-
-          // Update cache
-          benchmarkCache.set(cacheKey, {
-            data: benchmarks,
-            timestamp: Date.now(),
-          });
-
-          activeRequests.delete(cacheKey);
-          return;
-        } catch (error) {
-          attempt++;
-          if (attempt === retryAttempts) {
-            const formattedError = handleError(error);
-            setLocalError(formattedError);
-            activeRequests.delete(cacheKey);
-            return;
-          }
-          await new Promise((resolve) => setTimeout(resolve, getRetryDelay(attempt)));
-        }
-      }
-    },
-    [dispatch, benchmarks, generateCacheKey, getRetryDelay]
-  );
-
-  /**
-   * Compares company metrics against benchmarks
-   */
-  const compareBenchmark = useCallback(
-    async (companyValue: number, metricId: string): Promise<BenchmarkComparison | null> => {
-      if (!metricId || typeof companyValue !== 'number') {
-        setLocalError('Valid metricId and company value are required');
-        return null;
-      }
-
-      try {
-        const result = await dispatch(
-          compareBenchmarkData({
-            metricId,
-            companyValue,
-            revenueRange: options.revenueRange || '0-1M',
-          })
-        ).unwrap();
-
-        return {
-          percentile: result.percentile,
-          difference: result.difference,
-          trend: result.trend,
-        };
-      } catch (error) {
-        const formattedError = handleError(error);
-        setLocalError(formattedError);
-        return null;
-      }
-    },
-    [dispatch, options.revenueRange]
-  );
-
-  /**
-   * Clears benchmark cache and errors
-   */
-  const clearBenchmarkCache = useCallback((): void => {
-    benchmarkCache.clear();
-    dispatch(clearErrors());
     setLocalError(null);
-  }, [dispatch]);
+    try {
+      const response = await api.get('/api/v1/benchmarks', {
+        params: {
+          metricId,
+          revenueRange,
+          dataSourceId,
+        },
+      });
+
+      console.log('response.data.data', response.data.data.data);
+
+      setBenchmarkData(response.data.data.data);
+    } catch (error) {
+      console.error('Error fetching benchmark data:', error);
+      setLocalError('Failed to fetch benchmark data');
+    }
+  }, [metricId, revenueRange, dataSourceId]);
+
+  // Fetch data when all required parameters are present
+  useEffect(() => {
+    if (metricId && revenueRange && dataSourceId) {
+      fetchBenchmarkData();
+    }
+  }, [metricId, revenueRange, dataSourceId, fetchBenchmarkData]);
+
+  const fetchBenchmarksByMetric = async (metricId: string): Promise<void> => {
+    try {
+      const queryParams = revenueRange ? `?revenueRange=${revenueRange}` : '';
+      const response = await api.get(
+        `/api/v1/metrics/benchmarks/metrics/${metricId}${queryParams}`
+      );
+      if (response.data) {
+        setBenchmarkData(response.data.data);
+      }
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Failed to fetch benchmark data');
+      console.error('Error fetching benchmark data:', error);
+    }
+  };
+
+  const fetchBenchmarksByRevenue = useCallback(async (revenueRange: string) => {
+    setLocalError(null);
+    try {
+      const response = await api.get(`/api/v1/metrics/benchmarks/revenue/${revenueRange}`);
+      setBenchmarkData(response.data.data);
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Failed to fetch benchmark data');
+    }
+  }, []);
+
+  const fetchCompanyMetrics = useCallback(async (companyId: string) => {
+    setLocalError(null);
+    try {
+      const response = await apiService.get(`/api/v1/metrics/company/${companyId}`);
+      setCompanyMetrics(response.data.data.metrics);
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Failed to fetch company metrics');
+    }
+  }, []);
+
+  const compareBenchmarks = useCallback(
+    async (metricIds: string[], companyValue: number) => {
+      setLocalError(null);
+      try {
+        const response = await apiService.post('/api/v1/metrics/benchmarks/compare', {
+          metricIds,
+          companyValue,
+          revenueRange: revenueRange || '0-1M',
+        });
+        return response.data.data;
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : 'Failed to compare benchmarks');
+        return null;
+      }
+    },
+    [revenueRange]
+  );
 
   return {
-    benchmarks,
+    benchmarkData,
+    companyMetrics,
     loading: Object.values(loading).some(Boolean),
-    error: localError || (errors.fetchByMetric?.message || errors.fetchByRevenue?.message || null),
-    fetchBenchmarkData,
-    compareBenchmark,
-    clearBenchmarkCache,
+    error: localError
+      ? new Error(localError)
+      : errors.fetchByMetric?.message
+      ? new Error(errors.fetchByMetric.message)
+      : errors.fetchByRevenue?.message
+      ? new Error(errors.fetchByRevenue.message)
+      : null,
+    fetchBenchmarksByMetric,
+    fetchBenchmarksByRevenue,
+    fetchCompanyMetrics,
+    compareBenchmarks,
   };
 };

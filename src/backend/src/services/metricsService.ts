@@ -12,6 +12,8 @@ import { BUSINESS_ERRORS } from '../constants/errorCodes';
 import { CompanyMetric } from '../models/CompanyMetric';
 import { ICompanyMetric, ICreateCompanyMetric } from '../interfaces/ICompanyMetric';
 import { Model, CreationAttributes } from 'sequelize';
+import { UserRole, ROLE_PERMISSIONS } from '../interfaces/IUserRole';
+import * as sequelize from 'sequelize';
 
 interface MetricLogMetadata {
   metricId?: string;
@@ -29,21 +31,43 @@ const MAX_BULK_OPERATIONS = 1000;
 // Configure cache manager
 let metricCache: Cache;
 
-(async () => {
-  metricCache = await caching('memory', {
-    ttl: METRIC_CACHE_TTL,
-    max: 1000,
-  });
-})();
-
 /**
  * Service class for managing metric operations with enhanced validation and caching
  */
 export class MetricsService {
-  private cache: Cache;
+  private cache!: Cache;
 
   constructor() {
-    this.cache = metricCache;
+    this.initializeCache();
+  }
+
+  /**
+   * Initialize the cache asynchronously
+   */
+  private async initializeCache(): Promise<void> {
+    try {
+      if (!metricCache) {
+        metricCache = await caching('memory', {
+          ttl: METRIC_CACHE_TTL,
+          max: 1000,
+        });
+      }
+      this.cache = metricCache;
+    } catch (error) {
+      logger.error('Failed to initialize cache:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Ensure cache is initialized before operations
+   */
+  private async ensureCacheInitialized(): Promise<void> {
+    if (!this.cache) {
+      await this.initializeCache();
+    }
   }
 
   /**
@@ -131,6 +155,8 @@ export class MetricsService {
     } = {}
   ): Promise<{ metrics: IMetric[]; total: number }> {
     try {
+      await this.ensureCacheInitialized();
+
       if (!isValidMetricCategory(category)) {
         throw new ValidationError(`Invalid metric category: ${category}`);
       }
@@ -530,6 +556,7 @@ export class MetricsService {
    * @param companyId - The company ID whose metrics cache needs to be invalidated
    */
   private async invalidateCompanyMetricsCache(companyId: string): Promise<void> {
+    await this.ensureCacheInitialized();
     const cacheKey = `company-metrics-${companyId}`;
     await this.cache.del(cacheKey);
   }
@@ -615,6 +642,7 @@ export class MetricsService {
    * @param category - The category to invalidate
    */
   private async invalidateCategoryCache(category: MetricCategory): Promise<void> {
+    await this.ensureCacheInitialized();
     const cacheKey = `metrics:${category}:*`;
     await this.cache.del(cacheKey);
   }
@@ -624,6 +652,8 @@ export class MetricsService {
    */
   async getBenchmarksByMetric(metricId: string): Promise<any[]> {
     try {
+      await this.ensureCacheInitialized();
+
       const cacheKey = `benchmark_metric_${metricId}`;
       const cached = await this.cache.get(cacheKey);
       if (cached) {
@@ -663,6 +693,8 @@ export class MetricsService {
    */
   async getBenchmarksByRevenue(revenueRange: string): Promise<any[]> {
     try {
+      await this.ensureCacheInitialized();
+
       const cacheKey = `benchmark_revenue_${revenueRange}`;
       const cached = await this.cache.get(cacheKey);
       if (cached) {
@@ -738,6 +770,218 @@ export class MetricsService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Get metrics based on user role and permissions
+   */
+  async getMetricsForUser(
+    userId: string,
+    userRole: UserRole,
+    companyId?: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      includeInactive?: boolean;
+      searchTerm?: string;
+      revenueRange?: string;
+    } = {}
+  ): Promise<{ metrics: ICompanyMetric[]; total: number }> {
+    try {
+      const userPermissions = ROLE_PERMISSIONS[userRole];
+
+      // Handle different roles
+      switch (userRole) {
+        case UserRole.REGULAR:
+          if (!companyId) {
+            throw new ValidationError('Company ID is required for regular users');
+          }
+          return this.getCompanyMetrics(companyId, options);
+
+        case UserRole.ANALYST:
+          return this.getAggregateMetrics(options);
+
+        case UserRole.ADMIN:
+          return this.getAggregateMetrics({
+            ...options,
+            includeAuditData: true,
+          });
+
+        default:
+          throw new ValidationError('Invalid user role');
+      }
+    } catch (error) {
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        userRole,
+        companyId,
+      };
+      logger.error('Error retrieving metrics for user:', logMetadata);
+      throw error;
+    }
+  }
+
+  /**
+   * Get metrics for a specific company
+   */
+  private async getCompanyMetrics(
+    companyId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      includeInactive?: boolean;
+      searchTerm?: string;
+      revenueRange?: string;
+    }
+  ): Promise<{ metrics: ICompanyMetric[]; total: number }> {
+    const {
+      limit = DEFAULT_METRIC_LIMIT,
+      offset = 0,
+      includeInactive = false,
+      searchTerm,
+      revenueRange,
+    } = options;
+
+    const whereClause: any = {
+      companyId,
+      ...(includeInactive ? {} : { isActive: true }),
+      ...(searchTerm
+        ? {
+            [Op.or]: [
+              { name: { [Op.iLike]: `%${searchTerm}%` } },
+              { description: { [Op.iLike]: `%${searchTerm}%` } },
+            ],
+          }
+        : {}),
+    };
+
+    const { rows: metrics, count: total } = await CompanyMetric.findAndCountAll({
+      where: whereClause,
+      limit: Math.min(limit, DEFAULT_METRIC_LIMIT),
+      offset,
+      order: [['date', 'DESC']],
+      include: [
+        {
+          model: Metric,
+          attributes: ['name', 'displayName', 'category', 'type', 'valueType'],
+        },
+      ],
+    });
+
+    return {
+      metrics: metrics.map((metric) => metric.toJSON() as ICompanyMetric),
+      total,
+    };
+  }
+
+  /**
+   * Get aggregate metrics for analysts and admins
+   */
+  private async getAggregateMetrics(
+    options: {
+      limit?: number;
+      offset?: number;
+      includeInactive?: boolean;
+      searchTerm?: string;
+      revenueRange?: string;
+      includeAuditData?: boolean;
+    } = {}
+  ): Promise<{ metrics: ICompanyMetric[]; total: number }> {
+    const {
+      limit = DEFAULT_METRIC_LIMIT,
+      offset = 0,
+      includeInactive = false,
+      searchTerm,
+      revenueRange,
+      includeAuditData = false,
+    } = options;
+
+    // Build base query for aggregate data
+    const baseQuery = {
+      attributes: [
+        'metricId',
+        [sequelize.fn('AVG', sequelize.col('value')), 'averageValue'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+        [sequelize.fn('MIN', sequelize.col('value')), 'minValue'],
+        [sequelize.fn('MAX', sequelize.col('value')), 'maxValue'],
+      ],
+      include: [
+        {
+          model: Metric,
+          attributes: ['name', 'displayName', 'category', 'type', 'valueType'],
+          where: {
+            ...(includeInactive ? {} : { isActive: true }),
+            ...(searchTerm
+              ? {
+                  [Op.or]: [
+                    { name: { [Op.iLike]: `%${searchTerm}%` } },
+                    { description: { [Op.iLike]: `%${searchTerm}%` } },
+                  ],
+                }
+              : {}),
+          },
+        },
+      ],
+      group: ['metricId', 'Metric.id'],
+      limit: Math.min(limit, DEFAULT_METRIC_LIMIT),
+      offset,
+    };
+
+    // Add revenue range filter if specified
+    if (revenueRange) {
+      baseQuery.include[0].where = {
+        ...baseQuery.include[0].where,
+        revenueRange,
+      };
+    }
+
+    // Add audit data if requested (admin only)
+    if (includeAuditData) {
+      baseQuery.attributes.push(
+        [sequelize.fn('MAX', sequelize.col('updatedAt')), 'lastUpdated'],
+        [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('companyId'))), 'companies']
+      );
+    }
+
+    const metrics = await CompanyMetric.findAll(baseQuery);
+    const total = await CompanyMetric.count({
+      include: [{ model: Metric, where: baseQuery.include[0].where }],
+      distinct: true,
+    });
+
+    return {
+      metrics: metrics.map((metric) => this.formatAggregateMetric(metric, includeAuditData)),
+      total,
+    };
+  }
+
+  /**
+   * Format aggregate metric response
+   */
+  private formatAggregateMetric(metric: any, includeAuditData: boolean): any {
+    const formatted = {
+      id: metric.metricId,
+      name: metric.Metric.name,
+      displayName: metric.Metric.displayName,
+      category: metric.Metric.category,
+      type: metric.Metric.type,
+      valueType: metric.Metric.valueType,
+      averageValue: parseFloat(metric.get('averageValue')),
+      count: parseInt(metric.get('count')),
+      minValue: parseFloat(metric.get('minValue')),
+      maxValue: parseFloat(metric.get('maxValue')),
+    };
+
+    if (includeAuditData) {
+      return {
+        ...formatted,
+        lastUpdated: metric.get('lastUpdated'),
+        companies: parseInt(metric.get('companies')),
+      };
+    }
+
+    return formatted;
   }
 }
 

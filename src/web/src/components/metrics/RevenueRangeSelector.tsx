@@ -58,9 +58,9 @@ const StyledContainer = styled.div`
  */
 interface RevenueRangeSelectorProps {
   /** Currently selected revenue range value */
-  selectedRange: RevenueRange;
+  selectedRange: RevenueRange | null;
   /** Callback function triggered when range selection changes */
-  onRangeChange: (range: RevenueRange) => void;
+  onRangeChange: (range: RevenueRange | null) => void;
   /** Whether the selector is disabled */
   disabled?: boolean;
   /** Additional CSS classes for styling customization */
@@ -103,14 +103,15 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(
     // Handle range change with type safety
     const handleRangeChange = useCallback(
       (value: string | number) => {
-        onRangeChange(value.toString() as RevenueRange);
+        const stringValue = value.toString();
+        onRangeChange(stringValue ? (stringValue as RevenueRange) : null);
       },
       [onRangeChange]
     );
 
     // Format the selected range for display
     const formattedRange = useMemo(() => {
-      if (!selectedRange) return '';
+      if (!selectedRange) return 'Select Revenue Range';
       return selectedRange
         .replace('M', ' Million')
         .replace('B', ' Billion')
@@ -125,22 +126,19 @@ const RevenueRangeSelector: React.FC<RevenueRangeSelectorProps> = React.memo(
             <Select
               name="revenue-range"
               id="revenue-range-select"
-              value={selectedRange}
+              value={selectedRange || ''}
               onChange={handleRangeChange}
               options={revenueOptions}
               disabled={disabled}
-              placeholder="Select revenue range"
-              required
+              placeholder="Select Revenue Range"
               aria-label={ariaLabel}
               data-testid="revenue-range-selector"
             />
           </div>
-          {selectedRange && (
-            <div className="range-info">
-              <span>Range:</span>
-              <span className="range-type">{formattedRange}</span>
-            </div>
-          )}
+          <div className="range-info">
+            <span>Range:</span>
+            <span className="range-type">{formattedRange}</span>
+          </div>
         </div>
       </StyledContainer>
     );

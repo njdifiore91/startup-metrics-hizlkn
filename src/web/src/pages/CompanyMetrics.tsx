@@ -71,10 +71,11 @@ const LoadingOverlay = styled.div`
   z-index: 1000;
 `;
 
-// Constants for debouncing and caching
-const METRICS_FETCH_DEBOUNCE = 2000; // 2 seconds
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const SESSION_CHECK_INTERVAL = 60000; // 1 minute
+// Constants for performance tuning
+const METRICS_FETCH_DEBOUNCE = 5000; // Increased to 5 seconds
+const CACHE_TTL = 10 * 60 * 1000; // Increased to 10 minutes
+const SESSION_CHECK_INTERVAL = 300000; // Increased to 5 minutes
+const ANALYTICS_DEBOUNCE = 30000; // 30 seconds for analytics
 
 // Cache entry type
 interface CacheEntry<T> {
@@ -104,14 +105,14 @@ interface CompanyMetricsState {
 }
 
 const CompanyMetrics: React.FC = () => {
-  // State management
-  const [state, setState] = useState<CompanyMetricsState>({
+  // State management with lazy initialization
+  const [state, setState] = useState<CompanyMetricsState>(() => ({
     selectedMetric: null,
     isFormExpanded: true,
     errors: {},
     loadingStates: {},
     lastUpdated: {},
-  });
+  }));
 
   // Custom hooks
   const { metrics, loading, error, fetchMetrics, createMetric, updateMetric, deleteMetric } =
@@ -123,75 +124,120 @@ const CompanyMetrics: React.FC = () => {
   const cacheRef = useRef<Map<string, CacheEntry<any>>>(new Map());
   const lastValidationRef = useRef<number>(0);
   const sessionCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const analyticsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Session validation effect
+  // Memoize handlers
+  const handleMetricSelect = useCallback((metric: ICompanyMetric) => {
+    setState((prev) => ({ ...prev, selectedMetric: metric }));
+  }, []);
+
+  const handleFormToggle = useCallback(() => {
+    setState((prev) => ({ ...prev, isFormExpanded: !prev.isFormExpanded }));
+  }, []);
+
+  const handleMetricSubmit = useCallback(
+    async (metricData: ICompanyMetric) => {
+      try {
+        setState((prev) => ({
+          ...prev,
+          loadingStates: { ...prev.loadingStates, submit: true },
+        }));
+
+        const result = await (metricData.id
+          ? updateMetric(metricData.id, metricData)
+          : createMetric(metricData));
+
+        // Update cache
+        const cacheKey = 'metrics_init';
+        const now = Date.now();
+        cacheRef.current.set(cacheKey, {
+          data: {
+            metrics: result,
+            lastUpdated: now,
+          },
+          cacheTimestamp: now,
+        });
+
+        setState((prev) => ({
+          ...prev,
+          selectedMetric: null,
+          isFormExpanded: false,
+          loadingStates: { ...prev.loadingStates, submit: false },
+        }));
+
+        toast.showToast('Metric saved successfully', ToastType.SUCCESS);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to save metric';
+        toast.showToast(errorMessage, ToastType.ERROR);
+        setState((prev) => ({
+          ...prev,
+          loadingStates: { ...prev.loadingStates, submit: false },
+        }));
+      }
+    },
+    [createMetric, updateMetric, toast]
+  );
+
+  // Memoize sorted metrics with stable sort function
+  const sortedMetrics = useMemo(() => {
+    if (!Array.isArray(metrics)) return [];
+
+    const stableSort = (a: ICompanyMetric, b: ICompanyMetric) => {
+      const dateComparison = new Date(b.date).getTime() - new Date(a.date).getTime();
+      return dateComparison === 0 ? (a.id || '').localeCompare(b.id || '') : dateComparison;
+    };
+
+    return [...metrics].sort(stableSort);
+  }, [metrics]);
+
+  // Session validation effect with increased interval
   useEffect(() => {
     let mounted = true;
 
     const checkSession = async () => {
       try {
-        // Skip if unmounted
         if (!mounted) return;
 
-        // Skip if we've checked recently
         const now = Date.now();
-        if (now - lastValidationRef.current < SESSION_CHECK_INTERVAL) {
-          return;
-        }
+        if (now - lastValidationRef.current < SESSION_CHECK_INTERVAL) return;
 
         const isValid = await validateSession();
         if (!isValid && mounted) {
-          // Handle invalid session
           toast.showToast('Your session has expired. Please log in again.', ToastType.ERROR);
           window.location.href = '/login';
         }
 
-        // Update last validation time only on successful validation
-        if (isValid) {
-          lastValidationRef.current = now;
-        }
+        if (isValid) lastValidationRef.current = now;
       } catch (err) {
         console.error('Session validation failed:', err);
       }
     };
 
-    // Initial check
     checkSession();
-
-    // Set up periodic validation every minute
     sessionCheckRef.current = setInterval(checkSession, SESSION_CHECK_INTERVAL);
 
     return () => {
       mounted = false;
       if (sessionCheckRef.current) {
         clearInterval(sessionCheckRef.current);
-        sessionCheckRef.current = null;
+      }
+      if (analyticsTimeoutRef.current) {
+        clearTimeout(analyticsTimeoutRef.current);
       }
     };
   }, [validateSession, toast]);
 
-  // Memoized sorted metrics
-  const sortedMetrics = useMemo(() => {
-    if (!Array.isArray(metrics)) {
-      return [];
-    }
-    return [...metrics].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [metrics]);
-
-  // Initialize data with debounce and caching
+  // Initialize data with improved debounce and caching
   useEffect(() => {
     let mounted = true;
+    let timeoutId: NodeJS.Timeout;
+
     const initializeMetrics = async () => {
       try {
-        // Check debounce
         const now = Date.now();
-        if (now - lastValidationRef.current < METRICS_FETCH_DEBOUNCE) {
-          return;
-        }
-
-        // Check cache
         const cacheKey = 'metrics_init';
         const cachedData = cacheRef.current.get(cacheKey);
+
         if (cachedData && now - cachedData.cacheTimestamp < CACHE_TTL) {
           return;
         }
@@ -208,12 +254,8 @@ const CompanyMetrics: React.FC = () => {
 
         if (!mounted) return;
 
-        // Cache the result
         cacheRef.current.set(cacheKey, {
-          data: {
-            metrics: result,
-            lastUpdated: now,
-          },
+          data: { metrics: result, lastUpdated: now },
           cacheTimestamp: now,
         });
 
@@ -224,24 +266,23 @@ const CompanyMetrics: React.FC = () => {
           errors: {},
         }));
 
-        // Track page load with reduced frequency
-        analytics.track('Company Metrics Page Loaded', {
-          metricsCount: metrics?.length ?? 0,
-          lastUpdated: new Date().toISOString(),
-        });
+        // Debounced analytics
+        if (analyticsTimeoutRef.current) {
+          clearTimeout(analyticsTimeoutRef.current);
+        }
+        analyticsTimeoutRef.current = setTimeout(() => {
+          analytics.track('Company Metrics Page Loaded', {
+            metricsCount: metrics?.length ?? 0,
+            lastUpdated: new Date().toISOString(),
+          });
+        }, ANALYTICS_DEBOUNCE);
       } catch (error) {
         if (!mounted) return;
 
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : typeof error === 'string'
-            ? error
-            : 'Failed to load metrics';
-
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load metrics';
         console.error('Error loading metrics:', error);
-
         toast.showToast(errorMessage, ToastType.ERROR);
+
         setState((prev) => ({
           ...prev,
           errors: { ...prev.errors, init: errorMessage },
@@ -250,108 +291,13 @@ const CompanyMetrics: React.FC = () => {
       }
     };
 
-    initializeMetrics();
+    timeoutId = setTimeout(initializeMetrics, METRICS_FETCH_DEBOUNCE);
 
     return () => {
       mounted = false;
+      clearTimeout(timeoutId);
     };
-  }, [fetchMetrics, toast]);
-
-  // Handlers with debouncing
-  const handleMetricSubmit = useCallback(
-    async (metricData: ICompanyMetric) => {
-      try {
-        // Check debounce for validation
-        const now = Date.now();
-        if (now - lastValidationRef.current < METRICS_FETCH_DEBOUNCE) {
-          return;
-        }
-        lastValidationRef.current = now;
-
-        setState((prev) => ({
-          ...prev,
-          loadingStates: { ...prev.loadingStates, submit: true },
-          errors: {},
-        }));
-
-        if (state.selectedMetric?.id) {
-          await updateMetric(state.selectedMetric.id, metricData);
-          toast.showToast('Metric updated successfully', ToastType.SUCCESS);
-        } else {
-          await createMetric(metricData);
-          toast.showToast('Metric created successfully', ToastType.SUCCESS);
-        }
-
-        // Track metric submission with reduced frequency
-        analytics.track(state.selectedMetric ? 'Metric Updated' : 'Metric Created', {
-          metricId: metricData.metricId,
-          category: metricData.metric?.category ?? 'unknown',
-          date: new Date(metricData.date).toISOString(),
-        });
-
-        setState((prev) => ({
-          ...prev,
-          selectedMetric: null,
-          loadingStates: {}, // Clear all loading states
-          lastUpdated: { ...prev.lastUpdated, metrics: now },
-        }));
-
-        // Fetch metrics with cache check
-        const cacheKey = 'metrics_refresh';
-        const cachedData = cacheRef.current.get(cacheKey);
-        if (!cachedData || now - cachedData.cacheTimestamp >= CACHE_TTL) {
-          const result = await fetchMetrics();
-          cacheRef.current.set(cacheKey, {
-            data: {
-              metrics: result,
-              lastUpdated: now,
-            },
-            cacheTimestamp: now,
-          });
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to save metric';
-        toast.showToast(errorMessage, ToastType.ERROR);
-        setState((prev) => ({
-          ...prev,
-          errors: { ...prev.errors, submit: errorMessage },
-          loadingStates: {}, // Clear all loading states
-        }));
-      }
-    },
-    [state.selectedMetric?.id, createMetric, updateMetric, fetchMetrics, toast, analytics]
-  );
-
-  const handleMetricSelect = useCallback((metric: ICompanyMetric) => {
-    setState((prev) => ({
-      ...prev,
-      selectedMetric: metric,
-      isFormExpanded: true,
-      errors: {},
-    }));
-
-    // Track metric selection
-    analytics.track('Metric Selected', {
-      metricId: metric.metricId,
-      category: metric.metric?.category ?? 'unknown',
-      date: new Date(metric.date).toISOString(),
-    });
-  }, []);
-
-  const handleCancel = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      selectedMetric: null,
-      errors: {},
-    }));
-  }, []);
-
-  const toggleForm = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      isFormExpanded: !prev.isFormExpanded,
-    }));
-  }, []);
+  }, [fetchMetrics, metrics?.length, toast]);
 
   return (
     <ErrorBoundary>
@@ -405,7 +351,7 @@ const CompanyMetrics: React.FC = () => {
         <Card>
           <FormHeader isExpanded={state.isFormExpanded}>
             <h2>{state.selectedMetric ? 'Edit Metric' : 'Add New Metric'}</h2>
-            <IconButton onClick={toggleForm} size="small">
+            <IconButton onClick={handleFormToggle} size="small">
               {state.isFormExpanded ? <ExpandLess /> : <ExpandMore />}
             </IconButton>
           </FormHeader>
@@ -415,7 +361,7 @@ const CompanyMetrics: React.FC = () => {
               <CompanyMetricForm
                 initialData={state.selectedMetric || undefined}
                 onSubmitSuccess={handleMetricSubmit}
-                onCancel={handleCancel}
+                onCancel={handleFormToggle}
                 isSubmitting={state.loadingStates.submit || false}
               />
             </FormSection>
@@ -457,4 +403,4 @@ const CompanyMetrics: React.FC = () => {
   );
 };
 
-export default CompanyMetrics;
+export default React.memo(CompanyMetrics);
