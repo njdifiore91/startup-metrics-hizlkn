@@ -8,6 +8,19 @@ import { UserPreferences } from '@/store/authSlice';
 import { UserRole } from '../config/constants';
 
 /**
+ * Interface representing a user metric
+ */
+export interface IUserMetric {
+  id: string;
+  userId: string;
+  metricId: string;
+  value: number;
+  lastUpdated: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Interface representing a user entity in the frontend application
  * Ensures type safety and consistent user object structure across components
  *
@@ -34,4 +47,5 @@ export interface IUser {
   readonly revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
   preferences: UserPreferences;
   permissions: string[];
+  metrics?: IUserMetric[];
 }

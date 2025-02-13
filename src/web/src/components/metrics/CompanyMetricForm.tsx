@@ -171,6 +171,21 @@ const StyledButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
   }
 `;
 
+interface MetricTypeResponse {
+  status: string;
+  data: Array<{
+    id: string;
+    name: string;
+    displayName: string;
+    type: string;
+    valueType: string;
+    category: string;
+    validationRules: IMetricValidationRules;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+
 // Props interface
 interface CompanyMetricFormProps {
   initialData?: ICompanyMetric;
@@ -196,15 +211,23 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
   ({ initialData, onSubmitSuccess, onCancel, isSubmitting }) => {
-    // Only destructure what we use
     const { isAuthenticated, isLoading: authLoading } = useAuth();
+    const { metrics } = useCompanyMetrics();
     const { getMetricTypes, getMetricById } = useMetrics();
     const { dataSources, loading: dataSourcesLoading } = useDataSources();
 
-    // Memoized state
+    // State for metric types
     const [metricTypes, setMetricTypes] = useState<
-      Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>>
+      Array<
+        Pick<IMetric, 'id' | 'name' | 'type' | 'valueType' | 'displayName'> & {
+          displayName?: string;
+        }
+      >
     >([]);
+    const [loadingMetricTypes, setLoadingMetricTypes] = useState(false);
+    const [metricTypesError, setMetricTypesError] = useState<string | null>(null);
+
+    // Memoized state
     const [selectedMetric, setSelectedMetric] = useState<IMetric | null>(null);
 
     // Refs for validation and API calls
@@ -275,31 +298,37 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
       };
     }, []);
 
-    // Load metric types with cleanup and caching
+    // Fetch metric types on component mount
     useEffect(() => {
-      let mounted = true;
       const fetchMetricTypes = async () => {
         try {
-          const now = Date.now();
-          if (now - lastApiCallRef.current < API_DEBOUNCE) {
-            return;
-          }
-          lastApiCallRef.current = now;
+          setLoadingMetricTypes(true);
+          setMetricTypesError(null);
 
           const response = await getMetricTypes();
-          if (!mounted) return;
 
-          const extractedTypes = extractMetricTypes(response);
-          setMetricTypes(extractedTypes);
-        } catch (err) {
-          console.error('Failed to fetch metric types:', err);
+          if (response.error) {
+            throw new Error(response.error);
+          }
+
+          // Transform the response data to include displayName
+          const transformedMetrics = (response.data || []).map((metric) => ({
+            ...metric,
+            displayName: metric?.displayName, // Use name as displayName since it's not in the original type
+          }));
+
+          setMetricTypes(transformedMetrics);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : 'Failed to fetch metric types';
+          setMetricTypesError(errorMessage);
+          console.error('Error fetching metric types:', error);
+        } finally {
+          setLoadingMetricTypes(false);
         }
       };
 
       fetchMetricTypes();
-      return () => {
-        mounted = false;
-      };
     }, [getMetricTypes]);
 
     // Handle value changes with debounce
@@ -364,6 +393,39 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
       return true;
     }, []);
 
+    // Handle metric selection
+    const handleMetricChange = useCallback(
+      async (id: string) => {
+        console.log('Metric selection changed to:', id);
+        if (id) {
+          try {
+            const response = await getMetricById(id);
+            console.log('Direct metric fetch response:', response);
+            const metricData = extractMetricData(response);
+            if (metricData && isValidMetric(metricData)) {
+              console.log('Setting selected metric directly:', metricData);
+              setSelectedMetric(metricData);
+            }
+          } catch (error) {
+            console.error('Error fetching metric:', error);
+            setSelectedMetric(null);
+          }
+        } else {
+          setSelectedMetric(null);
+        }
+      },
+      [getMetricById]
+    );
+
+    // Effect to handle metric ID changes
+    useEffect(() => {
+      if (selectedMetricId) {
+        handleMetricChange(selectedMetricId);
+      } else {
+        setSelectedMetric(null);
+      }
+    }, [selectedMetricId, handleMetricChange]);
+
     // Helper function to extract metric data from API response
     const extractMetricData = (response: any): IMetric | null => {
       if (response?.status === 'success' && response?.data?.data) {
@@ -398,55 +460,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
       return null;
     };
 
-    // Handle metric selection
-    const handleMetricChange = useCallback(
-      async (id: string) => {
-        console.log('Metric selection changed to:', id);
-        if (id) {
-          try {
-            const response = await getMetricById(id);
-            console.log('Direct metric fetch response:', response);
-            const metricData = extractMetricData(response);
-            if (metricData && isValidMetric(metricData)) {
-              console.log('Setting selected metric directly:', metricData);
-              setSelectedMetric(metricData);
-            }
-          } catch (error) {
-            console.error('Error fetching metric:', error);
-            setSelectedMetric(null);
-          }
-        } else {
-          setSelectedMetric(null);
-        }
-      },
-      [getMetricById]
-    );
-
-    // Effect to handle metric ID changes
-    useEffect(() => {
-      if (selectedMetricId) {
-        handleMetricChange(selectedMetricId);
-      } else {
-        setSelectedMetric(null);
-      }
-    }, [selectedMetricId, handleMetricChange]);
-
-    // Helper function to extract metric types from API response
-    const extractMetricTypes = (
-      response: any
-    ): Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>> => {
-      if (response && response.data && Array.isArray(response.data)) {
-        return response.data.map((metric: any) => ({
-          id: metric.id || '',
-          name: metric.name || '',
-          displayName: metric.displayName || metric.name || '',
-          type: metric.type || '',
-          valueType: metric.valueType || '',
-        }));
-      }
-      return [];
-    };
-
     if (authLoading) {
       return <LoadingSpinner />;
     }
@@ -461,21 +474,28 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
     return (
       <StyledForm onSubmit={handleSubmit(onSubmit)} noValidate>
+        {(isSubmitting || loadingMetricTypes) && (
+          <StyledLoadingOverlay>
+            <LoadingSpinner />
+          </StyledLoadingOverlay>
+        )}
+
         <div>
-          <label htmlFor="metricId">Metric Type</label>
-          <select
+          <StyledLabel htmlFor="metricId">Metric Type</StyledLabel>
+          <StyledSelect
             id="metricId"
-            {...register('metricId', { required: 'Please select a metric type' })}
-            disabled={isSubmitting}
+            {...register('metricId')}
+            disabled={loadingMetricTypes || isSubmitting}
           >
             <option value="">Select a metric type</option>
             {metricTypes.map((metric) => (
               <option key={metric.id} value={metric.id}>
-                {metric.displayName}
+                {metric.displayName || metric.name}
               </option>
             ))}
-          </select>
-          {errors.metricId && <span className="error">{errors.metricId.message}</span>}
+          </StyledSelect>
+          {errors.metricId && <StyledErrorMessage>{errors.metricId.message}</StyledErrorMessage>}
+          {metricTypesError && <StyledErrorMessage>{metricTypesError}</StyledErrorMessage>}
         </div>
 
         <div>
@@ -548,12 +568,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             {initialData ? 'Update' : 'Create'} Metric
           </StyledButton>
         </StyledButtonContainer>
-
-        {(isSubmitting || authLoading || dataSourcesLoading) && (
-          <StyledLoadingOverlay>
-            <LoadingSpinner />
-          </StyledLoadingOverlay>
-        )}
       </StyledForm>
     );
   }

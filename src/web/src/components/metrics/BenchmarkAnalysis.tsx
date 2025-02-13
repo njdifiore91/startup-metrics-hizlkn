@@ -4,7 +4,7 @@ import { useMetrics } from '../../hooks/useMetrics';
 import { useBenchmarks } from '../../hooks/useBenchmarks';
 import { useAuth } from '../../hooks/useAuth';
 import { IMetric, MetricCategory } from '../../interfaces/IMetric';
-import { ICompanyMetric } from '../../interfaces/ICompanyMetric';
+import { IUserMetric } from '../../interfaces/IUser';
 import { USER_ROLES, REVENUE_RANGES } from '../../config/constants';
 import LoadingSpinner from '../common/LoadingSpinner';
 import MetricSelector from './MetricSelector';
@@ -21,6 +21,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import DataSourceSelector from './DataSourceSelector';
+import BenchmarkComparison from './BenchmarkComparison';
+import { api } from '../../services/api';
 
 type RevenueRange = '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
 
@@ -106,12 +108,7 @@ interface BenchmarkData {
 }
 
 interface BenchmarkResponse {
-  status: string;
   data: BenchmarkData[];
-  metadata: {
-    correlationId: string;
-    timestamp: string;
-  };
 }
 
 interface BenchmarkChartData {
@@ -144,6 +141,7 @@ interface BenchmarkAnalysisProps {
   benchmarkData: BenchmarkData[];
   isAnalyst: boolean;
   isAdmin: boolean;
+  userId: string;
 }
 
 export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
@@ -152,12 +150,16 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
   benchmarkData,
   isAnalyst,
   isAdmin,
+  userId,
 }) => {
   const { user } = useAuth();
   const [selectedDataSource, setSelectedDataSource] = useState<string>('');
   const [chartData, setChartData] = useState<BenchmarkChartData[]>([]);
   const [localMetricType, setLocalMetricType] = useState<string>('');
   const [localRevenueRange, setLocalRevenueRange] = useState<RevenueRange | null>(null);
+  const [userMetric, setUserMetric] = useState<IUserMetric | null>(null);
+  const [currentMetric, setCurrentMetric] = useState<IMetric | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const {
     benchmarkData: fetchedBenchmarkData,
@@ -304,6 +306,44 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
     [chartData]
   );
 
+  // Fetch user metric when metric type changes
+  useEffect(() => {
+    const fetchUserMetric = async () => {
+      if (!localMetricType || !userId) return;
+
+      try {
+        const response = await api.get(`/api/v1/metrics/user/${userId}/${localMetricType}`);
+        if (response.data?.data) {
+          setUserMetric(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching user metric:', error);
+        setLocalError('Failed to fetch user metric data');
+      }
+    };
+
+    fetchUserMetric();
+  }, [localMetricType, userId]);
+
+  // Fetch metric details when metric type changes
+  useEffect(() => {
+    const fetchMetricDetails = async () => {
+      if (!localMetricType) return;
+
+      try {
+        const response = await api.get(`/api/v1/metrics/${localMetricType}`);
+        if (response.data?.data) {
+          setCurrentMetric(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching metric details:', error);
+        setLocalError('Failed to fetch metric details');
+      }
+    };
+
+    fetchMetricDetails();
+  }, [localMetricType]);
+
   const renderContent = useCallback(() => {
     if (benchmarksLoading) {
       return (
@@ -348,9 +388,16 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
     return (
       <>
         {ChartComponent}
+        {userMetric && currentMetric && benchmarkDataArray[0] && (
+          <BenchmarkComparison
+            benchmark={benchmarkDataArray[0]}
+            userMetric={userMetric}
+            metric={currentMetric}
+          />
+        )}
         <StatsContainer>
-          {benchmarkDataArray.map((data: BenchmarkData, index: number) => (
-            <React.Fragment key={`${data.reportDate}-${index}`}>
+          {benchmarkDataArray.map((data: BenchmarkData) => (
+            <React.Fragment key={`${data.reportDate}`}>
               <StatCard>
                 <StatTitle>P50 (Median)</StatTitle>
                 <StatValue>{data.p50}</StatValue>
@@ -406,6 +453,8 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
     ChartComponent,
     isAnalyst,
     isAdmin,
+    userMetric,
+    currentMetric,
   ]);
 
   return (
