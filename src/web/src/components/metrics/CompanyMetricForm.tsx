@@ -204,7 +204,7 @@ interface CompanyMetricFormProps {
 
 // Form values interface
 interface FormValues {
-  value: number;
+  value: number | null;
   date: string;
   source: string;
   notes?: string;
@@ -234,7 +234,11 @@ const formatDateToYYYYMMDD = (date: Date): string => {
 };
 
 const getValidationSchema = (metric: IMetric) => {
-  let valueValidation = yup.number().required('Value is required');
+  let valueValidation = yup
+    .number()
+    .transform((value) => (isNaN(value) ? null : value))
+    .required('Value is required')
+    .test('not-null', 'Value is required', (value) => value !== null);
 
   switch (metric.valueType as MetricValueType) {
     case METRIC_VALUE_TYPES.NUMBER:
@@ -277,6 +281,7 @@ const getValidationSchema = (metric: IMetric) => {
     source: yup.string().required('Data source is required'),
     notes: yup.string().optional(),
     isVerified: yup.boolean().default(false),
+    metricId: yup.string().required('Metric type is required'),
   }) as yup.ObjectSchema<FormValues>;
 };
 
@@ -304,16 +309,16 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
     const [valueError, setValueError] = useState<string | null>(null);
 
-    const validateValue = useCallback((value: number, metric: IMetric | null) => {
+    const validateValue = useCallback((value: number | null, metric: IMetric | null) => {
       if (!metric) return 'Please select a metric type first';
-      if (value === undefined || value === null || isNaN(value)) {
+      if (value === null || isNaN(value)) {
         return 'Please enter a valid number';
       }
 
       const rules = metric.validationRules || {};
 
       // Check required
-      if (rules.required && (value === undefined || value === null)) {
+      if (rules.required && value === null) {
         return 'Value is required';
       }
 
@@ -376,7 +381,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
       resolver: yupResolver(getValidationSchema(selectedMetric || ({} as IMetric))),
       defaultValues: useMemo(
         () => ({
-          value: initialData?.value ?? 0,
+          value: initialData?.value !== undefined ? Number(initialData.value) : null,
           metricId: initialData?.metricId || '',
           date: initialData?.date
             ? initialData.date.split('T')[0]
@@ -390,12 +395,31 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
       mode: 'onBlur',
     });
 
+    // Add effect to preserve value when form resets
+    useEffect(() => {
+      const currentValue = watch('value');
+      const subscription = watch((formData: FormValues) => {
+        const value = watch('value');
+        if (value !== null && value !== currentValue) {
+          setValue('value', value);
+        }
+      });
+      return () => subscription.unsubscribe();
+    }, [watch, setValue]);
+
+    // Update handleValueValidation to preserve value
     const handleValueValidation = useCallback(
       async (event: React.FocusEvent<HTMLInputElement>) => {
-        const value = parseFloat(event.target.value);
+        const value = event.target.value === '' ? null : parseFloat(event.target.value);
+
+        if (event.target.value === '') {
+          setValue('value', null);
+          setValueError(null);
+          return true;
+        }
 
         // First check if it's a valid number
-        if (isNaN(value)) {
+        if (value !== null && isNaN(value)) {
           setValueError('Please enter a valid number');
           return false;
         }
@@ -409,12 +433,13 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
         // Clear any previous errors if validation passes
         setValueError(null);
+        setValue('value', value);
 
         // Trigger form validation
         const isValid = await trigger('value');
         return isValid;
       },
-      [selectedMetric, validateValue, trigger]
+      [selectedMetric, validateValue, trigger, setValue]
     );
 
     // Watch for changes in metricId with memoization
@@ -547,25 +572,39 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
           }
 
           setIsSubmitting(true);
+          const currentValue = formData.value;
 
           // Prepare the metric data with the correct structure
           const requestBody = {
             companyId: user.id,
-            value: formData.value,
+            value: formData.value !== null ? Number(formData.value) : null,
             metricId: formData.metricId,
             date: formData.date,
             source: formData.source,
             notes: formData.notes || '',
             isVerified: formData.isVerified,
             isActive: true,
-            name: selectedMetric?.name || '',
-            category: selectedMetric?.category || '',
-            valueType: selectedMetric?.valueType || '',
-            validationRules: selectedMetric?.validationRules || {
-              min: 0,
-              max: 1000000,
-              required: true,
-              precision: 2,
+            metric: {
+              id: selectedMetric?.id || formData.metricId,
+              name: selectedMetric?.name || '',
+              displayName: selectedMetric?.displayName || '',
+              type: selectedMetric?.type || '',
+              category: selectedMetric?.category || '',
+              description: selectedMetric?.description || '',
+              valueType: selectedMetric?.valueType || '',
+              validationRules: selectedMetric?.validationRules || {
+                min: 0,
+                max: 1000000,
+                required: true,
+                precision: 2,
+                decimalPrecision: 2,
+              },
+              isActive: true,
+              displayOrder: selectedMetric?.displayOrder || 0,
+              tags: selectedMetric?.tags || [],
+              metadata: selectedMetric?.metadata || {},
+              createdAt: selectedMetric?.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             },
           };
 
@@ -575,14 +614,26 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
             let response;
             if (initialData?.id) {
-              response = await api.put(`/api/v1/metrics/${initialData.id}`, requestBody);
+              // Update existing metric
+              response = await api.put<{ data: ICompanyMetric }>(
+                `/api/v1/company-metrics/${initialData.id}`,
+                requestBody
+              );
             } else {
-              response = await api.post('/api/v1/metrics', requestBody);
+              // Create new metric
+              response = await api.post<{ data: ICompanyMetric }>(
+                '/api/v1/company-metrics',
+                requestBody
+              );
             }
 
-            if (response?.data) {
+            if (response?.data?.data) {
               await onSubmitSuccess(response.data.data);
-              reset();
+              // Preserve the current value when resetting
+              reset({
+                ...formData,
+                value: currentValue,
+              });
             }
           } catch (error: unknown) {
             console.error('Failed to submit metric:', error);
