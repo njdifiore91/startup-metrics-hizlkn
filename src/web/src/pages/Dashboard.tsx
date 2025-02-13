@@ -14,6 +14,7 @@ import { METRIC_TYPES, REVENUE_RANGES } from '../config/constants';
 import { RevenueRange } from '../store/benchmarkSlice';
 import { IconButton, Collapse } from '@mui/material';
 import { ExpandMore, ExpandLess } from '@mui/icons-material';
+import { UserMetricsChart } from '../components/metrics/UserMetricsChart';
 
 // Styled Components
 const DashboardContainer = styled.div`
@@ -85,6 +86,13 @@ const ComparisonSection = styled.div`
   border-radius: var(--border-radius-lg);
 `;
 
+const ChartSection = styled.div`
+  margin-top: var(--spacing-lg);
+  background-color: var(--color-background-light);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+`;
+
 // Initialize analytics outside component with error handling
 let analytics;
 try {
@@ -133,7 +141,7 @@ const isValidRevenueRange = (value: string): value is ValidRevenueRange => {
  */
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, sessionStatus } = useAuth();
+  const { isAuthenticated, sessionStatus, user } = useAuth();
 
   // State Management
   const [state, setState] = useState<DashboardState>({
@@ -344,6 +352,8 @@ const Dashboard: React.FC = () => {
             </FilterSection>
           </Collapse>
         </FilterContainer>
+
+        <ChartSection>{user && <UserMetricsChart userId={user.id} />}</ChartSection>
 
         <MetricsGrid role="grid" aria-label="Metrics grid">
           {filteredMetrics.map((metric) => (

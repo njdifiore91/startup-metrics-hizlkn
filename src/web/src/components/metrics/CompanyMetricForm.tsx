@@ -24,6 +24,8 @@ import {
   isValidMetricValueType,
 } from '../../../../backend/src/constants/metricTypes';
 import { METRIC_VALIDATION_RULES } from '../../../../backend/src/constants/validations';
+import { METRIC_VALUE_TYPES, MetricValueType } from '../../constants/metricTypes';
+import { api } from '../../services/api';
 
 interface ApiError {
   errors: Array<{
@@ -44,13 +46,19 @@ interface IUser {
   email: string;
 }
 
-// Add metric value type enum
-const METRIC_VALUE_TYPES = {
-  INTEGER: 'INTEGER',
-  DECIMAL: 'DECIMAL',
-  PERCENTAGE: 'PERCENTAGE',
-  CURRENCY: 'CURRENCY',
-} as const;
+// Update the metric type interface
+interface IMetricType {
+  id: string;
+  name: string;
+  displayName: string;
+  type: string;
+  valueType: string;
+  category?: string;
+  validationRules?: IMetricValidationRules;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 // Local validation schema
 const validationSchema = yup.object().shape({
@@ -197,11 +205,21 @@ interface CompanyMetricFormProps {
 // Form values interface
 interface FormValues {
   value: number;
-  metricId: string;
   date: string;
   source: string;
   notes?: string;
   isVerified: boolean;
+  metricId: string;
+}
+
+// Update the form error handling
+interface FormState extends FormValues {
+  root?: {
+    serverError?: {
+      type: string;
+      message: string;
+    };
+  };
 }
 
 // Helper function to format date to YYYY-MM-DD
@@ -209,32 +227,134 @@ const formatDateToYYYYMMDD = (date: Date): string => {
   return date.toISOString().split('T')[0];
 };
 
+const getValidationSchema = (metric: IMetric) => {
+  let valueValidation = yup.number().required('Value is required');
+
+  switch (metric.valueType as MetricValueType) {
+    case METRIC_VALUE_TYPES.NUMBER:
+      valueValidation = valueValidation
+        .integer('Value must be a whole number')
+        .min(0, 'Value cannot be negative')
+        .typeError('Please enter a valid number');
+      break;
+
+    case METRIC_VALUE_TYPES.PERCENTAGE:
+      valueValidation = valueValidation
+        .min(0, 'Percentage cannot be negative')
+        .max(100, 'Percentage cannot exceed 100')
+        .test('decimal-places', 'Maximum 2 decimal places allowed', (value) => {
+          if (!value) return true;
+          const decimalPlaces = value.toString().split('.')[1]?.length || 0;
+          return decimalPlaces <= 2;
+        })
+        .typeError('Please enter a valid percentage');
+      break;
+
+    case METRIC_VALUE_TYPES.CURRENCY:
+      valueValidation = valueValidation
+        .min(0, 'Value cannot be negative')
+        .test('decimal-places', 'Maximum 2 decimal places allowed', (value) => {
+          if (!value) return true;
+          const decimalPlaces = value.toString().split('.')[1]?.length || 0;
+          return decimalPlaces <= 2;
+        })
+        .typeError('Please enter a valid amount');
+      break;
+
+    default:
+      break;
+  }
+
+  return yup.object().shape({
+    value: valueValidation,
+    date: yup.string().required('Date is required'),
+    source: yup.string().required('Data source is required'),
+    notes: yup.string().optional(),
+    isVerified: yup.boolean().default(false),
+  }) as yup.ObjectSchema<FormValues>;
+};
+
 export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
-  ({ initialData, onSubmitSuccess, onCancel, isSubmitting }) => {
-    const { isAuthenticated, isLoading: authLoading } = useAuth();
+  ({ initialData, onSubmitSuccess, onCancel, isSubmitting: externalIsSubmitting }) => {
+    const { isAuthenticated, isLoading: authLoading, user } = useAuth();
     const { metrics } = useCompanyMetrics();
     const { getMetricTypes, getMetricById } = useMetrics();
     const { dataSources, loading: dataSourcesLoading } = useDataSources();
 
     // State for metric types
-    const [metricTypes, setMetricTypes] = useState<
-      Array<
-        Pick<IMetric, 'id' | 'name' | 'type' | 'valueType' | 'displayName'> & {
-          displayName?: string;
-        }
-      >
-    >([]);
+    const [metricTypes, setMetricTypes] = useState<IMetricType[]>([]);
     const [loadingMetricTypes, setLoadingMetricTypes] = useState(false);
     const [metricTypesError, setMetricTypesError] = useState<string | null>(null);
 
     // Memoized state
     const [selectedMetric, setSelectedMetric] = useState<IMetric | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Refs for validation and API calls
     const lastValidationRef = useRef<number>(0);
     const lastApiCallRef = useRef<number>(0);
     const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const apiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const [valueError, setValueError] = useState<string | null>(null);
+
+    const validateValue = useCallback((value: number, metric: IMetric | null) => {
+      if (!metric) return 'Please select a metric type first';
+      if (value === undefined || value === null || isNaN(value)) {
+        return 'Please enter a valid number';
+      }
+
+      const rules = metric.validationRules || {};
+
+      // Check required
+      if (rules.required && (value === undefined || value === null)) {
+        return 'Value is required';
+      }
+
+      // Check min/max
+      if (rules.min !== undefined && value < rules.min) {
+        return `Value must be at least ${rules.min}`;
+      }
+      if (rules.max !== undefined && value > rules.max) {
+        return `Value must be no more than ${rules.max}`;
+      }
+
+      switch (metric.valueType as MetricValueType) {
+        case METRIC_VALUE_TYPES.NUMBER:
+          if (!Number.isInteger(value)) {
+            return 'Value must be a whole number';
+          }
+          break;
+
+        case METRIC_VALUE_TYPES.PERCENTAGE:
+          if (value < 0 || value > 100) {
+            return 'Percentage must be between 0 and 100';
+          }
+          if (!isValidDecimalPrecision(value, rules.decimalPrecision || 2)) {
+            return `Maximum ${rules.decimalPrecision || 2} decimal places allowed`;
+          }
+          break;
+
+        case METRIC_VALUE_TYPES.CURRENCY:
+          if (value < 0) {
+            return 'Currency amount cannot be negative';
+          }
+          if (!isValidDecimalPrecision(value, 2)) {
+            return 'Maximum 2 decimal places allowed for currency';
+          }
+          break;
+      }
+
+      return null;
+    }, []);
+
+    // Add helper function for decimal precision validation
+    const isValidDecimalPrecision = (value: number, maxPrecision: number): boolean => {
+      const decimalStr = value.toString();
+      const decimalMatch = decimalStr.match(/\.(\d+)$/);
+      const decimalPlaces = decimalMatch ? decimalMatch[1].length : 0;
+      return decimalPlaces <= maxPrecision;
+    };
 
     const {
       register,
@@ -244,8 +364,10 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
       watch,
       setValue,
       control,
+      trigger,
+      setError,
     } = useForm<FormValues>({
-      resolver: yupResolver(validationSchema),
+      resolver: yupResolver(getValidationSchema(selectedMetric || ({} as IMetric))),
       defaultValues: useMemo(
         () => ({
           value: initialData?.value ?? 0,
@@ -259,8 +381,35 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
         }),
         [initialData]
       ),
-      mode: 'onChange',
+      mode: 'onBlur',
     });
+
+    const handleValueValidation = useCallback(
+      async (event: React.FocusEvent<HTMLInputElement>) => {
+        const value = parseFloat(event.target.value);
+
+        // First check if it's a valid number
+        if (isNaN(value)) {
+          setValueError('Please enter a valid number');
+          return false;
+        }
+
+        // Then check metric-specific validation
+        const customError = validateValue(value, selectedMetric);
+        if (customError) {
+          setValueError(customError);
+          return false;
+        }
+
+        // Clear any previous errors if validation passes
+        setValueError(null);
+
+        // Trigger form validation
+        const isValid = await trigger('value');
+        return isValid;
+      },
+      [selectedMetric, validateValue, trigger]
+    );
 
     // Watch for changes in metricId with memoization
     const selectedMetricId = watch('metricId');
@@ -311,10 +460,22 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             throw new Error(response.error);
           }
 
-          // Transform the response data to include displayName
-          const transformedMetrics = (response.data || []).map((metric) => ({
-            ...metric,
-            displayName: metric?.displayName, // Use name as displayName since it's not in the original type
+          const transformedMetrics = (response.data || []).map((metric: any) => ({
+            id: metric.id,
+            name: metric.name,
+            displayName: metric.displayName || metric.name,
+            type: metric.type,
+            valueType: metric.valueType,
+            category: metric.category || metric.type.toLowerCase(),
+            validationRules: metric.validationRules || {
+              min: 0,
+              max: 1000000,
+              required: true,
+              precision: metric.precision || 0,
+            },
+            isActive: metric.isActive ?? true,
+            createdAt: metric.createdAt || new Date().toISOString(),
+            updatedAt: metric.updatedAt || new Date().toISOString(),
           }));
 
           setMetricTypes(transformedMetrics);
@@ -350,7 +511,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
     // Memoized submit handler
     const onSubmit = useCallback(
-      async (data: FormValues) => {
+      async (formData: FormValues) => {
         try {
           const now = Date.now();
           if (now - lastApiCallRef.current < API_DEBOUNCE) {
@@ -358,19 +519,132 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
           }
           lastApiCallRef.current = now;
 
-          await onSubmitSuccess(data as ICompanyMetric);
-          reset();
-        } catch (err) {
-          console.error('Failed to submit form:', err);
+          // Log user data to debug
+          console.log('Current user:', user);
+          console.log('Company ID:', user?.companyId);
+
+          // Validate the value before submission
+          const valueValidationError = validateValue(formData.value, selectedMetric);
+          if (valueValidationError) {
+            setValueError(valueValidationError);
+            return;
+          }
+
+          // Check for companyId
+          if (!user?.companyId) {
+            console.error('No company ID found in user object:', user);
+            setError('root.serverError' as any, {
+              type: 'manual',
+              message: 'Company ID is required. Please ensure you are properly logged in.',
+            });
+            return;
+          }
+
+          setIsSubmitting(true);
+
+          // Prepare the metric data with the correct structure
+          const requestBody = {
+            companyId: user.companyId, // This should now be guaranteed to exist
+            metric: {
+              value: formData.value,
+              metricId: formData.metricId,
+              date: formData.date,
+              source: formData.source,
+              notes: formData.notes || '',
+              isVerified: formData.isVerified,
+              isActive: true,
+            },
+          };
+
+          try {
+            console.log('Submitting metric data:', requestBody);
+            console.log('Selected metric:', selectedMetric);
+
+            let response;
+            if (initialData?.id) {
+              response = await api.put(`/api/v1/metrics/${initialData.id}`, requestBody);
+            } else {
+              response = await api.post('/api/v1/metrics', requestBody);
+            }
+
+            if (response?.data) {
+              await onSubmitSuccess(response.data.data);
+              reset();
+            }
+          } catch (error: unknown) {
+            console.error('Failed to submit metric:', error);
+
+            const apiError = error as {
+              response?: {
+                data?: {
+                  error?: {
+                    code: string;
+                    message: string;
+                    meta?: {
+                      errors?: Array<{ path: string; message: string }>;
+                    };
+                  };
+                };
+              };
+            };
+
+            if (apiError.response?.data?.error) {
+              const errorDetails = apiError.response.data.error;
+
+              // Handle validation errors
+              if (errorDetails.code === 'VAL_001' && errorDetails.meta?.errors) {
+                const validationErrors = errorDetails.meta.errors;
+                validationErrors.forEach((err) => {
+                  const fieldPath = err.path.replace('body.', '').replace('metric.', '');
+                  if (fieldPath === 'value') {
+                    setValueError(err.message);
+                  } else if (fieldPath === 'companyId') {
+                    setError('root.serverError' as any, {
+                      type: 'manual',
+                      message: 'Invalid company ID. Please contact support.',
+                    });
+                  } else {
+                    setError(fieldPath as any, {
+                      type: 'manual',
+                      message: err.message,
+                    });
+                  }
+                });
+              } else {
+                setValueError(errorDetails.message || 'Failed to save metric');
+              }
+              return;
+            }
+
+            const errorMessage = error instanceof Error ? error.message : 'Failed to save metric';
+            setValue(
+              'root.serverError' as keyof FormState,
+              {
+                type: 'server',
+                message: errorMessage,
+              } as any
+            );
+          }
+        } finally {
+          setIsSubmitting(false);
         }
       },
-      [onSubmitSuccess, reset]
+      [
+        onSubmitSuccess,
+        reset,
+        user,
+        initialData?.id,
+        selectedMetric,
+        validateValue,
+        setValue,
+        setError,
+      ]
     );
 
     // Memoized helper functions
-    const getStepValue = useCallback((metric: IMetric | null): number => {
-      if (!metric) return 1;
-      return metric.valueType === METRIC_VALUE_TYPES.INTEGER ? 1 : 0.01;
+    const getStepValue = useCallback((metric: IMetric | null): string => {
+      if (!metric) return '1';
+      return metric.valueType === METRIC_VALUE_TYPES.NUMBER ? '1' : '0.01';
     }, []);
 
     const validateMetricValue = useCallback((value: number, metric: IMetric): boolean => {
@@ -474,7 +748,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
     return (
       <StyledForm onSubmit={handleSubmit(onSubmit)} noValidate>
-        {(isSubmitting || loadingMetricTypes) && (
+        {(isSubmitting || externalIsSubmitting || loadingMetricTypes) && (
           <StyledLoadingOverlay>
             <LoadingSpinner />
           </StyledLoadingOverlay>
@@ -485,7 +759,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
           <StyledSelect
             id="metricId"
             {...register('metricId')}
-            disabled={loadingMetricTypes || isSubmitting}
+            disabled={loadingMetricTypes || isSubmitting || externalIsSubmitting}
           >
             <option value="">Select a metric type</option>
             {metricTypes.map((metric) => (
@@ -503,12 +777,22 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             type="number"
             id="value"
             label="Value"
-            step={getStepValue(selectedMetric)}
-            {...register('value')}
-            onChange={handleValueChange}
-            disabled={isSubmitting}
+            step={selectedMetric?.valueType === METRIC_VALUE_TYPES.NUMBER ? 1 : 0.01}
+            {...register('value', {
+              validate: {
+                customValidation: async (value) => {
+                  const error = validateValue(value, selectedMetric);
+                  return error ? false : true;
+                },
+              },
+              valueAsNumber: true,
+            })}
+            onBlur={handleValueValidation}
+            disabled={isSubmitting || externalIsSubmitting}
+            error={valueError || errors.value?.message}
+            placeholder={getValuePlaceholder(selectedMetric?.valueType as MetricValueType)}
           />
-          {errors.value && <span className="error">{errors.value.message}</span>}
+          {valueError && <StyledErrorMessage>{valueError}</StyledErrorMessage>}
         </div>
 
         <div>
@@ -517,7 +801,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             id="date"
             label="Date"
             {...register('date')}
-            disabled={isSubmitting}
+            disabled={isSubmitting || externalIsSubmitting}
             onFocus={(e) => (e.target.type = 'date')}
             onBlur={(e) => (e.target.type = 'text')}
           />
@@ -529,7 +813,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
           <StyledSelect
             {...register('source')}
             id="source"
-            disabled={isSubmitting || dataSourcesLoading}
+            disabled={isSubmitting || externalIsSubmitting || dataSourcesLoading}
           >
             <option value="">Select a source</option>
             {dataSources.map((source) => (
@@ -547,27 +831,43 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             id="notes"
             label="Notes (Optional)"
             {...register('notes')}
-            disabled={isSubmitting}
+            disabled={isSubmitting || externalIsSubmitting}
           />
           {errors.notes && <span className="error">{errors.notes.message}</span>}
         </div>
 
         <div>
           <label className="flex items-center gap-2">
-            <input type="checkbox" {...register('isVerified')} disabled={isSubmitting} />
+            <input
+              type="checkbox"
+              {...register('isVerified')}
+              disabled={isSubmitting || externalIsSubmitting}
+            />
             <span>Mark as Verified</span>
           </label>
           {errors.isVerified && <span className="error">{errors.isVerified.message}</span>}
         </div>
 
         <StyledButtonContainer>
-          <StyledButton type="button" onClick={onCancel}>
+          <StyledButton
+            type="button"
+            onClick={onCancel}
+            disabled={isSubmitting || externalIsSubmitting}
+          >
             Cancel
           </StyledButton>
-          <StyledButton type="submit" variant="primary" disabled={isSubmitting}>
+          <StyledButton
+            type="submit"
+            variant="primary"
+            disabled={isSubmitting || externalIsSubmitting || !isValidMetric(selectedMetric)}
+          >
             {initialData ? 'Update' : 'Create'} Metric
           </StyledButton>
         </StyledButtonContainer>
+
+        {errors.root?.serverError && (
+          <StyledErrorMessage>{errors.root.serverError.message}</StyledErrorMessage>
+        )}
       </StyledForm>
     );
   }
@@ -576,3 +876,17 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 CompanyMetricForm.displayName = 'CompanyMetricForm';
 
 export default CompanyMetricForm;
+
+// Helper function to get appropriate placeholder text
+const getValuePlaceholder = (valueType?: MetricValueType): string => {
+  switch (valueType) {
+    case METRIC_VALUE_TYPES.NUMBER:
+      return 'Enter a whole number (e.g., 100)';
+    case METRIC_VALUE_TYPES.PERCENTAGE:
+      return 'Enter a percentage (e.g., 25.5)';
+    case METRIC_VALUE_TYPES.CURRENCY:
+      return 'Enter an amount (e.g., 1000.50)';
+    default:
+      return 'Enter a value';
+  }
+};
