@@ -210,6 +210,12 @@ interface FormValues {
   notes?: string;
   isVerified: boolean;
   metricId: string;
+  root?: {
+    serverError?: {
+      type: string;
+      message: string;
+    };
+  };
 }
 
 // Update the form error handling
@@ -521,7 +527,7 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
           // Log user data to debug
           console.log('Current user:', user);
-          console.log('Company ID:', user?.companyId);
+          console.log('User ID:', user?.id);
 
           // Validate the value before submission
           const valueValidationError = validateValue(formData.value, selectedMetric);
@@ -530,12 +536,12 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             return;
           }
 
-          // Check for companyId
-          if (!user?.companyId) {
-            console.error('No company ID found in user object:', user);
+          // Check for user ID
+          if (!user?.id) {
+            console.error('No user ID found in user object:', user);
             setError('root.serverError' as any, {
               type: 'manual',
-              message: 'Company ID is required. Please ensure you are properly logged in.',
+              message: 'User ID is required. Please ensure you are properly logged in.',
             });
             return;
           }
@@ -544,15 +550,22 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
           // Prepare the metric data with the correct structure
           const requestBody = {
-            companyId: user.companyId, // This should now be guaranteed to exist
-            metric: {
-              value: formData.value,
-              metricId: formData.metricId,
-              date: formData.date,
-              source: formData.source,
-              notes: formData.notes || '',
-              isVerified: formData.isVerified,
-              isActive: true,
+            companyId: user.id,
+            value: formData.value,
+            metricId: formData.metricId,
+            date: formData.date,
+            source: formData.source,
+            notes: formData.notes || '',
+            isVerified: formData.isVerified,
+            isActive: true,
+            name: selectedMetric?.name || '',
+            category: selectedMetric?.category || '',
+            valueType: selectedMetric?.valueType || '',
+            validationRules: selectedMetric?.validationRules || {
+              min: 0,
+              max: 1000000,
+              required: true,
+              precision: 2,
             },
           };
 
