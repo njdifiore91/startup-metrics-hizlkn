@@ -45,7 +45,7 @@ interface BenchmarkComparison {
   };
 }
 
-interface BenchmarkData {
+export interface BenchmarkData {
   id: string;
   metricId: string;
   sourceId: string;

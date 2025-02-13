@@ -3,6 +3,7 @@ import styled from '@emotion/styled';
 import { BenchmarkData } from '../../hooks/useBenchmarks';
 import { IUserMetric } from '../../interfaces/IUser';
 import { IMetric } from '../../interfaces/IMetric';
+import { BenchmarkChart } from './BenchmarkChart';
 
 const ComparisonContainer = styled.div`
   margin-top: var(--spacing-lg);
@@ -22,6 +23,7 @@ const ComparisonGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
 `;
 
 const ComparisonCard = styled.div<{ performance: 'above' | 'below' | 'average' }>`
@@ -48,12 +50,28 @@ const ComparisonLabel = styled.div`
 const ComparisonValue = styled.div`
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
-  color: var(--color-text);
 `;
 
-const ComparisonDifference = styled.div<{ isPositive: boolean }>`
+const ComparisonDetail = styled.div`
   font-size: var(--font-size-sm);
-  color: ${({ isPositive }) => (isPositive ? 'var(--color-success)' : 'var(--color-error)')};
+  color: var(--color-text);
+  margin-top: var(--spacing-xs);
+`;
+
+const PerformanceIndicator = styled.div<{ trend: 'up' | 'down' | 'neutral' }>`
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: ${({ trend }) => {
+    switch (trend) {
+      case 'up':
+        return 'var(--color-success)';
+      case 'down':
+        return 'var(--color-error)';
+      default:
+        return 'var(--color-warning)';
+    }
+  }};
   margin-top: var(--spacing-xs);
 `;
 
@@ -69,86 +87,96 @@ export const BenchmarkComparison: React.FC<BenchmarkComparisonProps> = ({
   metric,
 }) => {
   const formatValue = (value: number) => {
-    switch (metric.valueType) {
-      case 'currency':
-        return `$${value.toLocaleString()}`;
-      case 'percentage':
-        return `${value.toFixed(1)}%`;
-      default:
-        return value.toLocaleString();
-    }
+    return new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatPercentage = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'percent',
+      signDisplay: 'always',
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(value / 100);
   };
 
   const calculatePerformance = (value: number, benchmark: BenchmarkData) => {
-    if (value >= benchmark.p75) return 'above';
-    if (value <= benchmark.p25) return 'below';
+    if (value > benchmark.p75) return 'above';
+    if (value < benchmark.p25) return 'below';
     return 'average';
   };
 
-  const calculatePercentileDifference = (value: number, benchmark: BenchmarkData) => {
+  const calculatePercentile = (value: number, benchmark: BenchmarkData) => {
     const percentiles = [
-      { value: benchmark.p90, label: '90th' },
-      { value: benchmark.p75, label: '75th' },
-      { value: benchmark.p50, label: '50th' },
-      { value: benchmark.p25, label: '25th' },
-      { value: benchmark.p10, label: '10th' },
+      { value: benchmark.p90, percentile: 90 },
+      { value: benchmark.p75, percentile: 75 },
+      { value: benchmark.p50, percentile: 50 },
+      { value: benchmark.p25, percentile: 25 },
+      { value: benchmark.p10, percentile: 10 },
     ];
 
-    let nearestPercentile = percentiles[0];
-    let minDiff = Math.abs(value - percentiles[0].value);
+    // If value is above p90 or below p10
+    if (value >= benchmark.p90) return 90;
+    if (value <= benchmark.p10) return 10;
 
-    for (const percentile of percentiles) {
-      const diff = Math.abs(value - percentile.value);
-      if (diff < minDiff) {
-        minDiff = diff;
-        nearestPercentile = percentile;
+    // Find the two closest percentiles
+    for (let i = 0; i < percentiles.length - 1; i++) {
+      const upper = percentiles[i];
+      const lower = percentiles[i + 1];
+      if (value <= upper.value && value >= lower.value) {
+        // Linear interpolation
+        const range = upper.value - lower.value;
+        const position = value - lower.value;
+        const percentage = position / range;
+        return lower.percentile + (upper.percentile - lower.percentile) * percentage;
       }
     }
 
-    const difference = ((value - nearestPercentile.value) / nearestPercentile.value) * 100;
+    return 50; // Fallback
+  };
+
+  const calculateComparison = (value: number, benchmark: BenchmarkData) => {
+    const percentile = calculatePercentile(value, benchmark);
+    const percentDiffFromMedian = ((value - benchmark.p50) / benchmark.p50) * 100;
+    const performance = calculatePerformance(value, benchmark) as 'above' | 'below' | 'average';
+
+    let trend: 'up' | 'down' | 'neutral';
+    if (percentDiffFromMedian > 5) trend = 'up';
+    else if (percentDiffFromMedian < -5) trend = 'down';
+    else trend = 'neutral';
+
     return {
-      percentile: nearestPercentile.label,
-      difference,
-      isPositive: difference > 0,
+      percentile,
+      percentDiffFromMedian,
+      performance,
+      trend,
     };
   };
 
-  const performance = calculatePerformance(userMetric.value, benchmark);
-  const { percentile, difference, isPositive } = calculatePercentileDifference(
-    userMetric.value,
-    benchmark
-  );
+  const comparison = calculateComparison(userMetric.value, benchmark);
 
   return (
     <ComparisonContainer>
-      <ComparisonTitle>Your Performance</ComparisonTitle>
+      <ComparisonTitle>Benchmark Analysis</ComparisonTitle>
+
+      <BenchmarkChart benchmark={benchmark} userMetric={userMetric} metric={metric} />
+
       <ComparisonGrid>
-        <ComparisonCard performance={performance}>
-          <ComparisonLabel>Your Value</ComparisonLabel>
+        <ComparisonCard performance={comparison.performance}>
+          <ComparisonLabel>Your {metric.name}</ComparisonLabel>
           <ComparisonValue>{formatValue(userMetric.value)}</ComparisonValue>
-          <ComparisonDifference isPositive={isPositive}>
-            {isPositive ? '↑' : '↓'} {Math.abs(difference).toFixed(1)}% from {percentile} percentile
-          </ComparisonDifference>
+          <ComparisonDetail>Percentile: {formatValue(comparison.percentile)}</ComparisonDetail>
+          <PerformanceIndicator trend={comparison.trend}>
+            {comparison.trend === 'up' ? '↑' : comparison.trend === 'down' ? '↓' : '→'}
+            {formatPercentage(comparison.percentDiffFromMedian)} vs. Industry Median
+          </PerformanceIndicator>
         </ComparisonCard>
-
         <ComparisonCard performance="average">
-          <ComparisonLabel>Industry Median (P50)</ComparisonLabel>
+          <ComparisonLabel>Industry Benchmarks</ComparisonLabel>
           <ComparisonValue>{formatValue(benchmark.p50)}</ComparisonValue>
-          <ComparisonDifference isPositive={userMetric.value >= benchmark.p50}>
-            {userMetric.value >= benchmark.p50 ? '↑' : '↓'}{' '}
-            {Math.abs(((userMetric.value - benchmark.p50) / benchmark.p50) * 100).toFixed(1)}%
-            compared to median
-          </ComparisonDifference>
-        </ComparisonCard>
-
-        <ComparisonCard performance={userMetric.value >= benchmark.p75 ? 'above' : 'below'}>
-          <ComparisonLabel>Top Quartile (P75)</ComparisonLabel>
-          <ComparisonValue>{formatValue(benchmark.p75)}</ComparisonValue>
-          <ComparisonDifference isPositive={userMetric.value >= benchmark.p75}>
-            {userMetric.value >= benchmark.p75 ? '↑' : '↓'}{' '}
-            {Math.abs(((userMetric.value - benchmark.p75) / benchmark.p75) * 100).toFixed(1)}%
-            compared to top quartile
-          </ComparisonDifference>
+          <ComparisonDetail>Top Quartile (P75): {formatValue(benchmark.p75)}</ComparisonDetail>
+          <ComparisonDetail>Bottom Quartile (P25): {formatValue(benchmark.p25)}</ComparisonDetail>
         </ComparisonCard>
       </ComparisonGrid>
     </ComparisonContainer>
