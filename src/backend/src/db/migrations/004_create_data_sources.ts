@@ -4,13 +4,35 @@ const TABLE_NAME = 'data_sources';
 
 module.exports = {
   async up(queryInterface) {
+    // Drop existing indexes if they exist
+    const dropIndexes = [
+      'data_sources_name_idx',
+      'data_sources_active_idx',
+      'data_sources_format_idx',
+      'data_sources_frequency_idx',
+      'data_sources_last_updated_idx',
+      'data_sources_categories_idx',
+    ];
+
+    for (const indexName of dropIndexes) {
+      await queryInterface.sequelize
+        .query(
+          `
+        DROP INDEX IF EXISTS ${indexName}
+      `
+        )
+        .catch(() => {
+          // Ignore error if index doesn't exist
+        });
+    }
+
     await queryInterface.createTable(TABLE_NAME, {
       // Primary identifier
       id: {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
-        allowNull: false
+        allowNull: false,
       },
 
       // Basic source information
@@ -19,13 +41,13 @@ module.exports = {
         allowNull: false,
         unique: true,
         validate: {
-          notEmpty: true
-        }
+          notEmpty: true,
+        },
       },
 
       description: {
         type: DataTypes.TEXT,
-        allowNull: true
+        allowNull: true,
       },
 
       url: {
@@ -33,101 +55,73 @@ module.exports = {
         allowNull: false,
         validate: {
           isUrl: true,
-          notEmpty: true
-        }
+          notEmpty: true,
+        },
       },
 
       // Data format and update specifications
-      dataFormat: {
-        type: DataTypes.ENUM(
-          'JSON',
-          'CSV',
-          'XML',
-          'API'
-        ),
-        allowNull: false
+      data_format: {
+        type: DataTypes.ENUM('JSON', 'CSV', 'XML', 'API'),
+        allowNull: false,
       },
 
-      updateFrequency: {
-        type: DataTypes.ENUM(
-          'DAILY',
-          'WEEKLY',
-          'MONTHLY',
-          'QUARTERLY',
-          'ANNUALLY'
-        ),
-        allowNull: false
+      update_frequency: {
+        type: DataTypes.ENUM('DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'ANNUALLY'),
+        allowNull: false,
       },
 
       // Validation and categorization
-      validationRules: {
+      validation_rules: {
         type: DataTypes.JSONB,
         allowNull: false,
-        defaultValue: {}
+        defaultValue: {},
       },
 
-      metricCategories: {
+      metric_categories: {
         type: DataTypes.ARRAY(DataTypes.STRING),
         allowNull: false,
-        defaultValue: []
+        defaultValue: [],
       },
 
       // Status tracking
-      lastUpdated: {
+      last_updated: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW
+        defaultValue: DataTypes.NOW,
       },
 
-      isActive: {
+      is_active: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: true
+        defaultValue: true,
       },
 
       // Timestamps
-      createdAt: {
+      created_at: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW
+        defaultValue: DataTypes.NOW,
       },
 
-      updatedAt: {
+      updated_at: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW
-      }
+        defaultValue: DataTypes.NOW,
+      },
     });
 
-    // Create indexes
-    await queryInterface.addIndex(TABLE_NAME, ['name'], {
-      name: 'data_sources_name_idx',
-      unique: true
-    });
-
-    await queryInterface.addIndex(TABLE_NAME, ['isActive'], {
-      name: 'data_sources_active_idx'
-    });
-
-    await queryInterface.addIndex(TABLE_NAME, ['dataFormat'], {
-      name: 'data_sources_format_idx'
-    });
-
-    await queryInterface.addIndex(TABLE_NAME, ['updateFrequency'], {
-      name: 'data_sources_frequency_idx'
-    });
-
-    await queryInterface.addIndex(TABLE_NAME, ['lastUpdated'], {
-      name: 'data_sources_last_updated_idx'
-    });
-
-    // GiST index for array operations on metric categories
+    // Create indexes with IF NOT EXISTS
     await queryInterface.sequelize.query(`
-      CREATE INDEX data_sources_categories_idx ON ${TABLE_NAME} USING gin ("metricCategories")
+      CREATE UNIQUE INDEX IF NOT EXISTS data_sources_name_idx ON ${TABLE_NAME} (name);
+      CREATE INDEX IF NOT EXISTS data_sources_active_idx ON ${TABLE_NAME} (is_active);
+      CREATE INDEX IF NOT EXISTS data_sources_format_idx ON ${TABLE_NAME} (data_format);
+      CREATE INDEX IF NOT EXISTS data_sources_frequency_idx ON ${TABLE_NAME} (update_frequency);
+      CREATE INDEX IF NOT EXISTS data_sources_last_updated_idx ON ${TABLE_NAME} (last_updated);
+      CREATE INDEX IF NOT EXISTS data_sources_categories_idx ON ${TABLE_NAME} USING gin (metric_categories);
     `);
   },
 
   async down(queryInterface) {
     await queryInterface.dropTable(TABLE_NAME);
-  }
+  },
 };

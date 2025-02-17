@@ -58,14 +58,18 @@ const StyledList = styled(List)`
   z-index: 1;
 ` as typeof List;
 
-const StyledListItem = styled(ListItem)<{ active?: boolean }>`
+const StyledListItem = styled(ListItem)`
   padding: 0.75rem 1rem;
-  color: ${({ active }) => (active ? 'var(--color-accent)' : 'var(--color-text)')};
+  color: var(--color-text);
   margin: var(--spacing-xs) 0;
   border-radius: var(--border-radius-sm);
   cursor: pointer;
   position: relative;
   z-index: 2;
+
+  &[data-active='true'] {
+    color: var(--color-accent);
+  }
 
   &:hover {
     background-color: var(--color-background);
@@ -112,35 +116,10 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
         label: 'Company Data',
         path: '/company-metrics',
         icon: <TimelineIcon />,
-        visible: userRole === USER_ROLES.USER || userRole === USER_ROLES.ANALYST,
+        // visible: userRole === USER_ROLES.USER || userRole === USER_ROLES.ANALYST,
+        visible: hasPermission(userRole, FEATURES.companyData, 'read'),
       },
     ],
-  },
-  {
-    id: 'reports',
-    label: 'Reports',
-    path: '/reports',
-    icon: <DescriptionIcon />,
-    visible: hasPermission(userRole, FEATURES.reports, 'read'),
-    children:
-      userRole === USER_ROLES.ADMIN
-        ? [
-            {
-              id: 'system-reports',
-              label: 'System Analytics',
-              path: '/reports/system',
-              icon: <AssessmentIcon />,
-              visible: true,
-            },
-            {
-              id: 'custom-reports',
-              label: 'Custom Reports',
-              path: '/reports/custom',
-              icon: <DescriptionIcon />,
-              visible: true,
-            },
-          ]
-        : [],
   },
   {
     id: 'profile',
@@ -255,7 +234,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       <React.Fragment key={item.id}>
         <StyledListItem
           onClick={() => (hasChildren ? toggleExpand(item.id) : handleNavClick(item.path))}
-          active={isActive}
+          data-active={isActive}
           style={{ paddingLeft: `${(level + 1) * 16}px` }}
           aria-expanded={hasChildren ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}

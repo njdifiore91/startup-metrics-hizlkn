@@ -2,29 +2,25 @@ import { Request, Response, NextFunction } from 'express'; // ^4.18.2
 import { MonitoringService } from '../services/monitoringService';
 import { AuditLogger } from '../services/auditLogger';
 import { BenchmarkService } from '../services/benchmarkService';
-import { 
-  validateBenchmarkCreate, 
-  validateBenchmarkUpdate, 
-  validateBenchmarkGet 
+import {
+  validateBenchmarkCreate,
+  validateBenchmarkUpdate,
+  validateBenchmarkGet,
 } from '../validators/benchmarkValidator';
 import { AppError } from '../utils/errorHandler';
 import { logger } from '../utils/logger';
-import { 
-  AUTH_ERRORS, 
-  VALIDATION_ERRORS, 
-  BUSINESS_ERRORS 
-} from '../constants/errorCodes';
+import { AUTH_ERRORS, VALIDATION_ERRORS, BUSINESS_ERRORS } from '../constants/errorCodes';
 
 // Initialize monitoring with appropriate labels
 const monitoring = new MonitoringService({
   serviceName: 'benchmark-controller',
-  serviceVersion: '1.0.0'
+  serviceVersion: '1.0.0',
 });
 
 // Initialize audit logger for admin actions
 const auditLogger = new AuditLogger({
   component: 'BenchmarkController',
-  version: '1.0.0'
+  version: '1.0.0',
 });
 
 // Response time SLA in milliseconds
@@ -43,29 +39,38 @@ class BenchmarkController {
    * @param res Express response object
    * @param next Express next function
    */
-  public getBenchmarks = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
+  public getBenchmarks = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const startTime = Date.now();
     const correlationId = req.headers['x-correlation-id'] as string;
 
     try {
       // Validate request parameters
       const { error, value } = validateBenchmarkGet.validate({
-        metricId: req.params.metricId,
-        revenueRange: req.query.revenueRange as string
+        query: {
+          metricId: req.query.metricId,
+          revenueRange: req.query.revenueRange,
+          dataSourceId: req.query.dataSourceId,
+        },
+        params: {
+          metricId: req.params.metricId,
+        },
       });
 
       if (error) {
-        throw new AppError(VALIDATION_ERRORS.INVALID_REQUEST, error.message);
+        throw new AppError(
+          VALIDATION_ERRORS.INVALID_REQUEST.code,
+          error.message,
+          error.details,
+          correlationId,
+          VALIDATION_ERRORS.INVALID_REQUEST.httpStatus
+        );
       }
 
       // Get benchmark data with caching
       const benchmarkData = await this.benchmarkService.getBenchmarksByMetric(
-        value.metricId,
-        value.revenueRange
+        value.query.metricId,
+        value.query.revenueRange,
+        value.query.dataSourceId
       );
 
       // Check response time SLA
@@ -76,7 +81,7 @@ class BenchmarkController {
         logger.warn('Response time exceeded SLA', {
           correlationId,
           responseTime,
-          sla: RESPONSE_TIME_SLA
+          sla: RESPONSE_TIME_SLA,
         });
       }
 
@@ -85,8 +90,8 @@ class BenchmarkController {
         data: benchmarkData,
         metadata: {
           correlationId,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     } catch (error) {
       next(error);
@@ -111,10 +116,11 @@ class BenchmarkController {
       // Validate admin role
       if (!req.user || req.user.role !== 'ADMIN') {
         throw new AppError(
-          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS,
-          'Admin access required',
+          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS.code,
+          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS.message,
           null,
-          correlationId
+          correlationId,
+          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS.httpStatus
         );
       }
 
@@ -122,7 +128,13 @@ class BenchmarkController {
       const { error, value } = validateBenchmarkCreate.validate(req.body);
 
       if (error) {
-        throw new AppError(VALIDATION_ERRORS.INVALID_REQUEST, error.message);
+        throw new AppError(
+          VALIDATION_ERRORS.INVALID_REQUEST.code,
+          error.message,
+          error.details,
+          correlationId,
+          VALIDATION_ERRORS.INVALID_REQUEST.httpStatus
+        );
       }
 
       // Create benchmark data
@@ -135,15 +147,15 @@ class BenchmarkController {
         resourceId: createdBenchmark.id,
         details: {
           metricId: createdBenchmark.metricId,
-          revenueRange: createdBenchmark.revenueRange
+          revenueRange: createdBenchmark.revenueRange,
         },
-        correlationId
+        correlationId,
       });
 
       // Record metrics
       monitoring.incrementCounter('benchmark_created', {
         metricId: createdBenchmark.metricId,
-        revenueRange: createdBenchmark.revenueRange
+        revenueRange: createdBenchmark.revenueRange,
       });
 
       res.status(201).json({
@@ -151,8 +163,8 @@ class BenchmarkController {
         data: createdBenchmark,
         metadata: {
           correlationId,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     } catch (error) {
       next(error);
@@ -177,10 +189,11 @@ class BenchmarkController {
       // Validate admin role
       if (!req.user || req.user.role !== 'ADMIN') {
         throw new AppError(
-          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS,
-          'Admin access required',
+          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS.code,
+          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS.message,
           null,
-          correlationId
+          correlationId,
+          AUTH_ERRORS.INSUFFICIENT_PERMISSIONS.httpStatus
         );
       }
 
@@ -188,14 +201,17 @@ class BenchmarkController {
       const { error, value } = validateBenchmarkUpdate.validate(req.body);
 
       if (error) {
-        throw new AppError(VALIDATION_ERRORS.INVALID_REQUEST, error.message);
+        throw new AppError(
+          VALIDATION_ERRORS.INVALID_REQUEST.code,
+          error.message,
+          error.details,
+          correlationId,
+          VALIDATION_ERRORS.INVALID_REQUEST.httpStatus
+        );
       }
 
       // Update benchmark with optimistic locking
-      const updatedBenchmark = await this.benchmarkService.updateBenchmark(
-        req.params.id,
-        value
-      );
+      const updatedBenchmark = await this.benchmarkService.updateBenchmark(req.params.id, value);
 
       // Audit log the update
       await auditLogger.log({
@@ -205,15 +221,15 @@ class BenchmarkController {
         details: {
           changes: value,
           metricId: updatedBenchmark.metricId,
-          revenueRange: updatedBenchmark.revenueRange
+          revenueRange: updatedBenchmark.revenueRange,
         },
-        correlationId
+        correlationId,
       });
 
       // Record metrics
       monitoring.incrementCounter('benchmark_updated', {
         metricId: updatedBenchmark.metricId,
-        revenueRange: updatedBenchmark.revenueRange
+        revenueRange: updatedBenchmark.revenueRange,
       });
 
       res.status(200).json({
@@ -221,8 +237,8 @@ class BenchmarkController {
         data: updatedBenchmark,
         metadata: {
           correlationId,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     } catch (error) {
       next(error);
@@ -248,7 +264,7 @@ class BenchmarkController {
         userId: req.user?.id || '',
         resourceId: req.params.id,
         details: {},
-        correlationId
+        correlationId,
       });
 
       res.status(204).send();
@@ -269,7 +285,7 @@ class BenchmarkController {
       const benchmarks = await this.benchmarkService.getPublicBenchmarks();
       res.status(200).json({
         status: 'success',
-        data: benchmarks
+        data: benchmarks,
       });
     } catch (error) {
       next(error);

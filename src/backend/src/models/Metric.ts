@@ -23,61 +23,67 @@ Metric.init(
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
-      allowNull: false
+      allowNull: false,
     },
     name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true
+      unique: true,
     },
     displayName: {
       type: DataTypes.STRING(100),
-      allowNull: false
+      allowNull: false,
+      field: 'display_name',
     },
     description: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
     },
     type: {
       type: DataTypes.ENUM(...Object.values(MetricType)),
-      allowNull: false
+      allowNull: false,
     },
     valueType: {
       type: DataTypes.ENUM(...Object.values(ValueType)),
-      allowNull: false
+      allowNull: false,
+      field: 'value_type',
     },
     frequency: {
       type: DataTypes.ENUM(...Object.values(Frequency)),
-      allowNull: false
+      allowNull: false,
     },
     unit: {
       type: DataTypes.STRING(50),
-      allowNull: true
+      allowNull: true,
     },
     precision: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 2
+      defaultValue: 2,
     },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: true
+      defaultValue: true,
+      field: 'is_active',
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
+      field: 'created_at',
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+      field: 'updated_at',
+    },
   },
   {
     sequelize,
     tableName: 'metrics',
     timestamps: true,
+    underscored: true,
   }
 );

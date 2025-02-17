@@ -2,28 +2,38 @@
  * Valid categories for startup metrics aligned with business domains
  * @version 1.0.0
  */
-export type MetricCategory = 'financial' | 'growth' | 'operational';
+export enum MetricCategory {
+  FINANCIAL = 'financial',
+  OPERATIONAL = 'operational',
+  MARKETING = 'marketing',
+  SALES = 'sales',
+  PRODUCT = 'product',
+  CUSTOMER = 'customer',
+  OTHER = 'other'
+}
 
 /**
  * Valid metric types that map to categories
  * @version 1.0.0
  */
 export enum MetricType {
-  REVENUE = 'REVENUE',
-  EXPENSES = 'EXPENSES',
-  PROFIT = 'PROFIT',
   USERS = 'USERS',
-  GROWTH = 'GROWTH',
-  CHURN = 'CHURN',
+  REVENUE = 'REVENUE',
+  CONVERSION = 'CONVERSION',
   ENGAGEMENT = 'ENGAGEMENT',
-  CONVERSION = 'CONVERSION'
+  RETENTION = 'RETENTION',
+  CHURN = 'CHURN',
+  GROWTH = 'GROWTH',
+  PERFORMANCE = 'PERFORMANCE',
+  EXPENSES = 'EXPENSES',
+  CUSTOM = 'CUSTOM'
 }
 
 /**
  * Supported value types for metric data with validation constraints
  * @version 1.0.0
  */
-export type MetricValueType = 'PERCENTAGE' | 'CURRENCY' | 'NUMBER' | 'RATIO';
+export type MetricValueType = 'number' | 'percentage' | 'currency' | 'ratio' | 'duration' | 'custom';
 
 /**
  * Enhanced interface for metric validation rules
@@ -40,14 +50,14 @@ export interface ValidationRule {
   /** Whether the metric is required */
   required?: boolean;
   
-  /** Expected format pattern (e.g., regex for specific formats) */
-  format?: string;
-  
   /** Number of decimal places for numeric values */
-  precision?: number;
+  decimals?: number;
   
-  /** Custom validation function for complex rules */
-  customValidation?: (value: unknown) => boolean;
+  /** Custom validation rules */
+  customValidation?: {
+    rule: string;
+    message: string;
+  }[];
 }
 
 /**
@@ -92,9 +102,15 @@ export interface IMetric {
   /** Flexible metadata storage for additional properties */
   metadata: Record<string, unknown>;
   
-  /** Timestamp of metric creation */
-  createdAt: Date;
+  /**
+   * Timestamp of metric creation
+   * Automatically set on record creation
+   */
+  readonly createdAt: string;
   
-  /** Timestamp of last metric update */
-  updatedAt: Date;
+  /**
+   * Timestamp of last metric update
+   * Automatically updated on record modification
+   */
+  readonly updatedAt: string;
 }

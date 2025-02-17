@@ -67,7 +67,7 @@ interface UseAuthReturn {
 export const useAuth = (): UseAuthReturn => {
   const dispatch = useDispatch();
   const authServiceRef = useRef<AuthService>();
-  
+
   // Initialize auth service only once
   if (!authServiceRef.current) {
     authServiceRef.current = new AuthService();
@@ -81,59 +81,79 @@ export const useAuth = (): UseAuthReturn => {
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
   const sessionStatus = useSelector((state: RootState) => state.auth.sessionStatus);
 
+  // Handle token refresh failure
+  const handleTokenRefreshFailure = useCallback(() => {
+    dispatch(authActions.logout());
+    window.location.href = '/login';
+  }, [dispatch]);
+
   // Listen for auth state changes
   useEffect(() => {
     let mounted = true;
-    const handleAuthStateChange = (event: CustomEvent<{
-      isAuthenticated: boolean;
-      user: IUser;
-      token: string;
-      refreshToken: string;
-      tokenExpiration: Date;
-    }>) => {
+    const handleAuthStateChange = (
+      event: CustomEvent<{
+        isAuthenticated: boolean;
+        user: IUser | null;
+        token: string | null;
+        refreshToken: string | null;
+        tokenExpiration: Date | null;
+      }>
+    ) => {
       if (!mounted) return;
       const { isAuthenticated, user, token, refreshToken, tokenExpiration } = event.detail;
-      
+
+      if (!isAuthenticated || !user || !token) {
+        dispatch(authActions.logout());
+        return;
+      }
+
       // Update Redux store
       dispatch(authActions.setUser(user));
-      dispatch(authActions.setTokens({
-        token,
-        refreshToken,
-        expiration: tokenExpiration
-      }));
+      dispatch(
+        authActions.setTokens({
+          token,
+          refreshToken: refreshToken || '',
+          expiration: tokenExpiration || new Date(Date.now() + 3600 * 1000),
+        })
+      );
       dispatch(authActions.setAuthenticated(isAuthenticated));
       dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
     };
 
     window.addEventListener('auth-state-change', handleAuthStateChange as EventListener);
-    
+
     // Check for existing auth on mount only
     const checkExistingAuth = async () => {
       if (!mounted) return;
       try {
         const tokens = authService.getStoredTokens();
         if (tokens) {
-          const tokenExpiration = authService.getTokenExpiration();
-          const now = Date.now();
-          const timeUntilExpiry = tokenExpiration ? tokenExpiration.getTime() - now : 0;
-          
-          if (!tokenExpiration || timeUntilExpiry <= REFRESH_BEFORE_EXPIRY) {
-            const isValid = await authService.validateSession();
-            if (isValid && mounted) {
+          // Set initial tokens in Redux store
+          dispatch(
+            authActions.setTokens({
+              token: tokens.token,
+              refreshToken: tokens.refreshToken,
+              expiration: new Date(Date.now() + 3600 * 1000),
+            })
+          );
+
+          // Try to validate session and get user data
+          const isValid = await authService.validateSession();
+          if (isValid && mounted) {
+            const currentUser = authService.getCurrentUser();
+            if (currentUser) {
+              dispatch(authActions.setUser(currentUser));
               dispatch(authActions.setAuthenticated(true));
               dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
-            } else if (mounted) {
-              authService.logout().catch(console.error);
             }
           } else if (mounted) {
-            dispatch(authActions.setAuthenticated(true));
-            dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
+            handleTokenRefreshFailure();
           }
         }
       } catch (error) {
         console.error('Failed to check existing auth:', error);
         if (mounted) {
-          authService.logout().catch(console.error);
+          handleTokenRefreshFailure();
         }
       }
     };
@@ -144,7 +164,7 @@ export const useAuth = (): UseAuthReturn => {
       mounted = false;
       window.removeEventListener('auth-state-change', handleAuthStateChange as EventListener);
     };
-  }, []); // Only run on mount
+  }, [dispatch, authService, handleTokenRefreshFailure]);
 
   // Return the hook interface
   return {
@@ -164,20 +184,32 @@ export const useAuth = (): UseAuthReturn => {
     logout: useCallback(async () => {
       try {
         await authService.logout();
-        dispatch(authActions.setUser(null));
-        dispatch(authActions.setAuthenticated(false));
-        dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+        dispatch(authActions.logout());
         window.location.href = '/login';
       } catch (error) {
         console.error('Logout failed:', error);
-        dispatch(authActions.setUser(null));
-        dispatch(authActions.setAuthenticated(false));
-        dispatch(authActions.setSessionStatus(SessionStatus.IDLE));
+        dispatch(authActions.logout());
         window.location.href = '/login';
       }
     }, [authService, dispatch]),
-    refreshToken: useCallback(() => authService.refreshAuthToken(), [authService]),
-    validateSession: useCallback(() => authService.validateSession(), [authService]),
+    refreshToken: useCallback(async () => {
+      try {
+        return await authService.refreshAuthToken();
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+        handleTokenRefreshFailure();
+        throw error;
+      }
+    }, [authService, handleTokenRefreshFailure]),
+    validateSession: useCallback(async () => {
+      try {
+        return await authService.validateSession();
+      } catch (error) {
+        console.error('Session validation failed:', error);
+        handleTokenRefreshFailure();
+        return false;
+      }
+    }, [authService, handleTokenRefreshFailure]),
     updateUserSettings: useCallback(
       (params: UpdateUserSettingsParams) => authService.updateUserSettings(params),
       [authService]

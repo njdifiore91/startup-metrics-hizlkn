@@ -35,12 +35,13 @@ type RolePermissionsType = {
 export const FEATURES = {
   benchmarkData: 'benchmarkData',
   companyData: 'companyData',
+  metrics: 'metrics',
   profile: 'profile',
   reports: 'reports',
-  users: 'users'
+  users: 'users',
 } as const;
 
-export type Feature = typeof FEATURES[keyof typeof FEATURES];
+export type Feature = (typeof FEATURES)[keyof typeof FEATURES];
 
 /**
  * User roles and their associated permissions
@@ -48,7 +49,7 @@ export type Feature = typeof FEATURES[keyof typeof FEATURES];
 export const USER_ROLES = {
   USER: 'USER',
   ANALYST: 'ANALYST',
-  ADMIN: 'ADMIN'
+  ADMIN: 'ADMIN',
 } as const;
 
 /**
@@ -58,21 +59,24 @@ export const ROLE_PERMISSIONS: RolePermissionsType = {
   [USER_ROLES.USER]: {
     [FEATURES.benchmarkData]: ['read'] as const,
     [FEATURES.companyData]: ['read', 'create', 'update'] as const,
-    [FEATURES.profile]: ['read', 'update'] as const
+    [FEATURES.metrics]: ['read'] as const,
+    [FEATURES.profile]: ['read', 'update'] as const,
   },
   [USER_ROLES.ANALYST]: {
     [FEATURES.benchmarkData]: ['read', 'create'] as const,
     [FEATURES.companyData]: ['read', 'create', 'update'] as const,
+    [FEATURES.metrics]: ['read', 'create'] as const,
     [FEATURES.profile]: ['read', 'update'] as const,
-    [FEATURES.reports]: ['read', 'create'] as const
+    [FEATURES.reports]: ['read', 'create'] as const,
   },
   [USER_ROLES.ADMIN]: {
     [FEATURES.benchmarkData]: ['full'] as const,
     [FEATURES.companyData]: ['full'] as const,
+    [FEATURES.metrics]: ['full'] as const,
     [FEATURES.profile]: ['full'] as const,
     [FEATURES.reports]: ['full'] as const,
-    [FEATURES.users]: ['full'] as const
-  }
+    [FEATURES.users]: ['full'] as const,
+  },
 } as const;
 
 /**
@@ -88,13 +92,13 @@ export type UserRole = keyof typeof USER_ROLES;
  * @returns boolean indicating if the role has the specified permission
  */
 export const hasPermission = (
-    role: UserRole,
-    feature: Feature,
-    permission: Permission
+  role: UserRole,
+  feature: Feature,
+  permission: Permission
 ): boolean => {
-    const permissions = ROLE_PERMISSIONS[role][feature];
-    if (!permissions) return false;
-    return permissions.includes('full') || permissions.includes(permission);
+  const permissions = ROLE_PERMISSIONS[role][feature];
+  if (!permissions) return false;
+  return permissions.includes('full') || permissions.includes(permission);
 };
 
 /**
@@ -103,13 +107,10 @@ export const hasPermission = (
  * @param feature The feature to check permissions for
  * @returns boolean indicating if the role has full access
  */
-export const hasFullAccess = (
-    role: UserRole,
-    feature: Feature
-): boolean => {
-    const permissions = ROLE_PERMISSIONS[role][feature];
-    if (!permissions) return false;
-    return permissions.includes('full');
+export const hasFullAccess = (role: UserRole, feature: Feature): boolean => {
+  const permissions = ROLE_PERMISSIONS[role][feature];
+  if (!permissions) return false;
+  return permissions.includes('full');
 };
 
 /**
@@ -117,10 +118,8 @@ export const hasFullAccess = (
  * @param role The user role to check
  * @returns Array of feature names the role has any permissions for
  */
-export const getAccessibleFeatures = (
-    role: UserRole
-): Feature[] => {
-    return Object.entries(ROLE_PERMISSIONS[role])
-        .filter(([_, permissions]) => permissions && permissions.length > 0)
-        .map(([feature]) => feature as Feature);
+export const getAccessibleFeatures = (role: UserRole): Feature[] => {
+  return Object.entries(ROLE_PERMISSIONS[role])
+    .filter(([_, permissions]) => permissions && permissions.length > 0)
+    .map(([feature]) => feature as Feature);
 };

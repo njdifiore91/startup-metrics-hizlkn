@@ -12,6 +12,8 @@ import { BUSINESS_ERRORS } from '../constants/errorCodes';
 import { CompanyMetric } from '../models/CompanyMetric';
 import { ICompanyMetric, ICreateCompanyMetric } from '../interfaces/ICompanyMetric';
 import { Model, CreationAttributes } from 'sequelize';
+import { UserRole, ROLE_PERMISSIONS } from '../interfaces/IUserRole';
+import * as sequelize from 'sequelize';
 
 interface MetricLogMetadata {
   metricId?: string;
@@ -29,21 +31,43 @@ const MAX_BULK_OPERATIONS = 1000;
 // Configure cache manager
 let metricCache: Cache;
 
-(async () => {
-  metricCache = await caching('memory', {
-    ttl: METRIC_CACHE_TTL,
-    max: 1000
-  });
-})();
-
 /**
  * Service class for managing metric operations with enhanced validation and caching
  */
 export class MetricsService {
-  private cache: Cache;
+  private cache!: Cache;
 
   constructor() {
-    this.cache = metricCache;
+    this.initializeCache();
+  }
+
+  /**
+   * Initialize the cache asynchronously
+   */
+  private async initializeCache(): Promise<void> {
+    try {
+      if (!metricCache) {
+        metricCache = await caching('memory', {
+          ttl: METRIC_CACHE_TTL,
+          max: 1000,
+        });
+      }
+      this.cache = metricCache;
+    } catch (error) {
+      logger.error('Failed to initialize cache:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Ensure cache is initialized before operations
+   */
+  private async ensureCacheInitialized(): Promise<void> {
+    if (!this.cache) {
+      await this.initializeCache();
+    }
   }
 
   /**
@@ -52,14 +76,16 @@ export class MetricsService {
    * @returns Promise<IMetric> - The created metric
    * @throws ValidationError | DuplicateError
    */
-  async createMetric(metricData: Omit<IMetric, 'id' | 'createdAt' | 'updatedAt'>): Promise<IMetric> {
+  async createMetric(
+    metricData: Omit<IMetric, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<IMetric> {
     try {
       // Validate metric data
       this.validateMetricData(metricData);
 
       // Check for existing metric with same name
       const existingMetric = await Metric.findOne({
-        where: { name: metricData.name }
+        where: { name: metricData.name },
       });
 
       if (existingMetric) {
@@ -69,7 +95,7 @@ export class MetricsService {
       // Create metric with validated data
       const metric = await Metric.create({
         ...metricData,
-        isActive: true
+        isActive: true,
       });
 
       // Map metric type to category for cache invalidation
@@ -81,7 +107,7 @@ export class MetricsService {
       return metric.toJSON() as IMetric;
     } catch (error) {
       const logMetadata: LogMetadata = {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
       logger.error('Error creating metric:', logMetadata);
       throw error;
@@ -102,7 +128,7 @@ export class MetricsService {
       [MetricType.GROWTH]: METRIC_CATEGORIES.GROWTH,
       [MetricType.CHURN]: METRIC_CATEGORIES.OPERATIONAL,
       [MetricType.ENGAGEMENT]: METRIC_CATEGORIES.OPERATIONAL,
-      [MetricType.CONVERSION]: METRIC_CATEGORIES.GROWTH
+      [MetricType.CONVERSION]: METRIC_CATEGORIES.GROWTH,
     };
 
     const category = typeToCategory[type];
@@ -129,6 +155,8 @@ export class MetricsService {
     } = {}
   ): Promise<{ metrics: IMetric[]; total: number }> {
     try {
+      await this.ensureCacheInitialized();
+
       if (!isValidMetricCategory(category)) {
         throw new ValidationError(`Invalid metric category: ${category}`);
       }
@@ -146,7 +174,7 @@ export class MetricsService {
         limit = DEFAULT_METRIC_LIMIT,
         offset = 0,
         includeInactive = false,
-        searchTerm
+        searchTerm,
       } = options;
 
       // Build query conditions
@@ -157,10 +185,10 @@ export class MetricsService {
           ? {
               [Op.or]: [
                 { name: { [Op.iLike]: `%${searchTerm}%` } },
-                { description: { [Op.iLike]: `%${searchTerm}%` } }
-              ]
+                { description: { [Op.iLike]: `%${searchTerm}%` } },
+              ],
             }
-          : {})
+          : {}),
       };
 
       // Execute query with pagination
@@ -169,12 +197,12 @@ export class MetricsService {
         limit: Math.min(limit, DEFAULT_METRIC_LIMIT),
         offset,
         order: [['name', 'ASC']],
-        attributes: { exclude: ['validationRules'] }
+        attributes: { exclude: ['validationRules'] },
       });
 
       const result = {
-        metrics: metrics.map(metric => this.formatMetricResponse(metric)),
-        total
+        metrics: metrics.map((metric) => this.formatMetricResponse(metric)),
+        total,
       };
 
       // Cache results
@@ -186,7 +214,7 @@ export class MetricsService {
     } catch (error) {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
-        category
+        category,
       };
       logger.error('Error retrieving metrics:', logMetadata);
       throw error;
@@ -239,7 +267,7 @@ export class MetricsService {
     } catch (error) {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
-        metricId: id
+        metricId: id,
       };
       logger.error('Error updating metric:', logMetadata);
       throw error;
@@ -254,14 +282,12 @@ export class MetricsService {
   ): Promise<Map<string, number>> {
     try {
       const results = new Map<string, number>();
-      
+
       for (const { id, value } of metrics) {
         const metric = await Metric.findByPk(id);
         if (!metric) continue;
 
-        const calculatedValue = new Big(value)
-          .round(CALCULATION_PRECISION)
-          .toNumber();
+        const calculatedValue = new Big(value).round(CALCULATION_PRECISION).toNumber();
 
         results.set(id, calculatedValue);
       }
@@ -269,7 +295,7 @@ export class MetricsService {
       return results;
     } catch (error) {
       const logMetadata: LogMetadata = {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
       logger.error('Error calculating metric values:', logMetadata);
       throw error;
@@ -288,26 +314,30 @@ export class MetricsService {
       const metrics = await CompanyMetric.findAll({
         where: {
           companyId,
-          isActive: true
+          isActive: true,
         },
-        include: [{
-          model: Metric,
-          as: 'metric',
-          required: false,
-          attributes: [
-            'id',
-            'name',
-            'displayName',
-            'description',
-            'type',
-            'valueType',
-            'frequency',
-            'unit',
-            'precision',
-            'isActive'
-          ]
-        }],
-        order: [['date', 'DESC']]
+        include: [
+          {
+            model: Metric,
+            as: 'metric',
+            required: false,
+            where: {
+              isActive: true,
+            },
+            attributes: [
+              'id',
+              'name',
+              ['display_name', 'displayName'],
+              'description',
+              'type',
+              ['value_type', 'valueType'],
+              'frequency',
+              'unit',
+              'precision',
+            ],
+          },
+        ],
+        order: [['date', 'DESC']],
       });
 
       if (!metrics || metrics.length === 0) {
@@ -316,11 +346,12 @@ export class MetricsService {
       }
 
       // Convert to plain objects to avoid Sequelize instance issues
-      return metrics.map(metric => metric.get({ plain: true }));
+      return metrics.map((metric) => metric.get({ plain: true }));
     } catch (error) {
-      logger.error('Failed to retrieve company metrics:', { 
+      logger.error('Failed to retrieve company metrics:', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        companyId 
+        companyId,
+        stack: error instanceof Error ? error.stack : undefined,
       });
       throw new AppError('Failed to retrieve company metrics', 500);
     }
@@ -333,14 +364,14 @@ export class MetricsService {
     try {
       const metrics = await Metric.findAll({
         where: { industry },
-        order: [['date', 'DESC']]
+        order: [['date', 'DESC']],
       });
 
       return metrics;
     } catch (error) {
-      logger.error('Failed to get industry benchmarks:', { 
+      logger.error('Failed to get industry benchmarks:', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        industry 
+        industry,
       });
       throw new AppError(
         BUSINESS_ERRORS.OPERATION_FAILED.message,
@@ -356,7 +387,7 @@ export class MetricsService {
   async updateMetrics(companyId: string, data: Partial<IMetric & { date: Date }>): Promise<Metric> {
     try {
       const metric = await Metric.findOne({
-        where: { companyId, date: data.date }
+        where: { companyId, date: data.date },
       });
 
       if (metric) {
@@ -369,7 +400,7 @@ export class MetricsService {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
         companyId,
-        data: JSON.stringify(data)
+        data: JSON.stringify(data),
       };
       logger.error('Failed to update metrics:', logMetadata);
       throw new AppError(
@@ -394,7 +425,7 @@ export class MetricsService {
     } catch (error) {
       const logMetadata: LogMetadata = {
         error: error instanceof Error ? error.message : String(error),
-        metricId: id
+        metricId: id,
       };
       logger.error('Error retrieving metric by ID:', logMetadata);
       throw error;
@@ -405,24 +436,26 @@ export class MetricsService {
    * Get all available metric types for dropdowns
    * Returns a list of active metrics with fields needed for the dropdown
    */
-  async getAllMetricTypes(): Promise<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>[]> {
+  async getAllMetricTypes(): Promise<
+    Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>[]
+  > {
     try {
       const metrics = await Metric.findAll({
         where: { isActive: true },
         attributes: ['id', 'name', 'displayName', 'type', 'valueType'],
-        order: [['name', 'ASC']]
+        order: [['name', 'ASC']],
       });
 
-      return metrics.map(metric => ({
+      return metrics.map((metric) => ({
         id: metric.id,
         name: metric.name,
         displayName: metric.displayName,
         type: metric.type,
-        valueType: metric.valueType
+        valueType: metric.valueType,
       }));
     } catch (error) {
       const logMetadata: LogMetadata = {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
       logger.error('Error retrieving metric types:', logMetadata);
       throw error;
@@ -459,12 +492,12 @@ export class MetricsService {
         verifiedBy: metricData.verifiedBy,
         verifiedAt: metricData.verifiedAt,
         notes: metricData.notes,
-        isActive: metricData.isActive ?? true
+        isActive: metricData.isActive ?? true,
       } as const;
 
       // Create the record with type assertion
       const companyMetric = await CompanyMetric.create(companyMetricData as any);
-      
+
       // Invalidate cache
       await this.invalidateCompanyMetricsCache(metricData.companyId);
 
@@ -481,7 +514,10 @@ export class MetricsService {
    * @param updateData - The data to update
    * @returns Promise<ICompanyMetric> - The updated company metric
    */
-  async updateCompanyMetric(id: string, updateData: Partial<ICompanyMetric>): Promise<ICompanyMetric> {
+  async updateCompanyMetric(
+    id: string,
+    updateData: Partial<ICompanyMetric>
+  ): Promise<ICompanyMetric> {
     try {
       // Find existing company metric
       const companyMetric = await CompanyMetric.findByPk(id);
@@ -491,7 +527,7 @@ export class MetricsService {
 
       // Prepare update data with type safety
       const updateFields: Partial<ICompanyMetric> = {};
-      
+
       if (updateData.value !== undefined) updateFields.value = updateData.value;
       if (updateData.date !== undefined) updateFields.date = updateData.date;
       if (updateData.source !== undefined) updateFields.source = updateData.source;
@@ -503,7 +539,7 @@ export class MetricsService {
 
       // Update company metric
       const updatedMetric = await companyMetric.update(updateFields);
-      
+
       // Get the company ID from the metric for cache invalidation
       const metricData = updatedMetric.toJSON() as ICompanyMetric;
       await this.invalidateCompanyMetricsCache(metricData.companyId);
@@ -520,6 +556,7 @@ export class MetricsService {
    * @param companyId - The company ID whose metrics cache needs to be invalidated
    */
   private async invalidateCompanyMetricsCache(companyId: string): Promise<void> {
+    await this.ensureCacheInitialized();
     const cacheKey = `company-metrics-${companyId}`;
     await this.cache.del(cacheKey);
   }
@@ -534,7 +571,7 @@ export class MetricsService {
   private validateMetricData(data: Partial<IMetric>): void {
     // Validate required fields
     const requiredFields = ['name', 'type', 'valueType', 'description'];
-    const missingFields = requiredFields.filter(field => !data[field as keyof IMetric]);
+    const missingFields = requiredFields.filter((field) => !data[field as keyof IMetric]);
 
     if (missingFields.length > 0) {
       throw new ValidationError(`Missing required fields: ${missingFields.join(', ')}`);
@@ -605,8 +642,346 @@ export class MetricsService {
    * @param category - The category to invalidate
    */
   private async invalidateCategoryCache(category: MetricCategory): Promise<void> {
+    await this.ensureCacheInitialized();
     const cacheKey = `metrics:${category}:*`;
     await this.cache.del(cacheKey);
+  }
+
+  /**
+   * Get benchmarks by metric ID
+   */
+  async getBenchmarksByMetric(metricId: string): Promise<any[]> {
+    try {
+      await this.ensureCacheInitialized();
+
+      const cacheKey = `benchmark_metric_${metricId}`;
+      const cached = await this.cache.get(cacheKey);
+      if (cached) {
+        return cached as any[];
+      }
+
+      const metric = await Metric.findByPk(metricId);
+      if (!metric) {
+        throw new NotFoundError(`Metric not found: ${metricId}`);
+      }
+
+      const benchmarks = await CompanyMetric.findAll({
+        where: { metricId },
+        attributes: ['value', 'date'],
+        order: [['date', 'DESC']],
+        limit: 100,
+      });
+
+      const result = benchmarks.map((b) => ({
+        value: b.value,
+        date: b.date,
+      }));
+
+      await this.cache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      logger.error('Error getting benchmarks by metric:', {
+        error: error instanceof Error ? error.message : String(error),
+        metricId,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get benchmarks by revenue range
+   */
+  async getBenchmarksByRevenue(revenueRange: string): Promise<any[]> {
+    try {
+      await this.ensureCacheInitialized();
+
+      const cacheKey = `benchmark_revenue_${revenueRange}`;
+      const cached = await this.cache.get(cacheKey);
+      if (cached) {
+        return cached as any[];
+      }
+
+      const benchmarks = await CompanyMetric.findAll({
+        include: [
+          {
+            model: Metric,
+            as: 'metric',
+            attributes: ['name', 'displayName', 'type'],
+          },
+        ],
+        attributes: ['value', 'date'],
+        order: [['date', 'DESC']],
+        limit: 100,
+      });
+
+      const result = benchmarks.map((b) => ({
+        value: b.value,
+        date: b.date,
+        metric: b.metric,
+      }));
+
+      await this.cache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      logger.error('Error getting benchmarks by revenue:', {
+        error: error instanceof Error ? error.message : String(error),
+        revenueRange,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Compare benchmarks for given metrics
+   */
+  async compareBenchmarks(metricIds: string[], companyValue: number): Promise<any> {
+    try {
+      const benchmarks = await CompanyMetric.findAll({
+        where: {
+          metricId: {
+            [Op.in]: metricIds,
+          },
+        },
+        attributes: ['value', 'metricId'],
+        order: [['value', 'ASC']],
+      });
+
+      const results = metricIds.reduce((acc, metricId) => {
+        const metricBenchmarks = benchmarks.filter((b) => b.metricId === metricId);
+        const values = metricBenchmarks.map((b) => b.value);
+
+        // Calculate percentile
+        const position = values.filter((v) => v <= companyValue).length;
+        const percentile = (position / values.length) * 100;
+
+        acc[metricId] = {
+          percentile,
+          totalComparisons: values.length,
+          averageValue: values.reduce((sum, v) => sum + v, 0) / values.length,
+        };
+        return acc;
+      }, {} as Record<string, any>);
+
+      return results;
+    } catch (error) {
+      logger.error('Error comparing benchmarks:', {
+        error: error instanceof Error ? error.message : String(error),
+        metricIds,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get metrics based on user role and permissions
+   */
+  async getMetricsForUser(
+    userId: string,
+    userRole: UserRole,
+    companyId?: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      includeInactive?: boolean;
+      searchTerm?: string;
+      revenueRange?: string;
+    } = {}
+  ): Promise<{ metrics: ICompanyMetric[]; total: number }> {
+    try {
+      const userPermissions = ROLE_PERMISSIONS[userRole];
+
+      // Handle different roles
+      switch (userRole) {
+        case UserRole.REGULAR:
+          if (!companyId) {
+            throw new ValidationError('Company ID is required for regular users');
+          }
+          return this.getCompanyMetrics(companyId, options);
+
+        case UserRole.ANALYST:
+          return this.getAggregateMetrics(options);
+
+        case UserRole.ADMIN:
+          return this.getAggregateMetrics({
+            ...options,
+            includeAuditData: true,
+          });
+
+        default:
+          throw new ValidationError('Invalid user role');
+      }
+    } catch (error) {
+      const logMetadata: LogMetadata = {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        userRole,
+        companyId,
+      };
+      logger.error('Error retrieving metrics for user:', logMetadata);
+      throw error;
+    }
+  }
+
+  /**
+   * Get metrics for a specific company
+   */
+  private async getCompanyMetrics(
+    companyId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      includeInactive?: boolean;
+      searchTerm?: string;
+      revenueRange?: string;
+    }
+  ): Promise<{ metrics: ICompanyMetric[]; total: number }> {
+    const {
+      limit = DEFAULT_METRIC_LIMIT,
+      offset = 0,
+      includeInactive = false,
+      searchTerm,
+      revenueRange,
+    } = options;
+
+    const whereClause: any = {
+      companyId,
+      ...(includeInactive ? {} : { isActive: true }),
+      ...(searchTerm
+        ? {
+            [Op.or]: [
+              { name: { [Op.iLike]: `%${searchTerm}%` } },
+              { description: { [Op.iLike]: `%${searchTerm}%` } },
+            ],
+          }
+        : {}),
+    };
+
+    const { rows: metrics, count: total } = await CompanyMetric.findAndCountAll({
+      where: whereClause,
+      limit: Math.min(limit, DEFAULT_METRIC_LIMIT),
+      offset,
+      order: [['date', 'DESC']],
+      include: [
+        {
+          model: Metric,
+          attributes: ['name', 'displayName', 'category', 'type', 'valueType'],
+        },
+      ],
+    });
+
+    return {
+      metrics: metrics.map((metric) => metric.toJSON() as ICompanyMetric),
+      total,
+    };
+  }
+
+  /**
+   * Get aggregate metrics for analysts and admins
+   */
+  private async getAggregateMetrics(
+    options: {
+      limit?: number;
+      offset?: number;
+      includeInactive?: boolean;
+      searchTerm?: string;
+      revenueRange?: string;
+      includeAuditData?: boolean;
+    } = {}
+  ): Promise<{ metrics: ICompanyMetric[]; total: number }> {
+    const {
+      limit = DEFAULT_METRIC_LIMIT,
+      offset = 0,
+      includeInactive = false,
+      searchTerm,
+      revenueRange,
+      includeAuditData = false,
+    } = options;
+
+    // Build base query for aggregate data
+    const baseQuery = {
+      attributes: [
+        'metricId',
+        [sequelize.fn('AVG', sequelize.col('value')), 'averageValue'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+        [sequelize.fn('MIN', sequelize.col('value')), 'minValue'],
+        [sequelize.fn('MAX', sequelize.col('value')), 'maxValue'],
+      ],
+      include: [
+        {
+          model: Metric,
+          attributes: ['name', 'displayName', 'category', 'type', 'valueType'],
+          where: {
+            ...(includeInactive ? {} : { isActive: true }),
+            ...(searchTerm
+              ? {
+                  [Op.or]: [
+                    { name: { [Op.iLike]: `%${searchTerm}%` } },
+                    { description: { [Op.iLike]: `%${searchTerm}%` } },
+                  ],
+                }
+              : {}),
+          },
+        },
+      ],
+      group: ['metricId', 'Metric.id'],
+      limit: Math.min(limit, DEFAULT_METRIC_LIMIT),
+      offset,
+    };
+
+    // Add revenue range filter if specified
+    if (revenueRange) {
+      baseQuery.include[0].where = {
+        ...baseQuery.include[0].where,
+        revenueRange,
+      };
+    }
+
+    // Add audit data if requested (admin only)
+    if (includeAuditData) {
+      baseQuery.attributes.push(
+        [sequelize.fn('MAX', sequelize.col('updatedAt')), 'lastUpdated'],
+        [sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('companyId'))), 'companies']
+      );
+    }
+
+    const metrics = await CompanyMetric.findAll(baseQuery);
+    const total = await CompanyMetric.count({
+      include: [{ model: Metric, where: baseQuery.include[0].where }],
+      distinct: true,
+    });
+
+    return {
+      metrics: metrics.map((metric) => this.formatAggregateMetric(metric, includeAuditData)),
+      total,
+    };
+  }
+
+  /**
+   * Format aggregate metric response
+   */
+  private formatAggregateMetric(metric: any, includeAuditData: boolean): any {
+    const formatted = {
+      id: metric.metricId,
+      name: metric.Metric.name,
+      displayName: metric.Metric.displayName,
+      category: metric.Metric.category,
+      type: metric.Metric.type,
+      valueType: metric.Metric.valueType,
+      averageValue: parseFloat(metric.get('averageValue')),
+      count: parseInt(metric.get('count')),
+      minValue: parseFloat(metric.get('minValue')),
+      maxValue: parseFloat(metric.get('maxValue')),
+    };
+
+    if (includeAuditData) {
+      return {
+        ...formatted,
+        lastUpdated: metric.get('lastUpdated'),
+        companies: parseInt(metric.get('companies')),
+      };
+    }
+
+    return formatted;
   }
 }
 

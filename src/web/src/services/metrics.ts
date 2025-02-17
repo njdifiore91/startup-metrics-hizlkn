@@ -288,38 +288,54 @@ export class MetricsService {
   }
 
   /**
-   * Get all available metric types for dropdowns
+   * Retrieves available metric types with caching
    * @returns Promise resolving to array of metric types
    */
-  public async getMetricTypes(): Promise<MetricServiceResponse<Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>>> {
+  public async getMetricTypes(): Promise<MetricServiceResponse<Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>>>> {
     const cacheKey = 'metric_types' as const;
 
     try {
       // Check cache
-      const cached = this.getCachedValue<Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>>(cacheKey);
-      if (cached && Array.isArray(cached)) {
+      const cached = this.getCachedValue<Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>>>(cacheKey);
+      if (cached) {
         return { data: cached };
       }
 
-      const response = await api.get<{ data: any }>(
-        API_CONFIG.API_ENDPOINTS.METRIC_TYPES
+      // Check for pending request
+      const pendingRequest = this.pendingRequests.get(cacheKey);
+      if (pendingRequest) {
+        return pendingRequest;
+      }
+
+      const request = api.get<Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>> | { data: Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>> }>(
+        `${API_CONFIG.API_ENDPOINTS.METRICS}/types`
       );
-
-      const data: any = response.data.data.data;
       
-      const metricTypes = Array.isArray(data) ? data : [];
-
-      // Update cache
-      this.metricsCache.set(cacheKey, {
-        data: metricTypes,
-        timestamp: Date.now(),
+      const promise = request.then((response) => {
+        // Handle both wrapped and unwrapped response formats
+        const metricTypes = Array.isArray(response.data) ? response.data : response.data?.data;
+        
+        if (!Array.isArray(metricTypes)) {
+          throw new Error('Invalid response format: expected array of metric types');
+        }
+        
+        // Update cache
+        this.metricsCache.set(cacheKey, {
+          data: metricTypes,
+          timestamp: Date.now(),
+        });
+        
+        return { data: metricTypes };
       });
 
-      return { data: metricTypes };
+      this.pendingRequests.set(cacheKey, promise);
+      return promise;
     } catch (error) {
       const errorMessage = 'Failed to fetch metric types';
       showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: [], error: errorMessage };
+      return { data: null, error: errorMessage };
+    } finally {
+      this.pendingRequests.delete(cacheKey);
     }
   }
 }

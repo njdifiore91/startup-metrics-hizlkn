@@ -26,27 +26,29 @@ CompanyMetric.init(
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
-      allowNull: false
+      allowNull: false,
     },
     companyId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: 'company_id',
       references: {
         model: 'users',
-        key: 'id'
+        key: 'id',
       },
       onUpdate: 'CASCADE',
-      onDelete: 'CASCADE'
+      onDelete: 'CASCADE',
     },
     metricId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: 'metric_id',
       references: {
         model: 'metrics',
-        key: 'id'
+        key: 'id',
       },
       onUpdate: 'CASCADE',
-      onDelete: 'RESTRICT'
+      onDelete: 'RESTRICT',
     },
     value: {
       type: DataTypes.DECIMAL(20, 4),
@@ -54,73 +56,86 @@ CompanyMetric.init(
       get() {
         const rawValue = this.getDataValue('value');
         return rawValue === null ? 0 : Number(rawValue);
-      }
+      },
     },
     date: {
       type: DataTypes.DATEONLY,
-      allowNull: false
+      allowNull: false,
     },
     source: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      defaultValue: 'manual'
+      defaultValue: 'manual',
     },
     isVerified: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false
+      defaultValue: false,
+      field: 'is_verified',
     },
     verifiedBy: {
       type: DataTypes.UUID,
       allowNull: true,
+      field: 'verified_by',
       references: {
         model: 'users',
-        key: 'id'
-      }
+        key: 'id',
+      },
     },
     verifiedAt: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
+      field: 'verified_at',
     },
     notes: {
       type: DataTypes.TEXT,
-      allowNull: true
+      allowNull: true,
     },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: true
+      defaultValue: true,
+      field: 'is_active',
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
+      field: 'created_at',
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+      field: 'updated_at',
+    },
   },
   {
     sequelize,
     tableName: 'company_metrics',
     timestamps: true,
+    underscored: true,
     indexes: [
       {
-        fields: ['companyId', 'metricId', 'date'],
-        name: 'idx_company_metrics_lookup'
+        fields: ['company_id', 'metric_id', 'date'],
+        name: 'idx_company_metrics_lookup',
       },
       {
         fields: ['date'],
-        name: 'idx_company_metrics_date'
-      }
-    ]
+        name: 'idx_company_metrics_date',
+      },
+    ],
   }
 );
 
 // Define associations
 CompanyMetric.belongsTo(Metric, {
-  foreignKey: 'metricId',
-  as: 'metric'
+  foreignKey: {
+    name: 'metricId',
+    field: 'metric_id',
+  },
+  targetKey: 'id',
+  as: 'metric',
+  onUpdate: 'CASCADE',
+  onDelete: 'RESTRICT',
 });

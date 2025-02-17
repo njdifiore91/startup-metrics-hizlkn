@@ -29,6 +29,17 @@ interface LogMetadata {
   [key: string]: unknown;
 }
 
+interface UpdateUserData {
+  email?: string;
+  name?: string;
+  role?: keyof typeof USER_ROLES;
+  isActive?: boolean;
+  profileImageUrl?: string;
+  tier?: 'free' | 'pro' | 'enterprise';
+  revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
+  metadata?: Record<string, unknown>;
+}
+
 class UserService {
   async findByGoogleId(googleId: string): Promise<User | null> {
     try {
@@ -67,17 +78,57 @@ class UserService {
     }
   }
 
-  async updateUser(id: string, updates: Partial<IUser>): Promise<User | null> {
+  async updateUser(id: string, updates: UpdateUserData): Promise<User | null> {
     try {
       const user = await User.findByPk(id);
       if (!user) {
         throw new AppError('User not found', 404);
       }
 
-      await user.update(updates);
-      return user;
+      // Validate email if provided
+      if (updates.email) {
+        const existingUser = await this.findByEmail(updates.email);
+        if (existingUser && existingUser.id !== id) {
+          throw new AppError('Email already in use by another user', 400);
+        }
+      }
+
+      // Validate role if provided
+      if (updates.role && !Object.values(USER_ROLES).includes(updates.role)) {
+        throw new AppError('Invalid role specified', 400);
+      }
+
+      // Validate revenue range if provided
+      if (updates.revenueRange) {
+        const validRanges = ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'];
+        if (!validRanges.includes(updates.revenueRange)) {
+          throw new AppError('Invalid revenue range specified', 400);
+        }
+      }
+
+      // Create audit log entry
+      logger.info('User update requested', {
+        userId: id,
+        changes: updates,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Perform the update with validation
+      const updatedUser = await user.update({
+        ...updates,
+        updatedAt: new Date(),
+      });
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+
+      return updatedUser;
     } catch (error) {
-      logger.error('Error updating user:', { error } as LogMetadata);
+      logger.error('Error updating user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
       throw new AppError('Failed to update user', 500);
     }
   }

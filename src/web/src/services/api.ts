@@ -115,14 +115,6 @@ const createApiInstance = (): AxiosInstance => {
       if (token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${token}`;
-      } else {
-        // Try to get token from auth service
-        const authService = new AuthService();
-        const tokens = authService.getStoredTokens();
-        if (tokens?.token) {
-          config.headers = config.headers || {};
-          config.headers.Authorization = `Bearer ${tokens.token}`;
-        }
       }
 
       // Add performance tracking

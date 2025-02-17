@@ -1,5 +1,5 @@
-import { IMetric, MetricValueType } from './IMetric';
-import { METRIC_VALIDATION_RULES } from '../config/constants';
+import { MetricCategory, MetricValueType } from './IMetric';
+import { METRIC_VALIDATION_RULES } from '../constants/validations';
 
 /**
  * Interface defining the structure of company-specific metric data
@@ -20,7 +20,7 @@ export interface ICompanyMetric {
   value: number;
 
   /** Date when the metric was recorded */
-  date: Date;
+  date: string;
 
   /** Source of the metric data */
   source: string;
@@ -29,10 +29,10 @@ export interface ICompanyMetric {
   isVerified: boolean;
 
   /** Reference to the user who verified the metric */
-  verifiedBy?: string;
+  verifiedBy?: string | null;
 
   /** Timestamp when the metric was verified */
-  verifiedAt?: Date;
+  verifiedAt?: string | null;
 
   /** Additional notes about the metric */
   notes?: string;
@@ -44,10 +44,10 @@ export interface ICompanyMetric {
   metric?: IMetric;
 
   /** Timestamp of initial creation */
-  createdAt: Date;
+  createdAt: string;
 
   /** Timestamp of last update */
-  updatedAt: Date;
+  updatedAt: string;
 }
 
 /**
@@ -64,17 +64,47 @@ export function isCompanyMetric(value: unknown): value is ICompanyMetric {
     typeof metric.companyId === 'string' &&
     typeof metric.metricId === 'string' &&
     typeof metric.value === 'number' &&
-    metric.date instanceof Date &&
+    typeof metric.date === 'string' &&
     typeof metric.source === 'string' &&
     typeof metric.isVerified === 'boolean' &&
     typeof metric.isActive === 'boolean' &&
     (metric.verifiedBy === undefined || typeof metric.verifiedBy === 'string') &&
-    (metric.verifiedAt === undefined || metric.verifiedAt instanceof Date) &&
+    (metric.verifiedAt === undefined || typeof metric.verifiedAt === 'string') &&
     (metric.notes === undefined || typeof metric.notes === 'string') &&
     (metric.metric === undefined || typeof metric.metric === 'object') &&
-    metric.createdAt instanceof Date &&
-    metric.updatedAt instanceof Date
+    typeof metric.createdAt === 'string' &&
+    typeof metric.updatedAt === 'string'
   );
+}
+
+export interface IMetricValidationRules {
+  precision?: number;
+  decimalPrecision?: number;
+  min?: number;
+  max?: number;
+  required?: boolean;
+  format?: string;
+  customValidation?: {
+    rule: string;
+    message: string;
+  }[];
+}
+
+export interface IMetric {
+  id: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+  category: MetricCategory;
+  type: string;
+  valueType: string;
+  validationRules: IMetricValidationRules;
+  isActive?: boolean;
+  displayOrder?: number;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
@@ -83,10 +113,7 @@ export function isCompanyMetric(value: unknown): value is ICompanyMetric {
  * @param metric - Metric definition containing validation rules
  * @returns Boolean indicating if the value is valid for the metric
  */
-export function validateCompanyMetricValue(
-  value: number,
-  metric?: IMetric
-): boolean {
+export function validateCompanyMetricValue(value: number, metric?: IMetric): boolean {
   if (!metric) {
     return false;
   }
@@ -95,38 +122,47 @@ export function validateCompanyMetricValue(
   if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
     return false;
   }
-  console.log('first validation passed');
 
-  const valueType = metric.valueType as MetricValueType;
-  console.log('valueType', valueType);
-  const rules = METRIC_VALIDATION_RULES[valueType];
-  console.log('rules', rules);
+  // Get the value type from the metric
+  const valueType = metric.valueType.toLowerCase();
+
+  // Map to a valid METRIC_VALUE_TYPES key
+  let validationType: keyof typeof METRIC_VALIDATION_RULES = 'NUMBER';
+  if (valueType === 'percentage') {
+    validationType = 'PERCENTAGE';
+  } else if (valueType === 'currency') {
+    validationType = 'CURRENCY';
+  } else if (valueType === 'ratio') {
+    validationType = 'RATIO';
+  }
+
+  // Get validation rules
+  const rules = METRIC_VALIDATION_RULES[validationType];
   if (!rules) {
     return false;
   }
-  console.log('second validation passed');
 
   // Check if negative values are allowed
   if (!rules.allowNegative && value < 0) {
     return false;
   }
-  console.log('third validation passed');
+
   // Check range constraints
   if (value < rules.min || value > rules.max) {
     return false;
   }
-  console.log('fourth validation passed');
+
   // Check decimal precision
   const decimalStr = value.toString();
   const decimalMatch = decimalStr.match(/\.(\d+)$/);
   const decimalPlaces = decimalMatch ? decimalMatch[1].length : 0;
-  
+
   if (decimalPlaces > rules.decimalPrecision) {
     return false;
   }
-  console.log('fifth validation passed');
-  // Check format using regex
-  if (!rules.format.test(decimalStr)) {
+
+  // For NUMBER type, ensure it's a whole number
+  if (validationType === 'NUMBER' && !Number.isInteger(value)) {
     return false;
   }
 

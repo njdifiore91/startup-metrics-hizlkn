@@ -11,7 +11,7 @@ export enum DataFormat {
   JSON = 'JSON',
   CSV = 'CSV',
   XML = 'XML',
-  API = 'API'
+  API = 'API',
 }
 
 type DataSourceCreationAttributes = Optional<IDataSource, 'id' | 'createdAt' | 'updatedAt'>;
@@ -68,39 +68,47 @@ DataSource.init(
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'last_updated',
     },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
+      field: 'is_active',
     },
     dataFormat: {
       type: DataTypes.ENUM(...Object.values(DataFormat)),
       allowNull: false,
+      field: 'data_format',
     },
     updateFrequency: {
       type: DataTypes.STRING(50),
       allowNull: false,
+      field: 'update_frequency',
     },
     validationRules: {
       type: DataTypes.JSONB,
       allowNull: false,
       defaultValue: {},
+      field: 'validation_rules',
     },
     metricCategories: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: false,
       defaultValue: [],
+      field: 'metric_categories',
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'created_at',
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'updated_at',
     },
   },
   {
@@ -108,6 +116,7 @@ DataSource.init(
     tableName: TABLE_NAME,
     timestamps: true,
     paranoid: false,
+    underscored: true,
   }
 );
 

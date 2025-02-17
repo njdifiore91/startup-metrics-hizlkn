@@ -48,6 +48,7 @@ interface User {
   lastLoginAt: string;
   profileImageUrl: string | null;
   tier: 'free' | 'pro' | 'enterprise';
+  revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
 }
 
 interface UserResponse {
@@ -63,6 +64,7 @@ interface CreateUserData {
   profileImageUrl?: string;
   tier?: 'free' | 'pro' | 'enterprise';
   lastLoginAt?: string;
+  revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
 }
 
 const UserManagement: React.FC = () => {
@@ -510,6 +512,28 @@ const UserManagement: React.FC = () => {
                 <MenuItem value="enterprise">Enterprise</MenuItem>
               </Select>
             </FormControl>
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="revenue-range-label">Revenue Range</InputLabel>
+              <Select
+                labelId="revenue-range-label"
+                id="revenue-range"
+                value={newUser.revenueRange || ''}
+                onChange={(e: SelectChangeEvent<string>) =>
+                  setNewUser((prev) => ({ ...prev, revenueRange: e.target.value as User['revenueRange'] }))
+                }
+                label="Revenue Range"
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                <MenuItem value="0-1M">$0 - $1M</MenuItem>
+                <MenuItem value="1M-5M">$1M - $5M</MenuItem>
+                <MenuItem value="5M-20M">$5M - $20M</MenuItem>
+                <MenuItem value="20M-50M">$20M - $50M</MenuItem>
+                <MenuItem value="50M+">$50M+</MenuItem>
+              </Select>
+              <FormHelperText>Select the company's annual revenue range for benchmarking</FormHelperText>
+            </FormControl>
             <TextField
               name="profileImageUrl"
               label="Profile Image URL"
@@ -620,6 +644,28 @@ const UserManagement: React.FC = () => {
                 <MenuItem value="pro">Pro</MenuItem>
                 <MenuItem value="enterprise">Enterprise</MenuItem>
               </Select>
+            </FormControl>
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="revenue-range-label">Revenue Range</InputLabel>
+              <Select
+                labelId="revenue-range-label"
+                id="revenue-range"
+                value={editUser.revenueRange || ''}
+                onChange={(e: SelectChangeEvent<string>) =>
+                  setEditUser((prev) => ({ ...prev, revenueRange: e.target.value as User['revenueRange'] }))
+                }
+                label="Revenue Range"
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                <MenuItem value="0-1M">$0 - $1M</MenuItem>
+                <MenuItem value="1M-5M">$1M - $5M</MenuItem>
+                <MenuItem value="5M-20M">$5M - $20M</MenuItem>
+                <MenuItem value="20M-50M">$20M - $50M</MenuItem>
+                <MenuItem value="50M+">$50M+</MenuItem>
+              </Select>
+              <FormHelperText>Select the company's annual revenue range for benchmarking</FormHelperText>
             </FormControl>
             <TextField
               name="profileImageUrl"

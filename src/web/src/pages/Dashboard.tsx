@@ -1,15 +1,20 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import styled from '@emotion/styled';
+import { useNavigate } from 'react-router-dom';
 import { MetricCard } from '../components/metrics/MetricCard';
-import { useMetrics } from '../hooks/useMetrics';
+import { useCompanyMetrics } from '../hooks/useCompanyMetrics';
 import { useBenchmarks } from '../hooks/useBenchmarks';
+import { useAuth } from '../hooks/useAuth';
+import { SessionStatus } from '../store/authSlice';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import { IMetric, MetricCategory } from '../interfaces/IMetric';
+import { ICompanyMetric } from '../interfaces/ICompanyMetric';
 import { AnalyticsBrowser } from '@segment/analytics-next';
 import { METRIC_TYPES, REVENUE_RANGES } from '../config/constants';
 import { RevenueRange } from '../store/benchmarkSlice';
 import { IconButton, Collapse } from '@mui/material';
 import { ExpandMore, ExpandLess } from '@mui/icons-material';
+import { UserMetricsChart } from '../components/metrics/UserMetricsChart';
 
 // Styled Components
 const DashboardContainer = styled.div`
@@ -81,14 +86,39 @@ const ComparisonSection = styled.div`
   border-radius: var(--border-radius-lg);
 `;
 
-// Initialize analytics outside component
-const analytics = AnalyticsBrowser.load({
-  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
-});
+const ChartSection = styled.div`
+  margin-top: var(--spacing-lg);
+  background-color: var(--color-background-light);
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-md);
+`;
+
+// Initialize analytics outside component with error handling
+let analytics;
+try {
+  const writeKey = import.meta.env.VITE_SEGMENT_WRITE_KEY;
+  if (writeKey) {
+    analytics = AnalyticsBrowser.load({ writeKey });
+  } else {
+    console.warn('Segment write key not found. Analytics will be disabled.');
+    analytics = {
+      track: () => Promise.resolve(),
+      page: () => Promise.resolve(),
+      identify: () => Promise.resolve(),
+    };
+  }
+} catch (error) {
+  console.error('Failed to initialize analytics:', error);
+  analytics = {
+    track: () => Promise.resolve(),
+    page: () => Promise.resolve(),
+    identify: () => Promise.resolve(),
+  };
+}
 
 // Interfaces
 interface DashboardState {
-  selectedMetric: IMetric | null;
+  selectedMetric: ICompanyMetric | null;
   selectedCategory: MetricCategory;
   revenueRange: RevenueRange;
   errors: Record<string, Error | null>;
@@ -110,10 +140,13 @@ const isValidRevenueRange = (value: string): value is ValidRevenueRange => {
  * Enhanced Dashboard component with real-time metrics, benchmarking, and performance optimizations
  */
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, sessionStatus, user } = useAuth();
+
   // State Management
   const [state, setState] = useState<DashboardState>({
     selectedMetric: null,
-    selectedCategory: 'financial',
+    selectedCategory: MetricCategory.OTHER,
     revenueRange: VALID_REVENUE_RANGES[0],
     errors: {},
     loadingStates: {},
@@ -127,8 +160,8 @@ const Dashboard: React.FC = () => {
     metrics,
     loading: metricsLoading,
     error: metricsError,
-    getMetricsByCategory,
-  } = useMetrics();
+    fetchMetrics,
+  } = useCompanyMetrics();
 
   const {
     benchmarks,
@@ -142,12 +175,16 @@ const Dashboard: React.FC = () => {
 
   // Memoized filtered metrics
   const filteredMetrics = useMemo(() => {
-    return metrics.filter((metric) => metric.category === state.selectedCategory);
+    console.log('Filtering metrics:', metrics, 'with category:', state.selectedCategory);
+    return metrics.filter((metric) => {
+      const category = metric.metric?.category || MetricCategory.OTHER;
+      return category === state.selectedCategory;
+    });
   }, [metrics, state.selectedCategory]);
 
   // Handlers
   const handleMetricSelect = useCallback(
-    async (metric: IMetric) => {
+    async (metric: ICompanyMetric) => {
       try {
         setState((prev) => ({
           ...prev,
@@ -165,7 +202,7 @@ const Dashboard: React.FC = () => {
 
         analytics.track('Metric Selected', {
           metricId: metric.id,
-          category: metric.category,
+          category: metric.metric?.category,
           revenueRange: state.revenueRange,
         });
       } catch (error) {
@@ -192,7 +229,7 @@ const Dashboard: React.FC = () => {
           errors: { ...prev.errors, category: null },
         }));
 
-        await getMetricsByCategory(category);
+        await fetchMetrics();
 
         setState((prev) => ({
           ...prev,
@@ -216,7 +253,7 @@ const Dashboard: React.FC = () => {
         }));
       }
     },
-    [getMetricsByCategory]
+    [fetchMetrics]
   );
 
   // Handle revenue range change
@@ -226,12 +263,26 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // Initial data fetch
+  // Check authentication on mount and redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated && sessionStatus !== SessionStatus.ACTIVE) {
+      navigate('/login', { replace: true });
+    }
+  }, [isAuthenticated, sessionStatus, navigate]);
+
+  // Initial data fetch with authentication check
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
-        await getMetricsByCategory(state.selectedCategory);
+        if (!isAuthenticated) {
+          return;
+        }
+        await fetchMetrics();
       } catch (error) {
+        if (error instanceof Error && error.message === 'User not authenticated') {
+          navigate('/login', { replace: true });
+          return;
+        }
         setState((prev) => ({
           ...prev,
           errors: { ...prev.errors, initialization: error as Error },
@@ -240,7 +291,7 @@ const Dashboard: React.FC = () => {
     };
 
     initializeDashboard();
-  }, [getMetricsByCategory]);
+  }, [fetchMetrics, isAuthenticated, navigate]);
 
   // Performance monitoring
   useEffect(() => {
@@ -280,9 +331,9 @@ const Dashboard: React.FC = () => {
                 onChange={(e) => handleCategoryChange(e.target.value as MetricCategory)}
                 aria-label="Select metric category"
               >
-                {Object.values(METRIC_TYPES).map((category) => (
+                {Object.values(MetricCategory).map((category) => (
                   <option key={category} value={category}>
-                    {category.charAt(0).toUpperCase() + category.slice(1)}
+                    {category.charAt(0).toUpperCase() + category.slice(1).toLowerCase()}
                   </option>
                 ))}
               </StyledSelect>
@@ -302,14 +353,14 @@ const Dashboard: React.FC = () => {
           </Collapse>
         </FilterContainer>
 
+        <ChartSection>{user && <UserMetricsChart userId={user.id} />}</ChartSection>
+
         <MetricsGrid role="grid" aria-label="Metrics grid">
           {filteredMetrics.map((metric) => (
             <MetricCard
               key={metric.id}
               metric={metric}
-              value={Number(metric.valueType)}
-              selected={state.selectedMetric?.id === metric.id}
-              onClick={() => handleMetricSelect(metric)}
+              onEdit={() => handleMetricSelect(metric)}
               testId={`metric-card-${metric.id}`}
             />
           ))}
@@ -323,7 +374,11 @@ const Dashboard: React.FC = () => {
 
         {(metricsError || benchmarksError) && (
           <div role="alert" className="error-container">
-            {metricsError || benchmarksError}
+            {typeof metricsError === 'string'
+              ? metricsError
+              : typeof benchmarksError === 'string'
+              ? benchmarksError
+              : 'An error occurred while loading data'}
           </div>
         )}
       </DashboardContainer>

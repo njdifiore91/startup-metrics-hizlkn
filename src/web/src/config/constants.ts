@@ -39,6 +39,7 @@ export const API_CONFIG: IApiConfig = {
     METRIC_TYPES: '/api/v1/metrics/types',
     COMPANY_METRICS: '/api/v1/company-metrics',
     BENCHMARKS: '/api/v1/benchmarks',
+    BENCHMARKS_BY_METRIC: '/api/v1/benchmarks/metrics',
     USER: '/api/v1/user',
     AUTH: '/api/v1/auth',
     DATA_SOURCES: '/api/v1/data-sources'

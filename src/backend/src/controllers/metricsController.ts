@@ -31,7 +31,7 @@ const metricRateLimiter = rateLimit({
   max: RATE_LIMIT_MAX,
   message: BUSINESS_ERRORS.RATE_LIMIT_EXCEEDED.message,
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
 });
 
 /**
@@ -45,12 +45,7 @@ const getMetrics = asyncHandler(async (req: Request, res: Response): Promise<voi
     const startTime = process.hrtime();
 
     // Extract and validate query parameters
-    const {
-      category,
-      search,
-      page = 1,
-      limit = DEFAULT_PAGE_SIZE
-    } = req.query;
+    const { category, search, page = 1, limit = DEFAULT_PAGE_SIZE } = req.query;
 
     // Validate page size
     const validatedLimit = Math.min(Number(limit), MAX_PAGE_SIZE);
@@ -81,7 +76,7 @@ const getMetrics = asyncHandler(async (req: Request, res: Response): Promise<voi
         limit: validatedLimit,
         offset,
         searchTerm: search as string,
-        includeInactive: false
+        includeInactive: false,
       }
     );
 
@@ -101,25 +96,25 @@ const getMetrics = asyncHandler(async (req: Request, res: Response): Promise<voi
         page: Number(page),
         limit: validatedLimit,
         total,
-        pages: Math.ceil(total / validatedLimit)
+        pages: Math.ceil(total / validatedLimit),
       },
       meta: {
         responseTime,
-        correlationId
-      }
+        correlationId,
+      },
     });
 
     logger.info('Metrics retrieved successfully', {
       correlationId,
       category,
       count: metrics.length,
-      responseTime
+      responseTime,
     });
   } catch (error) {
     logger.error('Error retrieving metrics', {
       correlationId,
       error: error instanceof Error ? error.message : String(error),
-      category: req.query.category
+      category: req.query.category,
     });
 
     if (error instanceof ValidationError) {
@@ -176,20 +171,20 @@ const getMetricById = asyncHandler(async (req: Request, res: Response): Promise<
       data: metric,
       meta: {
         responseTime,
-        correlationId
-      }
+        correlationId,
+      },
     });
 
     logger.info('Metric retrieved successfully', {
       correlationId,
       metricId: req.params.id,
-      responseTime
+      responseTime,
     });
   } catch (error) {
     logger.error('Error retrieving metric', {
       correlationId,
       metricId: req.params.id,
-      error
+      error,
     });
     throw error;
   }
@@ -207,7 +202,7 @@ const createMetric = asyncHandler(async (req: Request, res: Response): Promise<v
 
     // Validate required fields
     const requiredFields = ['name', 'category', 'valueType', 'description'];
-    const missingFields = requiredFields.filter(field => !metricData[field]);
+    const missingFields = requiredFields.filter((field) => !metricData[field]);
 
     if (missingFields.length > 0) {
       throw new AppError(
@@ -222,7 +217,7 @@ const createMetric = asyncHandler(async (req: Request, res: Response): Promise<v
   } catch (error) {
     logger.error('Error creating metric', {
       correlationId,
-      error
+      error,
     });
 
     if (error instanceof ValidationError) {
@@ -255,7 +250,7 @@ const updateMetric = asyncHandler(async (req: Request, res: Response): Promise<v
   } catch (error) {
     logger.error('Error updating metric', {
       correlationId,
-      error
+      error,
     });
 
     if (error instanceof ValidationError) {
@@ -283,86 +278,132 @@ const updateMetric = asyncHandler(async (req: Request, res: Response): Promise<v
 /**
  * Get metrics for a specific user
  */
-export const getCompanyMetrics = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const correlationId = `user-metrics-${req.params.userId}-${Date.now()}`;
-  logger.setCorrelationId(correlationId);
+export const getCompanyMetrics = asyncHandler(
+  async (req: Request, res: Response): Promise<void> => {
+    const correlationId = `user-metrics-${req.params.userId}-${Date.now()}`;
+    logger.setCorrelationId(correlationId);
 
-  try {
-    const startTime = process.hrtime();
-    const userId = req.params.userId;
+    try {
+      const startTime = process.hrtime();
+      const userId = req.params.userId;
+      const currentUser = req.user;
 
-    if (!userId) {
-      throw new AppError(
-        VALIDATION_ERRORS.MISSING_REQUIRED.message,
-        VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
-        VALIDATION_ERRORS.MISSING_REQUIRED.code
-      );
-    }
-
-    // Get metrics for the user's company
-    const metrics = await metricsService.getMetricsForCompany(userId);
-
-    // Calculate response time
-    const [seconds, nanoseconds] = process.hrtime(startTime);
-    const responseTime = seconds * 1000 + nanoseconds / 1e6;
-
-    // Set cache headers
-    res.set('Cache-Control', `public, max-age=${CACHE_DURATION}`);
-    res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
-    res.set('X-Correlation-ID', correlationId);
-
-    res.json({
-      data: metrics,
-      meta: {
-        responseTime,
-        correlationId
+      if (!userId) {
+        throw new AppError(
+          VALIDATION_ERRORS.MISSING_REQUIRED.message,
+          VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
+          VALIDATION_ERRORS.MISSING_REQUIRED.code
+        );
       }
-    });
 
-    logger.info('User metrics retrieved successfully', {
-      correlationId,
-      userId,
-      count: metrics.length,
-      responseTime
-    });
-  } catch (error) {
-    logger.error('Error retrieving user metrics', {
-      correlationId,
-      userId: req.params.userId,
-      error
-    });
-    throw error;
+      // Check if user has permission to access these metrics
+      if (currentUser?.role !== 'ADMIN' && currentUser?.id !== userId) {
+        throw new AppError('You do not have permission to access these metrics', 403, 'AUTH_004');
+      }
+
+      // Get metrics for the user's company
+      const metrics = await metricsService.getMetricsForCompany(userId);
+
+      // Calculate response time
+      const [seconds, nanoseconds] = process.hrtime(startTime);
+      const responseTime = seconds * 1000 + nanoseconds / 1e6;
+
+      // Set cache headers
+      res.set('Cache-Control', `public, max-age=${CACHE_DURATION}`);
+      res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
+      res.set('X-Correlation-ID', correlationId);
+
+      res.json({
+        data: metrics,
+        meta: {
+          responseTime,
+          correlationId,
+        },
+      });
+
+      logger.info('User metrics retrieved successfully', {
+        correlationId,
+        userId,
+        count: metrics.length,
+        responseTime,
+      });
+    } catch (error) {
+      logger.error('Error retrieving user metrics', {
+        correlationId,
+        userId: req.params.userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
-});
+);
 
 /**
- * Get benchmark metrics for a specific industry
+ * Get benchmark metrics based on the request type (by metric ID, revenue range, or comparison)
  */
 export const getBenchmarkMetrics = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const correlationId = `benchmark-${Date.now()}`;
+  logger.setCorrelationId(correlationId);
+
   try {
-    const { industry } = req.params;
-    if (!industry) {
+    const startTime = process.hrtime();
+    let metrics;
+
+    // Handle different types of benchmark requests
+    if (req.params.metricId) {
+      // Get benchmarks by metric ID
+      metrics = await metricsService.getBenchmarksByMetric(req.params.metricId);
+    } else if (req.params.revenueRange) {
+      // Get benchmarks by revenue range
+      metrics = await metricsService.getBenchmarksByRevenue(req.params.revenueRange);
+    } else if (req.path.includes('/compare')) {
+      // Handle benchmark comparison
+      const { metricIds, companyValue } = req.body;
+      metrics = await metricsService.compareBenchmarks(metricIds, companyValue);
+    } else {
       throw new AppError(
-        VALIDATION_ERRORS.MISSING_REQUIRED.message,
-        VALIDATION_ERRORS.MISSING_REQUIRED.httpStatus,
-        VALIDATION_ERRORS.MISSING_REQUIRED.code
+        'Invalid benchmark request',
+        VALIDATION_ERRORS.INVALID_REQUEST.httpStatus,
+        VALIDATION_ERRORS.INVALID_REQUEST.code
       );
     }
 
-    const metrics = await metricsService.getIndustryBenchmarks(industry);
-    
+    // Calculate response time
+    const [seconds, nanoseconds] = process.hrtime(startTime);
+    const responseTime = seconds * 1000 + nanoseconds / 1e6;
+
+    // Set response headers
+    res.set('Cache-Control', `public, max-age=${CACHE_DURATION}`);
+    res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
+    res.set('X-Correlation-ID', correlationId);
+
     res.json({
       status: 'success',
-      data: metrics
+      data: metrics,
+      meta: {
+        responseTime,
+        correlationId,
+      },
+    });
+
+    logger.info('Benchmark metrics retrieved successfully', {
+      correlationId,
+      type: req.params.metricId
+        ? 'by-metric'
+        : req.params.revenueRange
+        ? 'by-revenue'
+        : 'comparison',
+      responseTime,
     });
   } catch (error) {
-    logger.error('Failed to get benchmark metrics:', { 
+    logger.error('Failed to get benchmark metrics:', {
+      correlationId,
       error: error instanceof Error ? error.message : 'Unknown error',
-      industry: req.params.industry
+      params: req.params,
     });
     next(error);
   }
@@ -388,15 +429,15 @@ export const updateCompanyMetrics = async (
 
     await validateMetricsRequest(req.body);
     const metrics = await metricsService.updateMetrics(companyId, req.body);
-    
+
     res.json({
       status: 'success',
-      data: metrics
+      data: metrics,
     });
   } catch (error) {
-    logger.error('Failed to update company metrics:', { 
+    logger.error('Failed to update company metrics:', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      companyId: req.params.companyId
+      companyId: req.params.companyId,
     });
     next(error);
   }
@@ -424,23 +465,18 @@ export const getMetricTypes = asyncHandler(async (req: Request, res: Response): 
     res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
     res.set('X-Correlation-ID', correlationId);
 
-    res.json({
-      data: metrics,
-      meta: {
-        responseTime,
-        correlationId
-      }
-    });
+    // Return metrics array directly without wrapping in data object
+    res.json(metrics);
 
     logger.info('Metric types retrieved successfully', {
       correlationId,
       count: metrics.length,
-      responseTime
+      responseTime,
     });
   } catch (error) {
     logger.error('Error retrieving metric types', {
       correlationId,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
     throw new AppError(
       SYSTEM_ERRORS.INTERNAL_SERVER_ERROR.message,
@@ -473,7 +509,7 @@ const createCompanyMetric = asyncHandler(async (req: Request, res: Response): Pr
 
     res.status(201).json({
       success: true,
-      data: companyMetric
+      data: companyMetric,
     });
   } catch (error) {
     logger.error('Error creating company metric:', { error });
@@ -490,7 +526,7 @@ const updateCompanyMetric = asyncHandler(async (req: Request, res: Response): Pr
 
   try {
     const { id } = req.params;
-    
+
     // Validate request body against schema
     const { error, value } = companyMetricSchema.validate(req.body);
     if (error) {
@@ -506,7 +542,7 @@ const updateCompanyMetric = asyncHandler(async (req: Request, res: Response): Pr
 
     res.json({
       success: true,
-      data: updatedMetric
+      data: updatedMetric,
     });
   } catch (error) {
     logger.error('Error updating company metric:', { error });
@@ -521,5 +557,5 @@ export const metricsController = {
   createMetric: [metricRateLimiter, createMetric],
   updateMetric: [metricRateLimiter, updateMetric],
   createCompanyMetric: [metricRateLimiter, createCompanyMetric],
-  updateCompanyMetric: [metricRateLimiter, updateCompanyMetric]
+  updateCompanyMetric: [metricRateLimiter, updateCompanyMetric],
 };
