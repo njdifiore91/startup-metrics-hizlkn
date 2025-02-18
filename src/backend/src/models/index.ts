@@ -1,5 +1,7 @@
-import sequelize, { DataTypes } from '../config/database';
+import sequelize from '../config/database';
+import { DataTypes } from 'sequelize';
 import { Metric } from './Metric';
+import { BenchmarkData } from './BenchmarkData';
 import { IMetric } from '../interfaces/IMetric';
 import { METRIC_CATEGORIES, METRIC_VALUE_TYPES } from '../constants/metricTypes';
 
@@ -10,7 +12,7 @@ Metric.init(
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
-      allowNull: false
+      allowNull: false,
     },
     name: {
       type: DataTypes.STRING(100),
@@ -18,29 +20,29 @@ Metric.init(
       unique: true,
       validate: {
         notEmpty: true,
-        len: [2, 100]
-      }
+        len: [2, 100],
+      },
     },
     description: {
       type: DataTypes.TEXT,
       allowNull: false,
       validate: {
-        notEmpty: true
-      }
+        notEmpty: true,
+      },
     },
     category: {
       type: DataTypes.ENUM(...Object.values(METRIC_CATEGORIES)),
       allowNull: false,
       validate: {
-        isIn: [Object.values(METRIC_CATEGORIES)]
-      }
+        isIn: [Object.values(METRIC_CATEGORIES)],
+      },
     },
     valueType: {
       type: DataTypes.ENUM(...Object.values(METRIC_VALUE_TYPES)),
       allowNull: false,
       validate: {
-        isIn: [Object.values(METRIC_VALUE_TYPES)]
-      }
+        isIn: [Object.values(METRIC_VALUE_TYPES)],
+      },
     },
     validationRules: {
       type: DataTypes.JSONB,
@@ -62,7 +64,10 @@ Metric.init(
           }
 
           // Validate decimals
-          if (value.decimals !== undefined && (!Number.isInteger(value.decimals) || value.decimals < 0)) {
+          if (
+            value.decimals !== undefined &&
+            (!Number.isInteger(value.decimals) || value.decimals < 0)
+          ) {
             throw new Error('Decimals must be a non-negative integer');
           }
 
@@ -85,24 +90,24 @@ Metric.init(
               }
             });
           }
-        }
-      }
+        },
+      },
     },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: true
+      defaultValue: true,
     },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
     },
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+    },
   },
   {
     sequelize,
@@ -111,23 +116,24 @@ Metric.init(
     indexes: [
       {
         fields: ['category'],
-        name: 'metrics_category_idx'
+        name: 'metrics_category_idx',
       },
       {
         fields: ['valueType'],
-        name: 'metrics_value_type_idx'
+        name: 'metrics_value_type_idx',
       },
       {
         fields: ['isActive'],
-        name: 'metrics_is_active_idx'
-      }
-    ]
+        name: 'metrics_is_active_idx',
+      },
+    ],
   }
 );
 
 // Export models
 export const models = {
-  Metric
+  Metric,
+  BenchmarkData,
 };
 
-export default models; 
+export default models;

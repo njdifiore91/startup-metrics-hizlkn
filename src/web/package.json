@@ -51,6 +51,7 @@
     "react-swipeable": "7.0.0",
     "react-toastify": "^11.0.3",
     "recharts": "^2.15.1",
+    "redux": "^5.0.1",
     "styled-components": "^5.3.0"
   },
   "devDependencies": {

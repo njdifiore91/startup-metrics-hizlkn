@@ -244,9 +244,8 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(
     }
 
     const benchmark = benchmarks[0];
-    const formattedCompanyValue = companyValue !== undefined 
-      ? formatValue(companyValue, metric.valueType)
-      : 'Not provided';
+    const formattedCompanyValue =
+      companyValue !== undefined ? formatValue(companyValue, metric.valueType) : 'Not provided';
 
     return (
       <ComparisonContainer className={className}>
@@ -263,19 +262,25 @@ const MetricComparison: React.FC<MetricComparisonProps> = memo(
           <InsightsContainer>
             <InsightTitle>Benchmark Insights</InsightTitle>
             <InsightText>
-              Your {metric.name} of {formattedCompanyValue} is at the {comparison.percentile}th percentile
-              for companies in the {revenueRange} revenue range.
+              Your {metric.name} value is {formattedCompanyValue}
             </InsightText>
-            {comparison.difference !== 0 && (
+            <InsightText>
+              Percentile Distribution:
+              {benchmark && (
+                <div
+                  style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}
+                >
+                  <div>• P10: {formatValue(benchmark.p10, metric.valueType)}</div>
+                  <div>• P25: {formatValue(benchmark.p25, metric.valueType)}</div>
+                  <div>• P50 (Median): {formatValue(benchmark.p50, metric.valueType)}</div>
+                  <div>• P75: {formatValue(benchmark.p75, metric.valueType)}</div>
+                  <div>• P90: {formatValue(benchmark.p90, metric.valueType)}</div>
+                </div>
+              )}
+            </InsightText>
+            {comparison.percentile && (
               <InsightText>
-                This is {Math.abs(comparison.difference)}% {comparison.difference > 0 ? 'above' : 'below'} the median
-                benchmark value.
-              </InsightText>
-            )}
-            {comparison.trend && (
-              <InsightText>
-                This shows a {comparison.trend.direction} trend with a {comparison.trend.magnitude}% change
-                compared to the previous period.
+                Your value falls at the {comparison.percentile}th percentile.
               </InsightText>
             )}
           </InsightsContainer>

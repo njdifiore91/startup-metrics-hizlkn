@@ -158,8 +158,6 @@ export const BenchmarkComparison: React.FC<BenchmarkComparisonProps> = ({
 
   return (
     <ComparisonContainer>
-      <ComparisonTitle>Benchmark Analysis</ComparisonTitle>
-
       <BenchmarkChart benchmark={benchmark} userMetric={userMetric} metric={metric} />
 
       <ComparisonGrid>
@@ -173,7 +171,7 @@ export const BenchmarkComparison: React.FC<BenchmarkComparisonProps> = ({
           </PerformanceIndicator>
         </ComparisonCard>
         <ComparisonCard performance="average">
-          <ComparisonLabel>Industry Benchmarks</ComparisonLabel>
+          <ComparisonLabel>Benchmarks</ComparisonLabel>
           <ComparisonValue>{formatValue(benchmark.p50)}</ComparisonValue>
           <ComparisonDetail>Top Quartile (P75): {formatValue(benchmark.p75)}</ComparisonDetail>
           <ComparisonDetail>Bottom Quartile (P25): {formatValue(benchmark.p25)}</ComparisonDetail>
