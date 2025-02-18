@@ -1,6 +1,8 @@
+import { QueryInterface } from 'sequelize';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     try {
       // Delete problematic migration records
       await queryInterface.sequelize.query(`
@@ -22,7 +24,7 @@ module.exports = {
     }
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     try {
       // Revert the changes
       await queryInterface.sequelize.query(`

@@ -56,6 +56,7 @@ const StyledList = styled(List)`
   padding: var(--spacing-sm);
   position: relative;
   z-index: 1;
+  width: 100%;
 ` as typeof List;
 
 const StyledListItem = styled(ListItem)`
@@ -66,13 +67,17 @@ const StyledListItem = styled(ListItem)`
   cursor: pointer;
   position: relative;
   z-index: 2;
+  width: 100%;
+  transition: background-color 0.2s ease, color 0.2s ease;
 
   &[data-active='true'] {
     color: var(--color-accent);
+    background-color: var(--color-accent-light);
+    font-weight: 500;
   }
 
   &:hover {
-    background-color: var(--color-background);
+    background-color: var(--color-background-hover);
   }
 
   &:focus-visible {
@@ -83,16 +88,26 @@ const StyledListItem = styled(ListItem)`
   .MuiListItemIcon-root {
     color: inherit;
     min-width: 40px;
+    margin-right: var(--spacing-sm);
   }
 
   .MuiListItemText-root {
-    margin-left: var(--spacing-sm);
+    margin: 0;
+  }
+
+  .MuiListItemText-primary {
+    font-size: 0.9375rem;
   }
 `;
 
 const StyledCollapse = styled(Collapse)`
   position: relative;
   z-index: 3;
+  width: 100%;
+  
+  .MuiList-root {
+    padding-left: var(--spacing-md);
+  }
 `;
 
 // Updated Navigation Items Configuration based on roles and permissions
@@ -102,24 +117,21 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
     label: 'Dashboard',
     path: '/dashboard',
     icon: <DashboardIcon />,
-    visible: true, // Available to all roles
-    children: [
-      {
-        id: 'benchmarks',
-        label: 'Benchmark Data',
-        path: '/benchmarks',
-        icon: <AssessmentIcon />,
-        visible: hasPermission(userRole, FEATURES.benchmarkData, 'read'),
-      },
-      {
-        id: 'company-metrics',
-        label: 'Company Data',
-        path: '/company-metrics',
-        icon: <TimelineIcon />,
-        // visible: userRole === USER_ROLES.USER || userRole === USER_ROLES.ANALYST,
-        visible: hasPermission(userRole, FEATURES.companyData, 'read'),
-      },
-    ],
+    visible: true,
+  },
+  {
+    id: 'benchmarks',
+    label: 'Benchmark Data',
+    path: '/benchmarks',
+    icon: <AssessmentIcon />,
+    visible: hasPermission(userRole, FEATURES.benchmarkData, 'read'),
+  },
+  {
+    id: 'company-metrics',
+    label: 'Company Data',
+    path: '/company-metrics',
+    icon: <TimelineIcon />,
+    visible: hasPermission(userRole, FEATURES.companyData, 'read'),
   },
   {
     id: 'profile',

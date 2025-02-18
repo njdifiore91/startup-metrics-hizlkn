@@ -305,10 +305,21 @@ export class MetricsService {
   /**
    * Get metrics for a specific user
    */
-  async getMetricsForCompany(companyId: string): Promise<ICompanyMetric[]> {
+  async getMetricsForCompany(companyId: string, options: { skipCache?: boolean } = {}): Promise<ICompanyMetric[]> {
     try {
       if (!companyId) {
         throw new AppError('Company ID is required', 400);
+      }
+
+      const cacheKey = `metrics:${companyId}`;
+      
+      // Check cache only if not skipping
+      if (!options.skipCache) {
+        const cachedResult = await this.cache.get(cacheKey);
+        if (cachedResult) {
+          logger.debug(`Cache hit for company metrics: ${companyId}`);
+          return cachedResult as ICompanyMetric[];
+        }
       }
 
       const metrics = await CompanyMetric.findAll({
@@ -345,8 +356,14 @@ export class MetricsService {
         return [];
       }
 
-      // Convert to plain objects to avoid Sequelize instance issues
-      return metrics.map((metric) => metric.get({ plain: true }));
+      const result = metrics.map((metric) => metric.get({ plain: true }));
+
+      // Cache the result only if not skipping cache
+      if (!options.skipCache) {
+        await this.cache.set(cacheKey, result);
+      }
+
+      return result;
     } catch (error) {
       logger.error('Failed to retrieve company metrics:', {
         error: error instanceof Error ? error.message : 'Unknown error',

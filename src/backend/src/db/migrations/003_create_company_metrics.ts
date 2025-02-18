@@ -1,10 +1,10 @@
 // sequelize v6.31.0
-const { DataTypes } = require('sequelize');
+import { QueryInterface, DataTypes } from 'sequelize';
 
 const TABLE_NAME = 'company_metrics';
 
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     await queryInterface.createTable(TABLE_NAME, {
       id: {
         type: DataTypes.UUID,
@@ -126,7 +126,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.dropTable(TABLE_NAME);
   }
 };

@@ -1,12 +1,38 @@
-import { UserRole } from './IUserRole';
+/**
+ * User interface definitions
+ * @version 1.0.0
+ */
 
+import { USER_ROLES } from '../constants/roles';
+
+/**
+ * Available user roles
+ */
+export type UserRole = keyof typeof USER_ROLES;
+
+/**
+ * User tier types
+ */
+export type UserTier = 'free' | 'pro' | 'enterprise';
+
+/**
+ * Revenue range options
+ */
+export type RevenueRange = '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
+
+/**
+ * User interface
+ */
 export interface IUser {
-  id: string;
-  role: UserRole;
-  companyId?: string;
+  readonly id: string;
   email: string;
-  name?: string;
+  name: string;
+  googleId?: string;
+  role: UserRole;
+  tier: UserTier;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  lastLoginAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  revenueRange?: RevenueRange;
 }

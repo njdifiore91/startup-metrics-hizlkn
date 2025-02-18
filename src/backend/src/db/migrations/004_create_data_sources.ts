@@ -1,9 +1,9 @@
-const { DataTypes } = require('sequelize');
+import { QueryInterface, DataTypes } from 'sequelize';
 
 const TABLE_NAME = 'data_sources';
 
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     // Drop existing indexes if they exist
     const dropIndexes = [
       'data_sources_name_idx',
@@ -121,7 +121,7 @@ module.exports = {
     `);
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.dropTable(TABLE_NAME);
   },
 };

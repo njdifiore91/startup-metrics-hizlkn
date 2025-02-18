@@ -35,17 +35,22 @@ module.exports = {
         BEGIN 
           IF EXISTS (
             SELECT 1 FROM information_schema.table_constraints 
-            WHERE constraint_name = 'company_metrics_metricId_fkey'
+            WHERE constraint_name = 'company_metrics_metricid_fkey'
+            AND constraint_type = 'FOREIGN KEY'
           ) THEN
-            ALTER TABLE company_metrics DROP CONSTRAINT company_metrics_metricId_fkey;
+            ALTER TABLE company_metrics DROP CONSTRAINT company_metrics_metricid_fkey;
           END IF;
 
           IF EXISTS (
             SELECT 1 FROM information_schema.table_constraints 
             WHERE constraint_name = 'benchmark_data_metric_id_fkey'
+            AND constraint_type = 'FOREIGN KEY'
           ) THEN
             ALTER TABLE benchmark_data DROP CONSTRAINT benchmark_data_metric_id_fkey;
           END IF;
+        EXCEPTION WHEN OTHERS THEN
+          -- Log the error but continue with the migration
+          RAISE NOTICE 'Error dropping constraints: %', SQLERRM;
         END
         $$;
       `);

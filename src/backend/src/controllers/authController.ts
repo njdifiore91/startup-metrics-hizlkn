@@ -12,6 +12,8 @@ import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import Redis from 'ioredis';
 import User from '../models/User';
+import { JsonWebTokenError } from 'jsonwebtoken';
+import { HTTP_STATUS } from '../constants/http';
 
 // Initialize Redis client
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -153,19 +155,69 @@ export const authController = {
       const { refreshToken } = req.body;
       if (!refreshToken) {
         throw new AppError(
-          AUTH_ERRORS.INVALID_TOKEN.message,
-          AUTH_ERRORS.INVALID_TOKEN.httpStatus,
-          AUTH_ERRORS.INVALID_TOKEN.code
+          'Refresh token is required',
+          HTTP_STATUS.BAD_REQUEST,
+          'AUTH_001'
         );
       }
 
-      const tokens = await googleAuthProvider.refreshToken(refreshToken);
-      res.json(tokens);
+      const result = await googleAuthProvider.refreshToken(refreshToken);
+
+      // Set secure HTTP-only cookies
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict' as const
+      };
+
+      res.cookie('accessToken', result.data.accessToken, {
+        ...cookieOptions,
+        maxAge: 3600000 // 1 hour
+      });
+
+      res.cookie('refreshToken', result.data.refreshToken, {
+        ...cookieOptions,
+        maxAge: 1209600000 // 14 days
+      });
+
+      // Include tokens in response body for client-side storage
+      res.json({
+        success: true,
+        data: {
+          accessToken: result.data.accessToken,
+          refreshToken: result.data.refreshToken,
+          user: result.data.user
+        }
+      });
     } catch (error) {
       logger.error('Token refresh failed:', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       });
-      next(error);
+
+      // Clear cookies on error
+      res.clearCookie('accessToken');
+      res.clearCookie('refreshToken');
+
+      if (error instanceof AppError) {
+        next(error);
+        return;
+      }
+
+      if (error instanceof JsonWebTokenError) {
+        next(new AppError(
+          'Invalid refresh token',
+          HTTP_STATUS.UNAUTHORIZED,
+          'AUTH_003'
+        ));
+        return;
+      }
+
+      next(new AppError(
+        'Token refresh failed',
+        HTTP_STATUS.UNAUTHORIZED,
+        'AUTH_006'
+      ));
     }
   },
 

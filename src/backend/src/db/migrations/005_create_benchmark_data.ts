@@ -1,9 +1,9 @@
-const { DataTypes } = require('sequelize');
+import { QueryInterface, DataTypes, IndexesOptions } from 'sequelize';
 
 const TABLE_NAME = 'benchmark_data';
 
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     // Drop existing indexes if they exist
     const dropIndexes = [
       'benchmark_metric_revenue_date_idx',
@@ -153,7 +153,7 @@ module.exports = {
     });
 
     // Create indexes using Sequelize's addIndex
-    const createIndex = async (fields, options) => {
+    const createIndex = async (fields: string[], options: IndexesOptions) => {
       try {
         await queryInterface.addIndex(TABLE_NAME, fields, options);
       } catch (error) {
@@ -187,7 +187,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.dropTable(TABLE_NAME);
     // Drop the ENUM type
     await queryInterface.sequelize.query(`

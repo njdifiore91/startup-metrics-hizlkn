@@ -1,10 +1,12 @@
 'use strict';
 
+import { QueryInterface, DataTypes } from 'sequelize';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface: QueryInterface) {
     await queryInterface.addColumn('users', 'revenueRange', {
-      type: Sequelize.ENUM('0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'),
+      type: DataTypes.ENUM('0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'),
       allowNull: true
     });
 
@@ -13,7 +15,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.removeColumn('users', 'revenueRange');
   }
 }; 

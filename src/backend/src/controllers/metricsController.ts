@@ -301,15 +301,17 @@ export const getCompanyMetrics = asyncHandler(
         throw new AppError('You do not have permission to access these metrics', 403, 'AUTH_004');
       }
 
-      // Get metrics for the user's company
-      const metrics = await metricsService.getMetricsForCompany(userId);
+      // Get metrics for the user's company with cache disabled
+      const metrics = await metricsService.getMetricsForCompany(userId, { skipCache: true });
 
       // Calculate response time
       const [seconds, nanoseconds] = process.hrtime(startTime);
       const responseTime = seconds * 1000 + nanoseconds / 1e6;
 
-      // Set cache headers
-      res.set('Cache-Control', `public, max-age=${CACHE_DURATION}`);
+      // Set no-cache headers
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.set('X-Response-Time', `${responseTime.toFixed(2)}ms`);
       res.set('X-Correlation-ID', correlationId);
 

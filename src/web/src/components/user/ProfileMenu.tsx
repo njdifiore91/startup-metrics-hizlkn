@@ -9,11 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { Analytics } from '@segment/analytics-next';
 import { useAuth } from '../../hooks/useAuth';
 import styles from './ProfileMenu.module.css';
-
-// Constants for menu interactions
-const MENU_CLOSE_DELAY = 150;
-const SESSION_CHECK_INTERVAL = 60000; // 1 minute
-const INACTIVITY_WARNING_THRESHOLD = 300000; // 5 minutes
+import { AxiosError } from 'axios';
+import { TIMING_CONFIG } from '../../constants/timing';
 
 // Initialize Segment Analytics
 const analytics = new Analytics({
@@ -38,13 +35,18 @@ const ProfileMenu = React.memo(({
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = React.useState(false);
     const [showInactivityWarning, setShowInactivityWarning] = React.useState(false);
+    const [refreshAttempts, setRefreshAttempts] = React.useState(0);
     const menuRef = React.useRef<HTMLDivElement>(null);
     const lastActivityRef = React.useRef<number>(Date.now());
+    const [inactivityWarningMessage, setInactivityWarningMessage] = React.useState<string>(
+      'Your session is about to expire due to inactivity.'
+    );
 
     // Track user activity
     const updateLastActivity = React.useCallback(() => {
       lastActivityRef.current = Date.now();
       setShowInactivityWarning(false);
+      setRefreshAttempts(0);
     }, []);
 
     // Handle session monitoring
@@ -53,15 +55,16 @@ const ProfileMenu = React.memo(({
         const isValid = await validateSession();
         if (!isValid) {
           handleLogout();
+          return;
         }
 
         const inactivityTime = Date.now() - lastActivityRef.current;
-        if (inactivityTime >= INACTIVITY_WARNING_THRESHOLD) {
+        if (inactivityTime >= TIMING_CONFIG.SESSION.INACTIVITY_WARNING_MS) {
           setShowInactivityWarning(true);
         }
       };
 
-      const sessionInterval = setInterval(checkSession, SESSION_CHECK_INTERVAL);
+      const sessionInterval = setInterval(checkSession, TIMING_CONFIG.SESSION.CHECK_INTERVAL_MS);
       return () => clearInterval(sessionInterval);
     }, [validateSession]);
 
@@ -116,15 +119,56 @@ const ProfileMenu = React.memo(({
       }
     };
 
-    // Handle token refresh
+    // Handle token refresh with retry logic
     const handleTokenRefresh = async () => {
       try {
         await refreshToken();
         setShowInactivityWarning(false);
         updateLastActivity();
+        setRefreshAttempts(0);
+        
+        analytics.track('Session Refresh', {
+          status: 'success',
+          userId: user?.id
+        });
       } catch (error) {
         console.error('Token refresh failed:', error);
-        await handleLogout();
+        
+        if (error instanceof AxiosError) {
+          const errorCode = error.response?.data?.error?.code;
+          const isAuthError = [401, 403].includes(error.response?.status || 0);
+          const isTokenExpired = errorCode === 'AUTH_003' || error.response?.data?.error?.message?.includes('Token expired');
+
+          if (isAuthError || isTokenExpired) {
+            analytics.track('Session Expired', {
+              userId: user?.id,
+              reason: isTokenExpired ? 'token_expired' : 'auth_error'
+            });
+            
+            await handleLogout();
+            return;
+          }
+        }
+        
+        setRefreshAttempts(prev => prev + 1);
+        
+        if (refreshAttempts >= TIMING_CONFIG.SESSION.MAX_CONSECUTIVE_FAILURES) {
+          setInactivityWarningMessage('Maximum refresh attempts reached. Please log in again.');
+          await handleLogout();
+          return;
+        }
+        
+        setShowInactivityWarning(true);
+        setInactivityWarningMessage(
+          `Unable to refresh session. Click "Try Again" to retry. (Attempt ${refreshAttempts + 1}/${TIMING_CONFIG.SESSION.MAX_CONSECUTIVE_FAILURES})`
+        );
+        
+        analytics.track('Session Refresh', {
+          status: 'failed',
+          userId: user?.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          attempt: refreshAttempts + 1
+        });
       }
     };
 
@@ -185,9 +229,13 @@ const ProfileMenu = React.memo(({
 
         {showInactivityWarning && (
           <div className={styles.inactivityWarning} role="alert" aria-live="polite">
-            <p>Your session is about to expire due to inactivity.</p>
-            <button onClick={handleTokenRefresh} className={styles.refreshButton}>
-              Stay Connected
+            <p>{inactivityWarningMessage}</p>
+            <button 
+              onClick={handleTokenRefresh} 
+              className={styles.refreshButton}
+              disabled={refreshAttempts >= TIMING_CONFIG.SESSION.MAX_CONSECUTIVE_FAILURES}
+            >
+              {inactivityWarningMessage.includes('Unable to refresh') ? 'Try Again' : 'Stay Connected'}
             </button>
           </div>
         )}
