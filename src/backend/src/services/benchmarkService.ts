@@ -2,41 +2,65 @@ import { IBenchmarkData } from '../interfaces/IBenchmarkData';
 import { logger } from '../utils/logger';
 import { AppError } from '../utils/errorHandler';
 import { BUSINESS_ERRORS } from '../constants/errorCodes';
+import { BenchmarkData } from '../models/BenchmarkData';
+import { RevenueRange } from '../constants/revenueRanges';
+import { WhereOptions } from 'sequelize';
 
 export class BenchmarkService {
   constructor() {}
 
   public async getBenchmarksByMetric(
     metricId: string,
-    revenueRange: string,
+    revenueRange: RevenueRange,
     dataSourceId: string
   ): Promise<IBenchmarkData[]> {
     try {
-      // For now, return mock data for testing
-      return [
-        {
-          id: 'mock-benchmark-1',
-          metricId: metricId,
+      const benchmarks = await BenchmarkData.findAll({
+        where: {
+          metricId,
+          revenueRange,
           sourceId: dataSourceId,
-          revenueRange: revenueRange,
-          p10: 10.5,
-          p25: 25.5,
-          p50: 50.5,
-          p75: 75.5,
-          p90: 90.5,
-          reportDate: new Date(),
-          sampleSize: 100,
-          confidenceLevel: 0.95,
-          isSeasonallyAdjusted: false,
-          dataQualityScore: 0.95,
-          isStatisticallySignificant: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
         },
-      ];
+        order: [['reportDate', 'DESC']],
+      });
+
+      if (!benchmarks.length) {
+        logger.warn('No benchmarks found for the given criteria', {
+          metricId,
+          revenueRange,
+          dataSourceId,
+        });
+        return [];
+      }
+
+      return benchmarks.map((benchmark) => {
+        const rawData = benchmark.get({ plain: true });
+        return {
+          id: rawData.id,
+          metricId: rawData.metricId,
+          sourceId: rawData.sourceId,
+          revenueRange: rawData.revenueRange,
+          p10: rawData.p10,
+          p25: rawData.p25,
+          p50: rawData.p50,
+          p75: rawData.p75,
+          p90: rawData.p90,
+          reportDate: rawData.reportDate,
+          sampleSize: rawData.sampleSize,
+          confidenceLevel: rawData.confidenceLevel,
+          isSeasonallyAdjusted: rawData.isSeasonallyAdjusted ?? false,
+          dataQualityScore: rawData.dataQualityScore,
+          isStatisticallySignificant: rawData.isStatisticallySignificant ?? true,
+          createdAt: rawData.createdAt,
+          updatedAt: rawData.updatedAt,
+        } as IBenchmarkData;
+      });
     } catch (error) {
       logger.error('Failed to get benchmarks', {
         error: error instanceof Error ? error : new Error(String(error)),
+        metricId,
+        revenueRange,
+        dataSourceId,
       });
       throw new AppError(
         BUSINESS_ERRORS.OPERATION_FAILED.code,

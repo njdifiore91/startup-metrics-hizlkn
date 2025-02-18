@@ -19,7 +19,6 @@ import styled from '@emotion/styled';
 import { BenchmarkData } from '../../hooks/useBenchmarks';
 import { IUserMetric } from '../../interfaces/IUser';
 import { IMetric } from '../../interfaces/IMetric';
-import { useMetrics } from '../../hooks/useMetrics';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchCompanyMetrics, selectAllMetrics } from '../../store/companyMetricsSlice';
 
@@ -118,7 +117,7 @@ export const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
     datasets: [
       {
         type: 'bar' as const,
-        label: 'Industry Benchmarks',
+        label: 'Benchmarks',
         data: [benchmark.p10, benchmark.p25, benchmark.p50, benchmark.p75, benchmark.p90],
         backgroundColor: 'rgba(136, 132, 216, 0.8)',
         borderColor: 'rgba(136, 132, 216, 1)',
@@ -129,7 +128,7 @@ export const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
       },
       {
         type: 'line' as const,
-        label: 'Current Value',
+        label: 'User Company Metrics',
         data: new Array(5).fill(userMetric.value),
         borderColor: '#ff7300',
         borderWidth: 2,

@@ -23,6 +23,7 @@ import {
 import DataSourceSelector from './DataSourceSelector';
 import BenchmarkComparison from './BenchmarkComparison';
 import { api } from '../../services/api';
+import { useAppSelector } from '@/store';
 
 type RevenueRange = '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
 
@@ -152,14 +153,19 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
   isAdmin,
   userId,
 }) => {
-  const { user } = useAuth();
   const [selectedDataSource, setSelectedDataSource] = useState<string>('');
   const [chartData, setChartData] = useState<BenchmarkChartData[]>([]);
   const [localMetricType, setLocalMetricType] = useState<string>('');
   const [localRevenueRange, setLocalRevenueRange] = useState<RevenueRange | null>(null);
-  const [userMetric, setUserMetric] = useState<IUserMetric | null>(null);
+  // const [userMetric, setUserMetric] = useState<IUserMetric | null>(null);
   const [currentMetric, setCurrentMetric] = useState<IMetric | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const userMetrics = useAppSelector((state) => state.companyMetrics.metrics);
+  const userMetric = userMetrics.find((metric) => metric.metricId === localMetricType);
+
+  // console.log('userMetric from BenchmarkAnalysis', userMetric);
+  // console.log('currentMetric from BenchmarkAnalysis', currentMetric);
+  // console.log('localMetricType from BenchmarkAnalysis', localMetricType);
 
   const {
     benchmarkData: fetchedBenchmarkData,
@@ -172,10 +178,13 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
   });
 
   // Cache for storing user metrics data
-  const userMetricsCache = new Map<string, {
-    data: IUserMetric | IMetric;
-    timestamp: number;
-  }>();
+  const userMetricsCache = new Map<
+    string,
+    {
+      data: IUserMetric | IMetric;
+      timestamp: number;
+    }
+  >();
 
   const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes cache
 
@@ -246,20 +255,22 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
       const cacheKey = `${userId}-${localMetricType}`;
       const now = Date.now();
       const cachedData = userMetricsCache.get(cacheKey);
-      
-      if (cachedData && (now - cachedData.timestamp) < CACHE_DURATION) {
+
+      if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
         setUserMetric(cachedData.data as IUserMetric);
         return;
       }
 
       try {
-        const response = await api.get<{ data: IUserMetric }>(`/api/v1/metrics/user/${userId}/${localMetricType}`);
+        const response = await api.get<{ data: IUserMetric }>(
+          `/api/v1/metrics/user/${userId}/${localMetricType}`
+        );
         if (response.data?.data) {
           const metricData = response.data.data;
           // Cache the response
           userMetricsCache.set(cacheKey, {
             data: metricData,
-            timestamp: now
+            timestamp: now,
           });
           setUserMetric(metricData);
         }
@@ -288,8 +299,8 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
       const cacheKey = `metric-${localMetricType}`;
       const now = Date.now();
       const cachedData = userMetricsCache.get(cacheKey);
-      
-      if (cachedData && (now - cachedData.timestamp) < CACHE_DURATION) {
+
+      if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
         setCurrentMetric(cachedData.data as IMetric);
         return;
       }
@@ -301,7 +312,7 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
           // Cache the response
           userMetricsCache.set(cacheKey, {
             data: metricData,
-            timestamp: now
+            timestamp: now,
           });
           setCurrentMetric(metricData);
         }
@@ -397,6 +408,44 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
     ),
     [chartData]
   );
+
+  // Fetch user metric when metric type changes
+  // useEffect(() => {
+  //   const fetchUserMetric = async () => {
+  //     if (!localMetricType || !userId) return;
+
+  //     try {
+  //       const response = await api.get(`/api/v1/metrics/user/${userId}/${localMetricType}`);
+  //       if (response.data?.data) {
+  //         setUserMetric(response.data.data);
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching user metric:', error);
+  //       setLocalError('Failed to fetch user metric data');
+  //     }
+  //   };
+
+  //   fetchUserMetric();
+  // }, [localMetricType, userId]);
+
+  // Fetch metric details when metric type changes
+  useEffect(() => {
+    const fetchMetricDetails = async () => {
+      if (!localMetricType) return;
+
+      try {
+        const response = await api.get(`/api/v1/metrics/${localMetricType}`);
+        if (response.data?.data) {
+          setCurrentMetric(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching metric details:', error);
+        setLocalError('Failed to fetch metric details');
+      }
+    };
+
+    fetchMetricDetails();
+  }, [localMetricType]);
 
   const renderContent = useCallback(() => {
     if (benchmarksLoading) {

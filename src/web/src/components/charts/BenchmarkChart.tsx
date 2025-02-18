@@ -63,17 +63,20 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
 
   const chartData: ChartData<'line'> = useMemo(
     () => ({
-      labels: ['10th', '25th', '50th', '75th', '90th'],
+      labels: ['P10', 'P25', 'P50', 'P75', 'P90'],
       datasets: [
         {
-          label: 'Industry Benchmark',
+          label: 'Benchmark Values',
           data: [benchmark.p10, benchmark.p25, benchmark.p50, benchmark.p75, benchmark.p90],
           borderColor: 'rgb(53, 162, 235)',
           backgroundColor: 'rgba(53, 162, 235, 0.1)',
-          fill: true,
-          tension: 0.4,
+          fill: false,
+          tension: 0.1,
           pointRadius: 6,
           pointHoverRadius: 8,
+          pointBackgroundColor: 'rgb(53, 162, 235)',
+          pointBorderColor: 'rgb(255, 255, 255)',
+          pointBorderWidth: 2,
         },
         ...(companyMetric !== undefined
           ? [
@@ -120,6 +123,12 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
               const value = context.raw as number;
               return `${context.dataset.label}: ${formatValue(value, benchmark.metric.valueType)}`;
             },
+            title: (tooltipItems) => {
+              return `${tooltipItems[0].label}: ${formatValue(
+                tooltipItems[0].raw as number,
+                benchmark.metric.valueType
+              )}`;
+            },
           },
         },
       },
@@ -136,6 +145,11 @@ const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
           },
           grid: {
             display: false,
+          },
+          ticks: {
+            font: {
+              weight: 'bold',
+            },
           },
         },
         y: {
