@@ -1,7 +1,7 @@
-const { DataTypes } = require('sequelize');
+import { QueryInterface, DataTypes } from 'sequelize';
 
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     await queryInterface.addColumn('metrics', 'is_active', {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -14,7 +14,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.removeIndex('metrics', 'idx_metrics_is_active');
     await queryInterface.removeColumn('metrics', 'is_active');
   },

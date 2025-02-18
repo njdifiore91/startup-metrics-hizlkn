@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+import { QueryInterface, DataTypes } from 'sequelize';
 
 // Define user roles directly in migration for self-containment
 const USER_ROLES = {
@@ -12,7 +12,7 @@ const TABLE_NAME = 'users';
 
 /** @type {import('sequelize').Migration} */
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     await queryInterface.createTable(TABLE_NAME, {
       id: {
         type: DataTypes.UUID,
@@ -109,7 +109,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.dropTable(TABLE_NAME);
   }
 };

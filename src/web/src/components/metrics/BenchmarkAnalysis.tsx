@@ -177,6 +177,17 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
     dataSourceId: selectedDataSource,
   });
 
+  // Cache for storing user metrics data
+  const userMetricsCache = new Map<
+    string,
+    {
+      data: IUserMetric | IMetric;
+      timestamp: number;
+    }
+  >();
+
+  const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes cache
+
   // Memoize handlers
   const handleMetricTypeChange = useCallback((type: string) => {
     setLocalMetricType(type);
@@ -234,6 +245,92 @@ export const BenchmarkAnalysis: React.FC<BenchmarkAnalysisProps> = ({
     console.log('Formatted chart data:', formattedData);
     setChartData(formattedData);
   }, [fetchedBenchmarkData, localMetricType, localRevenueRange]);
+
+  // Fetch user metric when metric type changes with caching
+  useEffect(() => {
+    const fetchUserMetric = async () => {
+      if (!localMetricType || !userId) return;
+
+      // Check cache first
+      const cacheKey = `${userId}-${localMetricType}`;
+      const now = Date.now();
+      const cachedData = userMetricsCache.get(cacheKey);
+
+      if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+        setUserMetric(cachedData.data as IUserMetric);
+        return;
+      }
+
+      try {
+        const response = await api.get<{ data: IUserMetric }>(
+          `/api/v1/metrics/user/${userId}/${localMetricType}`
+        );
+        if (response.data?.data) {
+          const metricData = response.data.data;
+          // Cache the response
+          userMetricsCache.set(cacheKey, {
+            data: metricData,
+            timestamp: now,
+          });
+          setUserMetric(metricData);
+        }
+      } catch (error) {
+        console.error('Error fetching user metric:', error);
+        setLocalError('Failed to fetch user metric data');
+      }
+    };
+
+    // Use debounce for the API call
+    const timeoutId = setTimeout(() => {
+      fetchUserMetric();
+    }, 1000); // 1 second debounce
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [localMetricType, userId]);
+
+  // Fetch metric details when metric type changes with caching
+  useEffect(() => {
+    const fetchMetricDetails = async () => {
+      if (!localMetricType) return;
+
+      // Check cache first
+      const cacheKey = `metric-${localMetricType}`;
+      const now = Date.now();
+      const cachedData = userMetricsCache.get(cacheKey);
+
+      if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+        setCurrentMetric(cachedData.data as IMetric);
+        return;
+      }
+
+      try {
+        const response = await api.get<{ data: IMetric }>(`/api/v1/metrics/${localMetricType}`);
+        if (response.data?.data) {
+          const metricData = response.data.data;
+          // Cache the response
+          userMetricsCache.set(cacheKey, {
+            data: metricData,
+            timestamp: now,
+          });
+          setCurrentMetric(metricData);
+        }
+      } catch (error) {
+        console.error('Error fetching metric details:', error);
+        setLocalError('Failed to fetch metric details');
+      }
+    };
+
+    // Use debounce for the API call
+    const timeoutId = setTimeout(() => {
+      fetchMetricDetails();
+    }, 1000); // 1 second debounce
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [localMetricType]);
 
   // Update chart component with better tooltips and formatting
   const ChartComponent = useMemo(

@@ -1,10 +1,12 @@
 'use strict';
 
+import { QueryInterface, DataTypes } from 'sequelize';
+
 const TABLE_NAME = 'audit_logs';
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface: QueryInterface) {
     // Drop existing indexes if they exist
     const dropIndexes = [
       'audit_logs_user_id_idx',
@@ -27,12 +29,12 @@ module.exports = {
 
     await queryInterface.createTable('audit_logs', {
       id: {
-        type: Sequelize.DataTypes.UUID,
-        defaultValue: Sequelize.DataTypes.UUIDV4,
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
       user_id: {
-        type: Sequelize.DataTypes.UUID,
+        type: DataTypes.UUID,
         allowNull: false,
         references: {
           model: 'users',
@@ -40,44 +42,44 @@ module.exports = {
         },
       },
       action: {
-        type: Sequelize.DataTypes.STRING,
+        type: DataTypes.STRING,
         allowNull: false,
       },
       entity_type: {
-        type: Sequelize.DataTypes.STRING,
+        type: DataTypes.STRING,
         allowNull: false,
       },
       entity_id: {
-        type: Sequelize.DataTypes.STRING,
+        type: DataTypes.STRING,
         allowNull: true,
       },
       changes: {
-        type: Sequelize.DataTypes.JSONB,
+        type: DataTypes.JSONB,
         allowNull: true,
       },
       timestamp: {
-        type: Sequelize.DataTypes.DATE,
+        type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: Sequelize.DataTypes.NOW,
+        defaultValue: DataTypes.NOW,
       },
       ip_address: {
-        type: Sequelize.DataTypes.STRING,
+        type: DataTypes.STRING,
         allowNull: true,
       },
       created_at: {
-        type: Sequelize.DataTypes.DATE,
+        type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: Sequelize.DataTypes.NOW,
+        defaultValue: DataTypes.NOW,
       },
       updated_at: {
-        type: Sequelize.DataTypes.DATE,
+        type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: Sequelize.DataTypes.NOW,
+        defaultValue: DataTypes.NOW,
       },
     });
 
     // Create indexes using Sequelize's addIndex
-    const createIndex = async (fields, name) => {
+    const createIndex = async (fields: string[], name: string) => {
       try {
         await queryInterface.addIndex(TABLE_NAME, fields, { name });
       } catch (error) {
@@ -96,7 +98,7 @@ module.exports = {
     await createIndex(['timestamp'], 'audit_logs_timestamp_idx');
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.dropTable('audit_logs');
   },
 };

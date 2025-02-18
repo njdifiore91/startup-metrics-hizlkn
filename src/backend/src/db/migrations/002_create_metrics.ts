@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+import { QueryInterface, DataTypes } from 'sequelize';
 
 // Define metric types directly in migration for self-containment
 const METRIC_CATEGORIES = {
@@ -20,7 +20,7 @@ const METRIC_VALUE_TYPES = {
 const TABLE_NAME = 'metrics';
 
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     await queryInterface.createTable(TABLE_NAME, {
       id: {
         type: DataTypes.UUID,
@@ -100,7 +100,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     await queryInterface.dropTable(TABLE_NAME);
   }
 };

@@ -1,12 +1,12 @@
 'use strict';
 
-const { DataTypes } = require('sequelize');
+import { QueryInterface, DataTypes } from 'sequelize';
 
 const TABLE_NAME = 'company_metrics';
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface) {
+  async up(queryInterface: QueryInterface) {
     try {
       // Drop existing table
       await queryInterface.dropTable(TABLE_NAME);
@@ -106,7 +106,7 @@ module.exports = {
     }
   },
 
-  async down(queryInterface) {
+  async down(queryInterface: QueryInterface) {
     try {
       await queryInterface.dropTable(TABLE_NAME);
 

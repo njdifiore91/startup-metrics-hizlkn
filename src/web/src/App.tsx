@@ -121,6 +121,8 @@ const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const dispatch = useDispatch();
   const initRef = useRef(false);
+  const initTimeoutRef = useRef<NodeJS.Timeout>();
+  const location = useLocation();
 
   console.log('AppContent rendered:', { isAuthenticated, authLoading });
 
@@ -135,6 +137,13 @@ const AppContent: React.FC = () => {
       try {
         console.log('Setting loading state to true');
         dispatch(authActions.setLoading(true));
+
+        // Set a timeout to prevent infinite loading
+        initTimeoutRef.current = setTimeout(() => {
+          console.log('Initialization timeout reached');
+          dispatch(authActions.setLoading(false));
+          dispatch(authActions.logout());
+        }, 10000); // 10 second timeout
 
         console.log('Validating session');
         const isValid = await authService.validateSession();
@@ -153,20 +162,21 @@ const AppContent: React.FC = () => {
       } finally {
         console.log('Setting loading state to false');
         dispatch(authActions.setLoading(false));
+        if (initTimeoutRef.current) {
+          clearTimeout(initTimeoutRef.current);
+        }
       }
     };
 
     initializeAuth();
-  }, [dispatch]);
 
-  // Error handler for route loading failures
-  const handleError = useCallback((error: Error) => {
-    console.error('Application error:', error);
-    analytics.track('error', {
-      category: 'application',
-      error: error.message,
-    });
-  }, []);
+    // Cleanup
+    return () => {
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+      }
+    };
+  }, [dispatch]);
 
   // Show loading state while checking authentication
   if (authLoading) {
@@ -174,48 +184,50 @@ const AppContent: React.FC = () => {
     return <LoadingFallback />;
   }
 
+  // Handle public routes
+  const isPublicRoute = [ROUTES.LOGIN, ROUTES.GOOGLE_CALLBACK].includes(location.pathname as any);
+  
+  // If not authenticated and trying to access protected route, redirect to login
+  if (!isAuthenticated && !isPublicRoute) {
+    const returnUrl = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?returnUrl=${returnUrl}`} replace />;
+  }
+
+  // If authenticated and trying to access login, redirect to dashboard
+  if (isAuthenticated && location.pathname === ROUTES.LOGIN) {
+    return <Navigate to={ROUTES.DASHBOARD} replace />;
+  }
+
   console.log('Rendering main app content, auth state:', { isAuthenticated, authLoading });
 
   return (
-    <BrowserRouter>
-      <RouteTracker />
-      <Suspense fallback={<LoadingFallback />}>
-        <Layout>
-          <Routes>
-            {/* Public Routes */}
-            <Route path={ROUTES.LOGIN} element={<Login />} />
-            <Route path={ROUTES.GOOGLE_CALLBACK} element={<GoogleCallback />} />
+    <Suspense fallback={<LoadingFallback />}>
+      <Layout>
+        <Routes>
+          {/* Public Routes */}
+          <Route path={ROUTES.LOGIN} element={<Login />} />
+          <Route path={ROUTES.GOOGLE_CALLBACK} element={<GoogleCallback />} />
 
-            {/* Protected Routes */}
-            <Route element={<ProtectedRoute />}>
-              <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
-              <Route path={ROUTES.BENCHMARKS} element={<Benchmarks />} />
-              <Route path={ROUTES.COMPANY_METRICS} element={<CompanyMetrics />} />
-              <Route path={ROUTES.REPORTS} element={<Reports />} />
-              <Route path={ROUTES.SETTINGS} element={<Settings />} />
-              <Route path={ROUTES.PROFILE} element={<Profile />} />
-              <Route path={ROUTES.USER_MANAGEMENT} element={<UserManagement />} />
-              <Route path={ROUTES.AUDIT_LOGS} element={<AuditLogs />} />
-            </Route>
+          {/* Protected Routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
+            <Route path={ROUTES.BENCHMARKS} element={<Benchmarks />} />
+            <Route path={ROUTES.COMPANY_METRICS} element={<CompanyMetrics />} />
+            <Route path={ROUTES.REPORTS} element={<Reports />} />
+            <Route path={ROUTES.SETTINGS} element={<Settings />} />
+            <Route path={ROUTES.PROFILE} element={<Profile />} />
+            <Route path={ROUTES.USER_MANAGEMENT} element={<UserManagement />} />
+            <Route path={ROUTES.AUDIT_LOGS} element={<AuditLogs />} />
+          </Route>
 
-            {/* Default Route */}
-            <Route
-              path="/"
-              element={
-                isAuthenticated ? (
-                  <Navigate to={ROUTES.DASHBOARD} replace />
-                ) : (
-                  <Navigate to={ROUTES.LOGIN} replace />
-                )
-              }
-            />
-
-            {/* 404 Route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
-      </Suspense>
-    </BrowserRouter>
+          {/* Default Route */}
+          <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+          
+          {/* 404 Route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Layout>
+    </Suspense>
   );
 };
 
@@ -237,7 +249,10 @@ const App: React.FC = () => {
     >
       <Provider store={store}>
         <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <AppContent />
+          <BrowserRouter>
+            <RouteTracker />
+            <AppContent />
+          </BrowserRouter>
         </LocalizationProvider>
       </Provider>
     </ErrorBoundary>

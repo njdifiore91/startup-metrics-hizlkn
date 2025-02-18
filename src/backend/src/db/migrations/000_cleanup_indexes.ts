@@ -1,8 +1,10 @@
 'use strict';
 
+import { QueryInterface } from 'sequelize';
+
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface: QueryInterface) {
     try {
       // Drop existing indexes that might cause conflicts
       const dropIndexes = [
@@ -37,7 +39,7 @@ module.exports = {
     }
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface: QueryInterface) {
     // Nothing to do in down migration since this is just cleanup
   },
 };

@@ -108,7 +108,6 @@ export class AuthService {
   private token: string = '';
   private refreshToken: string = '';
   private tokenExpiration: Date = new Date();
-  private googleAuthUrl: string = '';
   private lastValidationTime: number = 0;
   private validationCache: { isValid: boolean; timestamp: number; user: IUser | null } | null =
     null;
@@ -133,52 +132,55 @@ export class AuthService {
     try {
       // First try to restore session from stored tokens
       const tokens = this.getStoredTokens();
-      if (tokens) {
-        this.token = tokens.token;
-        this.refreshToken = tokens.refreshToken;
+      if (!tokens) {
+        // No tokens found, clear any lingering state
+        this.clearTokens();
+        this.emitAuthEvent(false, null, 'no_tokens');
+        return;
+      }
 
-        // Set the Authorization header immediately
-        if (this.token) {
-          api.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
-        }
+      this.token = tokens.token;
+      this.refreshToken = tokens.refreshToken;
 
-        // Try to refresh token first if it's close to expiry or if expiration is unknown
-        const tokenExp = this.getTokenExpiration();
-        if (!tokenExp || tokenExp.getTime() - Date.now() < 15 * 60 * 1000) {
-          // 15 minutes threshold
-          try {
-            const newToken = await this.refreshAuthToken();
-            if (newToken) {
-              this.token = newToken;
-              api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-              localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, newToken);
-            }
-          } catch (refreshError) {
-            console.warn('Token refresh failed during initialization:', refreshError);
-            // Only clear tokens if the refresh error indicates invalid token
-            if (refreshError instanceof Error && refreshError.message.includes('invalid')) {
-              this.clearTokens();
-              return;
-            }
-          }
-        }
+      // Set the Authorization header immediately
+      if (this.token) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
+      }
 
-        // Validate the session
+      // Try to refresh token first if it's close to expiry or if expiration is unknown
+      const tokenExp = this.getTokenExpiration();
+      if (!tokenExp || tokenExp.getTime() - Date.now() < 15 * 60 * 1000) {
+        // 15 minutes threshold
         try {
-          const isValid = await this.validateSession();
-          if (isValid) {
-            this.isAuthenticated = true;
-            this.setupGlobalValidation();
-          } else {
-            // Only clear tokens if validation explicitly fails
-            this.clearTokens();
+          const newToken = await this.refreshAuthToken();
+          if (newToken) {
+            this.token = newToken;
+            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+            localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, newToken);
           }
-        } catch (validationError) {
-          console.warn('Session validation failed:', validationError);
-          // Don't clear tokens on network errors
-          if (!(validationError instanceof Error && validationError.message.includes('network'))) {
-            this.clearTokens();
-          }
+        } catch (refreshError) {
+          console.warn('Token refresh failed during initialization:', refreshError);
+          // Don't throw here, continue with validation to see if current token is still valid
+        }
+      }
+
+      // Validate the session
+      try {
+        const isValid = await this.validateSession();
+        if (isValid) {
+          this.isAuthenticated = true;
+          this.setupGlobalValidation();
+        } else {
+          // Session is invalid, clear everything
+          this.clearTokens();
+          this.emitAuthEvent(false, null, 'session_expired');
+        }
+      } catch (validationError) {
+        console.warn('Session validation failed:', validationError);
+        // Clear tokens and emit auth event for auth-related errors
+        if (validationError instanceof AxiosError && [401, 403].includes(validationError.response?.status || 0)) {
+          this.clearTokens();
+          this.emitAuthEvent(false, null, 'invalid_session');
         }
       }
 
@@ -188,10 +190,9 @@ export class AuthService {
       });
     } catch (error) {
       console.error('Auth service initialization failed:', error);
-      // Only clear tokens if there's a critical error
-      if (error instanceof Error && error.message.includes('critical')) {
-        this.clearTokens();
-      }
+      // Clear tokens and emit auth event for critical errors
+      this.clearTokens();
+      this.emitAuthEvent(false, null, 'initialization_failed');
     }
   }
 
@@ -235,17 +236,7 @@ export class AuthService {
           if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
             console.error('Multiple consecutive validation failures, logging out');
             this.clearTokens();
-            window.dispatchEvent(
-              new CustomEvent('auth-state-change', {
-                detail: {
-                  isAuthenticated: false,
-                  user: null,
-                  token: null,
-                  refreshToken: null,
-                  tokenExpiration: null,
-                },
-              })
-            );
+            this.emitAuthEvent(false, null, 'multiple_consecutive_failures');
           }
         } else {
           consecutiveFailures = 0;
@@ -330,7 +321,6 @@ export class AuthService {
       });
 
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-      this.googleAuthUrl = authUrl;
     } catch (error) {
       console.error('Google Auth initialization failed:', error);
       throw new Error('Authentication service initialization failed');
@@ -397,17 +387,7 @@ export class AuthService {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
       // Emit state change event with complete auth data
-      window.dispatchEvent(
-        new CustomEvent('auth-state-change', {
-          detail: {
-            isAuthenticated: true,
-            user,
-            token,
-            refreshToken,
-            tokenExpiration: this.tokenExpiration,
-          },
-        })
-      );
+      this.emitAuthEvent(true, user, 'login_success');
 
       // Return complete auth response
       return {
@@ -462,53 +442,39 @@ export class AuthService {
         throw new Error('No refresh token available');
       }
 
-      const response = await api.post<IAuthResponse>('/auth/refresh', {
+      const response = await api.post<IAuthResponse>(authConfig.authEndpoints.refreshToken, {
         refreshToken: this.refreshToken,
       });
 
-      if (!response.data || !response.data.accessToken) {
+      if (!response.data || !response.data.data.accessToken) {
         throw new Error('Invalid response from refresh token endpoint');
       }
 
+      const { accessToken, refreshToken, user } = response.data.data;
+
       // Update tokens and state
-      this.token = response.data.accessToken;
-      if (response.data.refreshToken) {
-        this.refreshToken = response.data.refreshToken;
-      }
+      this.token = accessToken;
+      this.refreshToken = refreshToken;
+      this.currentUser = user;
+      this.isAuthenticated = true;
+      this.tokenExpiration = new Date(Date.now() + 3600 * 1000); // 1 hour from now
 
       // Update token in localStorage
       localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, this.token);
-      if (response.data.refreshToken) {
-        localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, this.refreshToken);
-      }
+      localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, this.refreshToken);
 
       // Update axios default headers
       api.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
 
+      // Emit auth state change event
+      this.emitAuthEvent(true, user, 'token_refreshed');
+
       return this.token;
     } catch (error) {
       console.error('Token refresh failed:', error);
-
-      // Clear tokens and trigger logout
       this.clearTokens();
-
-      // Dispatch auth state change event
-      window.dispatchEvent(
-        new CustomEvent('auth-state-change', {
-          detail: {
-            isAuthenticated: false,
-            user: null,
-            token: null,
-            refreshToken: null,
-            tokenExpiration: null,
-          },
-        })
-      );
-
-      // Redirect to login page
-      window.location.href = '/login';
-
-      throw new Error('Token refresh failed. Please log in again.');
+      this.emitAuthEvent(false, null, 'refresh_failed');
+      throw error;
     }
   }
 
@@ -609,17 +575,7 @@ export class AuthService {
             }
 
             // Emit state change event
-            window.dispatchEvent(
-              new CustomEvent('auth-state-change', {
-                detail: {
-                  isAuthenticated: true,
-                  user,
-                  token: this.token,
-                  refreshToken: this.refreshToken,
-                  tokenExpiration: this.tokenExpiration,
-                },
-              })
-            );
+            this.emitAuthEvent(true, user, 'session_valid');
 
             return true;
           }
@@ -679,17 +635,7 @@ export class AuthService {
     }
 
     // Emit state change event
-    window.dispatchEvent(
-      new CustomEvent('auth-state-change', {
-        detail: {
-          isAuthenticated,
-          user,
-          token: this.token,
-          refreshToken: this.refreshToken,
-          tokenExpiration: this.tokenExpiration,
-        },
-      })
-    );
+    this.emitAuthEvent(isAuthenticated, user);
   }
 
   /**
@@ -813,6 +759,24 @@ export class AuthService {
     // Consider token expired if it's within 5 minutes of expiration
     const expirationBuffer = 5 * 60 * 1000; // 5 minutes in milliseconds
     return expiration.getTime() - Date.now() <= expirationBuffer;
+  }
+
+  /**
+   * Emits authentication state change event
+   */
+  private emitAuthEvent(isAuthenticated: boolean, user: IUser | null, reason?: string): void {
+    window.dispatchEvent(
+      new CustomEvent('auth-state-change', {
+        detail: {
+          isAuthenticated,
+          user,
+          token: this.token,
+          refreshToken: this.refreshToken,
+          tokenExpiration: this.tokenExpiration,
+          reason,
+        },
+      })
+    );
   }
 }
 

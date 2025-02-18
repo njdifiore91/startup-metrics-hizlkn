@@ -1,27 +1,20 @@
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { Request, Response } from 'express';
 import { IAuthProvider } from '../interfaces/IAuthProvider';
-import { IUser } from '../interfaces/IUser';
+import { IUser, UserRole } from '../interfaces/IUser';
 import { AppError } from '../utils/AppError';
 import { AUTH_ERRORS } from '../constants/errorCodes';
 import { USER_ROLES } from '../constants/roles';
 import { logger } from '../utils/logger';
 import { userService } from '../services/userService';
-import { sign, verify } from 'jsonwebtoken';
+import { sign, verify, JsonWebTokenError } from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import Redis from 'ioredis';
 import crypto from 'crypto';
 import { authConfig } from '../config/auth';
 import User from '../models/User';
 import { v4 as uuidv4 } from 'uuid';
-
-// HTTP Status Codes
-const HTTP_STATUS = {
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  TOO_MANY_REQUESTS: 429,
-  INTERNAL_SERVER_ERROR: 500,
-} as const;
+import { HTTP_STATUS } from '../constants/http';
 
 interface GoogleUser {
   id: string;
@@ -274,66 +267,107 @@ export class GoogleAuthProvider implements IAuthProvider {
   /**
    * Refresh access token
    */
-  async refreshToken(
-    refreshToken: string
-  ): Promise<{ accessToken: string; refreshToken: string; user: IUser }> {
+  async refreshToken(refreshToken: string): Promise<any> {
     try {
-      this.oAuth2Client.setCredentials({
-        refresh_token: refreshToken,
-      });
-
-      const response = await this.oAuth2Client.refreshAccessToken();
-      const tokens = response.credentials;
-
-      if (!tokens.access_token) {
+      // First verify the refresh token
+      const decoded = verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string };
+      
+      // Find the user
+      const user = await User.findOne({ where: { id: decoded.userId } });
+      if (!user) {
         throw new AppError(
-          AUTH_ERRORS.TOKEN_EXPIRED.message,
-          AUTH_ERRORS.TOKEN_EXPIRED.httpStatus,
-          AUTH_ERRORS.TOKEN_EXPIRED.code
+          'User not found',
+          HTTP_STATUS.UNAUTHORIZED,
+          'AUTH_004'
         );
       }
 
-      // Verify the ID token to get user info
-      const ticket = await this.oAuth2Client.verifyIdToken({
-        idToken: tokens.id_token!,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-
-      const payload = ticket.getPayload();
-      if (!payload) {
+      // Check if user is active
+      if (!user.isActive) {
         throw new AppError(
-          AUTH_ERRORS.TOKEN_EXPIRED.message,
-          AUTH_ERRORS.TOKEN_EXPIRED.httpStatus,
-          AUTH_ERRORS.TOKEN_EXPIRED.code
+          'Account is inactive',
+          HTTP_STATUS.UNAUTHORIZED,
+          'AUTH_005'
         );
       }
 
-      const user: IUser = {
-        id: uuidv4(),
-        email: payload.email!,
-        name: payload.name!,
-        googleId: payload.sub,
-        role: USER_ROLES.USER,
-        tier: 'free',
-        isActive: true,
-        lastLoginAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      // Generate new tokens
+      const accessToken = sign(
+        { 
+          userId: user.id, 
+          role: user.role,
+          email: user.email 
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '1h' }
+      );
+
+      const newRefreshToken = sign(
+        { userId: user.id },
+        process.env.JWT_REFRESH_SECRET!,
+        { expiresIn: '14d' }
+      );
+
+      // Store refresh token in Redis with encryption
+      const encryptedRefreshToken = this.encryptToken(newRefreshToken);
+      await this.redisClient.set(
+        `refresh_token:${user.id}`,
+        encryptedRefreshToken,
+        'EX',
+        14 * 24 * 60 * 60 // 14 days
+      );
+
+      // Update user's last activity
+      await User.update(
+        { lastLoginAt: new Date() },
+        { where: { id: user.id } }
+      );
+
+      // Convert user model to response type
+      const userResponse = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        googleId: user.googleId || '',
+        lastLoginAt: user.lastLoginAt,
+        isActive: user.isActive,
+        tier: user.tier,
+        revenueRange: user.revenueRange,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
       };
 
       return {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || refreshToken,
-        user,
+        success: true,
+        data: {
+          accessToken,
+          refreshToken: newRefreshToken,
+          user: userResponse
+        }
       };
     } catch (error) {
       logger.error('Token refresh failed:', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
       });
+
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      if (error instanceof JsonWebTokenError) {
+        throw new AppError(
+          'Invalid refresh token',
+          HTTP_STATUS.UNAUTHORIZED,
+          'AUTH_003'
+        );
+      }
+
       throw new AppError(
-        AUTH_ERRORS.TOKEN_EXPIRED.message,
-        AUTH_ERRORS.TOKEN_EXPIRED.httpStatus,
-        AUTH_ERRORS.TOKEN_EXPIRED.code
+        'Token refresh failed',
+        HTTP_STATUS.UNAUTHORIZED,
+        'AUTH_006'
       );
     }
   }
