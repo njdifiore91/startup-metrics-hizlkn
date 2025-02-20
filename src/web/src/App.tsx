@@ -23,6 +23,7 @@ import { authService } from './services/auth';
 import { authActions } from './store/authSlice';
 import { SessionStatus } from './store/authSlice';
 import UserManagement from './pages/admin/UserManagement';
+import BenchmarkManagement from './components/admin/BenchmarkManagement';
 
 // Lazy-loaded route components
 const Login = React.lazy(() => import('./pages/Login'));
@@ -48,6 +49,7 @@ const ROUTES = {
   GOOGLE_CALLBACK: '/auth/google/callback',
   USER_MANAGEMENT: '/admin/users',
   AUDIT_LOGS: '/admin/audit-logs',
+  ADMIN_BENCHMARKS: '/admin/benchmarks',
 } as const;
 
 // Error messages
@@ -186,7 +188,7 @@ const AppContent: React.FC = () => {
 
   // Handle public routes
   const isPublicRoute = [ROUTES.LOGIN, ROUTES.GOOGLE_CALLBACK].includes(location.pathname as any);
-  
+
   // If not authenticated and trying to access protected route, redirect to login
   if (!isAuthenticated && !isPublicRoute) {
     const returnUrl = encodeURIComponent(location.pathname + location.search);
@@ -218,11 +220,12 @@ const AppContent: React.FC = () => {
             <Route path={ROUTES.PROFILE} element={<Profile />} />
             <Route path={ROUTES.USER_MANAGEMENT} element={<UserManagement />} />
             <Route path={ROUTES.AUDIT_LOGS} element={<AuditLogs />} />
+            <Route path={ROUTES.ADMIN_BENCHMARKS} element={<BenchmarkManagement />} />
           </Route>
 
           {/* Default Route */}
           <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-          
+
           {/* 404 Route */}
           <Route path="*" element={<NotFound />} />
         </Routes>
