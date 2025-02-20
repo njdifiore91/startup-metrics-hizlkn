@@ -72,15 +72,24 @@ export class BenchmarkService {
 
   public async createBenchmark(data: IBenchmarkData): Promise<IBenchmarkData> {
     try {
-      // TODO: Implement actual database insert
-      const benchmark: IBenchmarkData = {
+      const benchmark = await BenchmarkData.create({
         ...data,
-        id: 'temp-id',
-      };
-      return benchmark;
+        isSeasonallyAdjusted: data.isSeasonallyAdjusted ?? false,
+        isStatisticallySignificant: data.isStatisticallySignificant ?? true,
+      });
+
+      logger.info('Created new benchmark', {
+        benchmarkId: benchmark.id,
+        metricId: data.metricId,
+        sourceId: data.sourceId,
+      });
+
+      return benchmark.get({ plain: true }) as IBenchmarkData;
     } catch (error) {
       logger.error('Failed to create benchmark', {
         error: error instanceof Error ? error : new Error(String(error)),
+        metricId: data.metricId,
+        sourceId: data.sourceId,
       });
       throw new AppError(
         BUSINESS_ERRORS.OPERATION_FAILED.code,
@@ -92,30 +101,24 @@ export class BenchmarkService {
 
   public async updateBenchmark(id: string, data: Partial<IBenchmarkData>): Promise<IBenchmarkData> {
     try {
-      // TODO: Implement actual database update
-      const benchmark: IBenchmarkData = {
-        id,
-        metricId: 'temp-metric',
-        sourceId: 'mock-source-1',
-        revenueRange: '1M-5M',
-        p10: 10.5,
-        p25: 25.5,
-        p50: 50.5,
-        p75: 75.5,
-        p90: 90.5,
-        reportDate: new Date(),
-        sampleSize: 100,
-        confidenceLevel: 0.95,
-        isSeasonallyAdjusted: false,
-        dataQualityScore: 0.95,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        ...data,
-      };
-      return benchmark;
+      const benchmark = await BenchmarkData.findByPk(id);
+
+      if (!benchmark) {
+        throw new AppError('Benchmark not found', '404');
+      }
+
+      await benchmark.update(data);
+
+      logger.info('Updated benchmark', {
+        benchmarkId: id,
+        updatedFields: Object.keys(data),
+      });
+
+      return benchmark.get({ plain: true }) as IBenchmarkData;
     } catch (error) {
       logger.error('Failed to update benchmark', {
         error: error instanceof Error ? error : new Error(String(error)),
+        benchmarkId: id,
       });
       throw new AppError(
         BUSINESS_ERRORS.OPERATION_FAILED.code,
@@ -127,11 +130,21 @@ export class BenchmarkService {
 
   public async deleteBenchmark(id: string): Promise<void> {
     try {
-      // TODO: Implement actual database delete
-      logger.info('Benchmark deleted', { id });
+      const benchmark = await BenchmarkData.findByPk(id);
+
+      if (!benchmark) {
+        throw new AppError('Benchmark not found', '404');
+      }
+
+      await benchmark.destroy();
+
+      logger.info('Deleted benchmark', {
+        benchmarkId: id,
+      });
     } catch (error) {
       logger.error('Failed to delete benchmark', {
         error: error instanceof Error ? error : new Error(String(error)),
+        benchmarkId: id,
       });
       throw new AppError(
         BUSINESS_ERRORS.OPERATION_FAILED.code,
@@ -143,8 +156,13 @@ export class BenchmarkService {
 
   public async getPublicBenchmarks(): Promise<IBenchmarkData[]> {
     try {
-      // TODO: Implement actual database query for public benchmarks
-      return [];
+      const benchmarks = await BenchmarkData.findAll({
+        order: [['reportDate', 'DESC']],
+      });
+
+      console.log('benchmarks service ', benchmarks);
+
+      return benchmarks.map((benchmark) => benchmark.get({ plain: true }) as IBenchmarkData);
     } catch (error) {
       logger.error('Failed to get public benchmarks', {
         error: error instanceof Error ? error : new Error(String(error)),
