@@ -10,15 +10,12 @@ import { AxiosError } from 'axios';
 // Internal imports
 import { authConfig } from '../config/auth';
 import { api } from './api';
-import { IUser } from '../interfaces/IUser';
+import { IUser } from '../interfaces/types';
 import { handleApiError, type ApiError } from '../utils/errorHandlers';
 import type { UpdateUserSettingsParams } from '../hooks/useAuth';
 import { AUTH_CONSTANTS } from '../config/constants';
 
-// Constants
-const AUTH_CONFIG = {
-  REFRESH_INTERVAL: 60000, // 1 minute
-} as const;
+
 
 // Types for Google Auth
 interface GoogleUser {
@@ -363,28 +360,35 @@ export class AuthService {
         await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
       }
 
-      const response = await api.post<IAuthResponse>(authConfig.authEndpoints.googleAuth, {
+      const response = await api.post<{
+        status: string;
+        data: {
+          user: IUser;
+          accessToken: string;
+          refreshToken: string;
+        }
+      }>('/api/v1/auth/google', {
         code,
         redirectUri: `${window.location.origin}/auth/google/callback`,
       });
-      const data: any = response.data.data;
-      const { accessToken: token, refreshToken, user } = data;
 
-      // Store tokens securely
-      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, token);
-      localStorage.setItem(AUTH_CONSTANTS.REFRESH_TOKEN_KEY, refreshToken);
+      if (!response.data.status || response.data.status !== 'success' || !response.data.data) {
+        throw new Error('Invalid response from server');
+      }
+
+      const { user, accessToken, refreshToken } = response.data.data;
+
+      // Set the auth header
+      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
       // Update auth state
       this.isAuthenticated = true;
       this.currentUser = user;
-      this.token = token;
+      this.token = accessToken;
       this.refreshToken = refreshToken;
 
       // Set token expiration to 1 hour from now (typical JWT expiration)
       this.tokenExpiration = new Date(Date.now() + 3600 * 1000);
-
-      // Initialize API client with new token
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
       // Emit state change event with complete auth data
       this.emitAuthEvent(true, user, 'login_success');
@@ -392,7 +396,7 @@ export class AuthService {
       // Return complete auth response
       return {
         user,
-        accessToken: token,
+        accessToken,
         refreshToken,
         data: response.data,
       };
@@ -782,3 +786,96 @@ export class AuthService {
 
 // Export singleton instance
 export const authService = new AuthService();
+
+interface LoginResponse {
+  success: boolean;
+  data: {
+    user: IUser;
+    accessToken: string;
+    refreshToken: string;
+  };
+}
+
+interface SetupData {
+  role: 'USER' | 'ANALYST';
+  companyName?: string;
+  revenueRange?: string;
+}
+
+interface SetupResponse {
+  success: boolean;
+  data: {
+    user: IUser;
+    accessToken: string;
+  };
+}
+
+export const loginWithGoogle = () => {
+  const params = new URLSearchParams({
+    client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+    redirect_uri: `${window.location.origin}/auth/google/callback`,
+    response_type: 'code',
+    scope: 'email profile',
+    access_type: 'offline',
+    prompt: 'consent',
+  });
+
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+};
+
+export const handleGoogleCallback = async (code: string) => {
+  const response = await api.post<{
+    status: string;
+    data: {
+      user: IUser;
+      accessToken: string;
+      refreshToken: string;
+    }
+  }>('/api/v1/auth/google', {
+    code,
+    redirectUri: `${window.location.origin}/auth/google/callback`,
+  });
+
+  if (!response.data.status || response.data.status !== 'success' || !response.data.data) {
+    throw new Error('Invalid response from server');
+  }
+
+  const { user, accessToken, refreshToken } = response.data.data;
+
+  // Set the auth header
+  api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
+  return {
+    user,
+    accessToken,
+    refreshToken
+  };
+};
+
+export const completeUserSetup = async (setupData: SetupData): Promise<SetupResponse> => {
+  try {
+    console.log('Sending setup data:', setupData);
+    const response = await api.post<{
+      status: string;
+      data: IUser;
+      metadata?: any;
+    }>('/api/v1/users/setup', setupData);
+    console.log('Setup response:', response.data);
+    
+    if (!response.data.status || response.data.status !== 'success' || !response.data.data) {
+      throw new Error('Invalid response from server');
+    }
+    
+    // Return the response in the expected format
+    return {
+      success: response.data.status === 'success',
+      data: {
+        user: response.data.data,
+        accessToken: '' // The backend doesn't return a new access token for setup
+      }
+    };
+  } catch (error) {
+    console.error('Setup error:', error);
+    throw error;
+  }
+};

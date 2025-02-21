@@ -1,7 +1,7 @@
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { Request, Response } from 'express';
 import { IAuthProvider } from '../interfaces/IAuthProvider';
-import { IUser, UserRole } from '../interfaces/IUser';
+import { IUser } from '../models/User';
 import { AppError } from '../utils/AppError';
 import { AUTH_ERRORS } from '../constants/errorCodes';
 import { USER_ROLES } from '../constants/roles';
@@ -23,8 +23,13 @@ interface GoogleUser {
   picture?: string;
 }
 
+interface AuthUser extends IUser {
+  isNewUser?: boolean;
+  requiresSetup?: boolean;
+}
+
 interface AuthResult {
-  user: IUser;
+  user: AuthUser;
   accessToken: string;
   refreshToken: string;
 }
@@ -58,13 +63,15 @@ export class GoogleAuthProvider implements IAuthProvider {
       id: uuidv4(),
       email: payload.email!,
       name: payload.name!,
-      googleId: payload.sub,
+      googleId: payload.sub!,
       role: USER_ROLES.USER,
       tier: 'free',
       isActive: true,
       lastLoginAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      tokenVersion: 0,
+      setupCompleted: false
     };
   }
 
@@ -93,82 +100,75 @@ export class GoogleAuthProvider implements IAuthProvider {
    */
   async authenticate(code: string, redirectUri: string): Promise<AuthResult> {
     try {
-      console.log('Code', code);
-      console.log('Redirect URI', redirectUri);
       // Get tokens from Google
       const { tokens } = await this.oAuth2Client.getToken({
         code,
         redirect_uri: redirectUri,
       });
 
-      if (!tokens.access_token) {
-        throw new AppError(
-          AUTH_ERRORS.AUTHENTICATION_FAILED.message,
-          AUTH_ERRORS.AUTHENTICATION_FAILED.httpStatus,
-          AUTH_ERRORS.AUTHENTICATION_FAILED.code
-        );
+      if (!tokens.id_token) {
+        throw new AppError('Invalid Google response', HTTP_STATUS.BAD_REQUEST);
       }
 
       // Verify the ID token
       const ticket = await this.oAuth2Client.verifyIdToken({
-        idToken: tokens.id_token!,
+        idToken: tokens.id_token,
         audience: process.env.GOOGLE_CLIENT_ID,
       });
 
       const payload = ticket.getPayload();
       if (!payload) {
-        throw new AppError(
-          AUTH_ERRORS.AUTHENTICATION_FAILED.message,
-          AUTH_ERRORS.AUTHENTICATION_FAILED.httpStatus,
-          AUTH_ERRORS.AUTHENTICATION_FAILED.code
-        );
+        throw new AppError('Invalid token payload', HTTP_STATUS.BAD_REQUEST);
       }
 
-      // Create or update user
-      const googleUser: GoogleUser = {
-        id: payload.sub!,
-        email: payload.email!,
-        name: payload.name!,
-        picture: payload.picture,
-      };
+      // Check if user exists
+      let user = await userService.findByGoogleId(payload.sub!);
+      let isNewUser = false;
+      let requiresSetup = false;
 
-      // Create or update user in database
-      const [user, created] = await User.findOrCreate({
-        where: { googleId: googleUser.id },
-        defaults: {
-          id: uuidv4(),
-          email: googleUser.email,
-          name: googleUser.name,
-          googleId: googleUser.id,
-          role: USER_ROLES.USER,
-          tier: 'free',
-          isActive: true,
-          lastLoginAt: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+      if (!user) {
+        isNewUser = true;
+        // Create new user
+        const newUserData = this.mapGoogleUserToAppUser(payload);
+        user = await userService.createUser(newUserData);
+        requiresSetup = true;
 
-      if (!created) {
-        // Update existing user's information
-        await user.update({
-          lastLoginAt: new Date(),
-          name: googleUser.name, // Update name in case it changed
-          email: googleUser.email, // Update email in case it changed
-          isActive: true, // Ensure user is active upon login
+        // Log new user creation
+        logger.info('New user registered:', { 
+          userId: user.id, 
+          email: user.email,
+          googleId: user.googleId 
         });
+      } else {
+        // Check if existing user needs setup
+        requiresSetup = !user.setupCompleted;
       }
 
-      // Generate JWT tokens
-      const accessToken = sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET!, {
-        expiresIn: '1h',
-      });
+      // Update last login
+      await user.update({ lastLoginAt: new Date() });
 
-      const refreshToken = sign({ userId: user.id }, process.env.JWT_REFRESH_SECRET!, {
-        expiresIn: '7d',
-      });
+      // Generate tokens
+      const accessToken = sign(
+        { 
+          userId: user.id, 
+          role: user.role,
+          setupCompleted: user.setupCompleted 
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '1h' }
+      );
 
-      // Store refresh token in Redis
+      const refreshToken = sign(
+        { 
+          userId: user.id, 
+          tokenVersion: user.tokenVersion,
+          setupCompleted: user.setupCompleted 
+        },
+        process.env.JWT_REFRESH_SECRET!,
+        { expiresIn: '7d' }
+      );
+
+      // Store refresh token
       const encryptedRefreshToken = this.encryptToken(refreshToken);
       await this.redisClient.set(
         `refresh_token:${user.id}`,
@@ -178,19 +178,27 @@ export class GoogleAuthProvider implements IAuthProvider {
       );
 
       return {
-        user,
+        user: {
+          ...user.toJSON(),
+          isNewUser,
+          requiresSetup
+        },
         accessToken,
-        refreshToken,
+        refreshToken
       };
+
     } catch (error) {
-      logger.error('Google authentication failed:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+      logger.error('Authentication failed:', {
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+      
       throw new AppError(
-        `${AUTH_ERRORS.AUTHENTICATION_FAILED.message}: ${errorMessage}`,
-        AUTH_ERRORS.AUTHENTICATION_FAILED.httpStatus,
-        AUTH_ERRORS.AUTHENTICATION_FAILED.code
+        'Authentication failed',
+        HTTP_STATUS.INTERNAL_SERVER_ERROR
       );
     }
   }

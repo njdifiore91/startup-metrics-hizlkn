@@ -35,4 +35,5 @@ export interface IUser {
   createdAt: Date;
   updatedAt: Date;
   revenueRange?: RevenueRange;
+  isNewUser?: boolean;
 }

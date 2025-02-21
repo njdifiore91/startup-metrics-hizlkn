@@ -42,7 +42,8 @@ export const API_CONFIG: IApiConfig = {
     BENCHMARKS_BY_METRIC: '/api/v1/benchmarks/metrics',
     USER: '/api/v1/user',
     AUTH: '/api/v1/auth',
-    DATA_SOURCES: '/api/v1/data-sources'
+    DATA_SOURCES: '/api/v1/data-sources',
+    SETUP: '/api/v1/users/setup'
   },
   ERROR_LOGGING_ENABLED: true
 };
@@ -120,10 +121,10 @@ export type ChartColor = (typeof CHART_CONSTANTS.COLORS)[number];
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
 
 export const USER_ROLES = {
-  USER: 'user',
-  ANALYST: 'analyst',
-  ADMIN: 'admin',
-  SYSTEM: 'system',
+  USER: 'USER',
+  ANALYST: 'ANALYST',
+  ADMIN: 'ADMIN',
+  SYSTEM: 'SYSTEM',
 } as const;
 
 export const METRIC_VALIDATION_RULES: Record<

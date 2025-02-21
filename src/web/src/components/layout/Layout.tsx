@@ -7,7 +7,7 @@ import Sidebar from './Sidebar';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast, ToastType, ToastPosition } from '../../hooks/useToast';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { RootState } from '../../store';
 import { toggleSidebar } from '../../store/uiSlice';
 
@@ -17,8 +17,6 @@ interface LayoutProps {
   className?: string;
   direction?: 'ltr' | 'rtl';
 }
-
-type SessionStatus = 'valid' | 'invalid' | 'loading';
 
 // Styled Components
 const LayoutContainer = styled.div<{ direction: 'ltr' | 'rtl' }>`
@@ -64,11 +62,14 @@ const SkipLink = styled.a`
 // Layout Component
 const Layout: React.FC<LayoutProps> = memo(({ children, className = '', direction = 'ltr' }) => {
   const dispatch = useDispatch();
-  const { validateSession } = useAuth();
+  const { validateSession, user } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const { showToast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const isLoginPage = location.pathname === '/login';
+  const isSetupPage = location.pathname === '/setup';
+  const shouldShowSidebar = !isLoginPage && !isSetupPage && user?.setupCompleted;
   const sessionCheckRef = useRef<NodeJS.Timeout>();
   const lastValidationRef = useRef<number>(0);
   const validationInProgressRef = useRef<boolean>(false);
@@ -85,7 +86,7 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
 
       // Implement debouncing
       const now = Date.now();
-      if (now - lastValidationRef.current < 5000) { // 5 second debounce
+      if (now - lastValidationRef.current < 15 * 60 * 1000) { // 15 minute debounce
         return;
       }
 
@@ -94,36 +95,49 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
         lastValidationRef.current = now;
         
         const isValid = await validateSession();
-        if (!isValid) {
-          showToast(
-            'Your session has expired. Please log in again.',
-            ToastType.WARNING,
-            ToastPosition.TOP_RIGHT
-          );
+        if (!isValid && !isLoginPage && !isSetupPage) {
+          // Only redirect if we're not already on the login or setup page
+          // and after multiple failed attempts
+          if (!sessionCheckRef.current) {
+            sessionCheckRef.current = setTimeout(() => {
+              showToast(
+                'Your session has expired. Please log in again.',
+                ToastType.WARNING,
+                ToastPosition.TOP_RIGHT
+              );
+              navigate('/login');
+            }, 5000); // Give a 5-second delay before redirecting
+          }
+        } else if (isValid && sessionCheckRef.current) {
+          // Clear the redirect timeout if the session becomes valid
+          clearTimeout(sessionCheckRef.current);
+          sessionCheckRef.current = undefined;
         }
       } catch (error) {
         console.error('Session validation failed:', error);
+        // Don't redirect on network errors or other transient failures
       } finally {
         validationInProgressRef.current = false;
       }
     };
 
     // Only set up validation for non-login pages
-    if (!isLoginPage) {
+    if (!isLoginPage && !isSetupPage) {
       // Initial check with delay to prevent race conditions
-      const initialCheckTimeout = setTimeout(checkSession, 1000);
+      const initialCheckTimeout = setTimeout(checkSession, 2000);
 
-      // Set up interval with longer duration (5 minutes)
-      sessionCheckRef.current = setInterval(checkSession, 5 * 60 * 1000);
+      // Set up interval with longer duration (15 minutes)
+      const intervalId = setInterval(checkSession, 15 * 60 * 1000);
 
       return () => {
         clearTimeout(initialCheckTimeout);
         if (sessionCheckRef.current) {
-          clearInterval(sessionCheckRef.current);
+          clearTimeout(sessionCheckRef.current);
         }
+        clearInterval(intervalId);
       };
     }
-  }, [validateSession, showToast, isLoginPage]);
+  }, [validateSession, showToast, isLoginPage, isSetupPage, navigate]);
 
   // Theme Change Handler
   const handleThemeChange = useCallback((newTheme: 'light' | 'dark') => {
@@ -139,7 +153,7 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
   // Error Handler
   const handleError = useCallback((error: Error) => {
     showToast(error.message, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-  }, []);
+  }, [showToast]);
 
   // Keyboard Navigation Handler
   const handleKeyDown = useCallback(
@@ -169,6 +183,17 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Handle navigation based on user role
+  const handleNavigation = useCallback((path: string) => {
+    if (user?.role === 'ANALYST' && path === '/dashboard') {
+      navigate('/analytics');
+    } else if (user?.role === 'USER' && path === '/dashboard') {
+      navigate('/company-dashboard');
+    } else {
+      navigate(path);
+    }
+  }, [user?.role, navigate]);
+
   return (
     <ErrorBoundary onError={handleError}>
       <LayoutContainer
@@ -186,10 +211,11 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
         <Header onThemeChange={handleThemeChange} testId="main-header" />
 
         {/* Sidebar Component */}
-        {!isLoginPage && (
+        {shouldShowSidebar && (
           <Sidebar
             isOpen={isSidebarOpen}
             onToggle={handleSidebarToggle}
+            onNavigate={handleNavigation}
             onError={handleError}
             ariaLabel="Main navigation sidebar"
           />
@@ -199,25 +225,16 @@ const Layout: React.FC<LayoutProps> = memo(({ children, className = '', directio
         <MainContent
           id="main-content"
           isLoginPage={isLoginPage}
-          role="main"
-          aria-label="Main content"
-          tabIndex={-1}
           style={{
-            marginLeft: !isLoginPage ? (isSidebarOpen ? '240px' : '64px') : '0',
+            marginLeft: shouldShowSidebar && isSidebarOpen ? '250px' : '0',
+            transition: 'margin-left 0.3s ease'
           }}
         >
           <ErrorBoundary onError={handleError}>{children}</ErrorBoundary>
         </MainContent>
 
         {/* Footer Component */}
-        <Footer
-          ariaLabel="Site footer"
-          links={[
-            { id: 'privacy', label: 'Privacy Policy', href: '/privacy' },
-            { id: 'terms', label: 'Terms of Service', href: '/terms' },
-            { id: 'contact', label: 'Contact Us', href: '/contact' },
-          ]}
-        />
+        <Footer />
       </LayoutContainer>
     </ErrorBoundary>
   );

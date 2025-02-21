@@ -34,6 +34,8 @@ export interface IUserMetric {
  * @property {Date} lastLoginAt - Timestamp of user's last successful login
  * @property {boolean} isActive - Flag indicating if user account is active
  * @property {string} revenueRange - Company's annual revenue range for benchmarking
+ * @property {boolean} setupCompleted - Flag indicating if user has completed initial setup
+ * @property {string} companyName - Name of the company (for COMPANY role)
  */
 export interface IUser {
   readonly id: string;
@@ -45,7 +47,9 @@ export interface IUser {
   readonly lastLoginAt: Date;
   readonly isActive: boolean;
   readonly revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
-  preferences: UserPreferences;
-  permissions: string[];
+  readonly setupCompleted: boolean;
+  readonly companyName?: string;
+  preferences?: UserPreferences;
+  permissions?: string[];
   metrics?: IUserMetric[];
 }

@@ -208,7 +208,6 @@ interface FormValues {
   date: string;
   source: string;
   notes?: string;
-  isVerified: boolean;
   metricId: string;
   root?: {
     serverError?: {
@@ -280,8 +279,13 @@ const getValidationSchema = (metric: IMetric) => {
     date: yup.string().required('Date is required'),
     source: yup.string().required('Data source is required'),
     notes: yup.string().optional(),
-    isVerified: yup.boolean().default(false),
     metricId: yup.string().required('Metric type is required'),
+    root: yup.object().shape({
+      serverError: yup.object().shape({
+        type: yup.string(),
+        message: yup.string()
+      }).optional()
+    }).optional()
   }) as yup.ObjectSchema<FormValues>;
 };
 
@@ -388,58 +392,91 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             : formatDateToYYYYMMDD(new Date()),
           source: initialData?.source || '',
           notes: initialData?.notes || '',
-          isVerified: initialData?.isVerified || false,
         }),
         [initialData]
       ),
       mode: 'onBlur',
     });
 
-    // Add effect to preserve value when form resets
+    // Add ref to track last set value and prevent recursion
+    const lastSetValueRef = useRef<number | null>(null);
+    const isProcessingRef = useRef<boolean>(false);
+
+    // Add effect to handle value changes
     useEffect(() => {
-      const currentValue = watch('value');
-      const subscription = watch((formData: FormValues) => {
-        const value = watch('value');
-        if (value !== null && value !== currentValue) {
-          setValue('value', value);
+      const subscription = watch((formData: FormValues, { name, type }) => {
+        // Prevent recursive calls and only process direct changes
+        if (isProcessingRef.current || type !== 'change' || name !== 'value') {
+          return;
+        }
+
+        try {
+          isProcessingRef.current = true;
+          const newValue = formData.value;
+
+          // Handle empty or invalid values
+          if (newValue === null || newValue === undefined) {
+            lastSetValueRef.current = null;
+            setValue('value', null, { shouldValidate: true });
+            return;
+          }
+
+          // Parse and validate the number
+          const numValue = Number(newValue);
+          if (!isNaN(numValue) && (lastSetValueRef.current === null || lastSetValueRef.current !== numValue)) {
+            lastSetValueRef.current = numValue;
+            setValue('value', numValue, { shouldValidate: true });
+          }
+        } finally {
+          isProcessingRef.current = false;
         }
       });
+
       return () => subscription.unsubscribe();
     }, [watch, setValue]);
 
-    // Update handleValueValidation to preserve value
+    // Update handleValueValidation with improved type handling
     const handleValueValidation = useCallback(
       async (event: React.FocusEvent<HTMLInputElement>) => {
-        const value = event.target.value === '' ? null : parseFloat(event.target.value);
+        if (isProcessingRef.current) return true;
 
-        if (event.target.value === '') {
-          setValue('value', null);
+        try {
+          isProcessingRef.current = true;
+          const inputValue = event.target.value.trim();
+
+          // Handle empty value
+          if (inputValue === '') {
+            lastSetValueRef.current = null;
+            setValue('value', null, { shouldValidate: true });
+            setValueError(null);
+            return true;
+          }
+
+          // Parse and validate the number
+          const value = parseFloat(inputValue);
+          if (isNaN(value)) {
+            setValueError('Please enter a valid number');
+            return false;
+          }
+
+          // Validate against metric rules
+          const customError = validateValue(value, selectedMetric);
+          if (customError) {
+            setValueError(customError);
+            return false;
+          }
+
+          // Update value if validation passes
           setValueError(null);
-          return true;
+          lastSetValueRef.current = value;
+          setValue('value', value, { shouldValidate: true });
+
+          return await trigger('value');
+        } finally {
+          isProcessingRef.current = false;
         }
-
-        // First check if it's a valid number
-        if (value !== null && isNaN(value)) {
-          setValueError('Please enter a valid number');
-          return false;
-        }
-
-        // Then check metric-specific validation
-        const customError = validateValue(value, selectedMetric);
-        if (customError) {
-          setValueError(customError);
-          return false;
-        }
-
-        // Clear any previous errors if validation passes
-        setValueError(null);
-        setValue('value', value);
-
-        // Trigger form validation
-        const isValid = await trigger('value');
-        return isValid;
       },
-      [selectedMetric, validateValue, trigger, setValue]
+      [selectedMetric, validateValue, setValue, trigger]
     );
 
     // Watch for changes in metricId with memoization
@@ -550,10 +587,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
           }
           lastApiCallRef.current = now;
 
-          // Log user data to debug
-          console.log('Current user:', user);
-          console.log('User ID:', user?.id);
-
           // Validate the value before submission
           const valueValidationError = validateValue(formData.value, selectedMetric);
           if (valueValidationError) {
@@ -561,29 +594,15 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             return;
           }
 
-          // Check for user ID
-          if (!user?.id) {
-            console.error('No user ID found in user object:', user);
-            setError('root.serverError' as any, {
-              type: 'manual',
-              message: 'User ID is required. Please ensure you are properly logged in.',
-            });
-            return;
-          }
-
           setIsSubmitting(true);
           const currentValue = formData.value;
 
-          // Prepare the metric data with the correct structure
+          // Prepare the metric data with isVerified always true
           const requestBody = {
-            companyId: user.id,
+            ...formData,
+            isVerified: true,
+            companyId: user?.id,
             value: formData.value !== null ? Number(formData.value) : null,
-            metricId: formData.metricId,
-            date: formData.date,
-            source: formData.source,
-            notes: formData.notes || '',
-            isVerified: formData.isVerified,
-            isActive: true,
             metric: {
               id: selectedMetric?.id || formData.metricId,
               name: selectedMetric?.name || '',
@@ -609,18 +628,13 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
           };
 
           try {
-            console.log('Submitting metric data:', requestBody);
-            console.log('Selected metric:', selectedMetric);
-
             let response;
             if (initialData?.id) {
-              // Update existing metric
               response = await api.put<{ data: ICompanyMetric }>(
                 `/api/v1/company-metrics/${initialData.id}`,
                 requestBody
               );
             } else {
-              // Create new metric
               response = await api.post<{ data: ICompanyMetric }>(
                 '/api/v1/company-metrics',
                 requestBody
@@ -629,80 +643,19 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
 
             if (response?.data?.data) {
               await onSubmitSuccess(response.data.data);
-              // Preserve the current value when resetting
               reset({
                 ...formData,
                 value: currentValue,
               });
             }
-          } catch (error: unknown) {
-            console.error('Failed to submit metric:', error);
-
-            const apiError = error as {
-              response?: {
-                data?: {
-                  error?: {
-                    code: string;
-                    message: string;
-                    meta?: {
-                      errors?: Array<{ path: string; message: string }>;
-                    };
-                  };
-                };
-              };
-            };
-
-            if (apiError.response?.data?.error) {
-              const errorDetails = apiError.response.data.error;
-
-              // Handle validation errors
-              if (errorDetails.code === 'VAL_001' && errorDetails.meta?.errors) {
-                const validationErrors = errorDetails.meta.errors;
-                validationErrors.forEach((err) => {
-                  const fieldPath = err.path.replace('body.', '').replace('metric.', '');
-                  if (fieldPath === 'value') {
-                    setValueError(err.message);
-                  } else if (fieldPath === 'companyId') {
-                    setError('root.serverError' as any, {
-                      type: 'manual',
-                      message: 'Invalid company ID. Please contact support.',
-                    });
-                  } else {
-                    setError(fieldPath as any, {
-                      type: 'manual',
-                      message: err.message,
-                    });
-                  }
-                });
-              } else {
-                setValueError(errorDetails.message || 'Failed to save metric');
-              }
-              return;
-            }
-
-            const errorMessage = error instanceof Error ? error.message : 'Failed to save metric';
-            setValue(
-              'root.serverError' as keyof FormState,
-              {
-                type: 'server',
-                message: errorMessage,
-              } as any
-            );
+          } catch (error) {
+            handleApiError(error);
           }
         } finally {
           setIsSubmitting(false);
         }
       },
-      [
-        onSubmitSuccess,
-        reset,
-        user,
-        initialData?.id,
-        selectedMetric,
-        validateValue,
-        setValue,
-        setError,
-      ]
+      [onSubmitSuccess, reset, user, initialData?.id, selectedMetric, validateValue]
     );
 
     // Memoized helper functions
@@ -798,6 +751,61 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
       return null;
     };
 
+    const handleApiError = (error: unknown) => {
+      console.error('Failed to submit metric:', error);
+
+      const apiError = error as {
+        response?: {
+          data?: {
+            error?: {
+              code: string;
+              message: string;
+              meta?: {
+                errors?: Array<{ path: string; message: string }>;
+              };
+            };
+          };
+        };
+      };
+
+      if (apiError.response?.data?.error) {
+        const errorDetails = apiError.response.data.error;
+
+        // Handle validation errors
+        if (errorDetails.code === 'VAL_001' && errorDetails.meta?.errors) {
+          const validationErrors = errorDetails.meta.errors;
+          validationErrors.forEach((err) => {
+            const fieldPath = err.path.replace('body.', '').replace('metric.', '');
+            if (fieldPath === 'value') {
+              setValueError(err.message);
+            } else if (fieldPath === 'companyId') {
+              setError('root.serverError' as any, {
+                type: 'manual',
+                message: 'Invalid company ID. Please contact support.',
+              });
+            } else {
+              setError(fieldPath as any, {
+                type: 'manual',
+                message: err.message,
+              });
+            }
+          });
+        } else {
+          setValueError(errorDetails.message || 'Failed to save metric');
+        }
+        return;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save metric';
+      setValue(
+        'root.serverError' as keyof FormState,
+        {
+          type: 'server',
+          message: errorMessage,
+        } as any
+      );
+    };
+
     if (authLoading) {
       return <LoadingSpinner />;
     }
@@ -843,12 +851,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             label="Value"
             step={selectedMetric?.valueType === METRIC_VALUE_TYPES.NUMBER ? 1 : 0.01}
             {...register('value', {
-              validate: {
-                customValidation: async (value) => {
-                  const error = validateValue(value, selectedMetric);
-                  return error ? false : true;
-                },
-              },
               valueAsNumber: true,
             })}
             onBlur={handleValueValidation}
@@ -856,7 +858,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             error={valueError || errors.value?.message}
             placeholder={getValuePlaceholder(selectedMetric?.valueType as MetricValueType)}
           />
-          {valueError && <StyledErrorMessage>{valueError}</StyledErrorMessage>}
         </div>
 
         <div>
@@ -897,19 +898,6 @@ export const CompanyMetricForm: React.FC<CompanyMetricFormProps> = React.memo(
             {...register('notes')}
             disabled={isSubmitting || externalIsSubmitting}
           />
-          {errors.notes && <span className="error">{errors.notes.message}</span>}
-        </div>
-
-        <div>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              {...register('isVerified')}
-              disabled={isSubmitting || externalIsSubmitting}
-            />
-            <span>Mark as Verified</span>
-          </label>
-          {errors.isVerified && <span className="error">{errors.isVerified.message}</span>}
         </div>
 
         <StyledButtonContainer>

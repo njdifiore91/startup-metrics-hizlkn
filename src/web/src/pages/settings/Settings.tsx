@@ -1,13 +1,7 @@
-/**
- * Settings Page Component
- * Provides secure, role-based interface for managing user preferences and account settings
- * @version 1.0.0
- */
-
 import React from 'react';
 import { Box, Container, Typography, Grid, Paper, TextField, Button } from '@mui/material';
 import { useSelector } from 'react-redux';
-import { RootState } from '../store';
+import { RootState } from '../../store';
 
 const Settings: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -102,4 +96,4 @@ const Settings: React.FC = () => {
   );
 };
 
-export default Settings;
+export default Settings; 

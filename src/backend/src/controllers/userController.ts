@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from 'express'; // ^4.18.2
 import { rateLimit } from 'express-rate-limit'; // ^6.7.0
 import { userService } from '../services/userService';
-import { cacheService } from '../services/cacheService';
 import { logger } from '../utils/logger';
 import { USER_ROLES, hasPermission } from '../constants/roles';
 import { v4 as uuidv4 } from 'uuid'; // ^9.0.0
 import createHttpError from 'http-errors'; // ^2.0.0
 import { AppError } from '../utils/AppError';
+import { HTTP_STATUS } from '../constants/http';
 
 // Rate limiting configuration for user operations
 const userRateLimiter = rateLimit({
@@ -27,6 +27,12 @@ const CACHE_PREFIX = {
   admin: 'admin:user:',
 };
 
+interface SetupUserData {
+  role: keyof typeof USER_ROLES;
+  companyName?: string;
+  revenueRange?: string;
+}
+
 /**
  * Retrieves the currently authenticated user's profile with caching
  * @param req Express request object
@@ -34,38 +40,16 @@ const CACHE_PREFIX = {
  * @param next Express next function
  */
 const getCurrentUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const correlationId = uuidv4();
-  logger.setCorrelationId(correlationId);
-
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      throw createHttpError(401, 'User not authenticated');
+    if (!req.user?.googleId) {
+      throw new AppError('User not authenticated', HTTP_STATUS.UNAUTHORIZED);
     }
-
-    // Check cache first
-    const cacheKey = `${CACHE_PREFIX.user}${userId}`;
-    const cachedUser = await cacheService.get(cacheKey);
-
-    if (cachedUser) {
-      logger.info('User profile retrieved from cache', { userId });
-      res.json({ data: cachedUser, correlationId });
-      return;
-    }
-
-    // Get fresh user data
-    const user = await userService.getUserById(userId);
+    const user = await userService.findByGoogleId(req.user.googleId);
     if (!user) {
-      throw createHttpError(404, 'User not found');
+      throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
     }
-
-    // Cache the result
-    await cacheService.set(cacheKey, user, CACHE_TTL.userProfile);
-
-    logger.info('User profile retrieved from database', { userId });
-    res.json({ data: user, correlationId });
+    res.json(user);
   } catch (error) {
-    logger.error('Error retrieving current user', { error, correlationId });
     next(error);
   }
 };
@@ -77,42 +61,13 @@ const getCurrentUser = async (req: Request, res: Response, next: NextFunction): 
  * @param next Express next function
  */
 const getUserProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const correlationId = uuidv4();
-  logger.setCorrelationId(correlationId);
-
   try {
-    const adminId = req.user?.id;
-    const targetUserId = req.params.userId;
-
-    // Validate admin permissions
-    const hasAdminAccess = await userService.validateUserRole(adminId, USER_ROLES.ADMIN);
-    if (!hasAdminAccess) {
-      throw createHttpError(403, 'Insufficient permissions');
+    const user = await userService.findByGoogleId(req.params.userId);
+    if (!user) {
+      throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
     }
-
-    // Check admin operation cache
-    const cacheKey = `${CACHE_PREFIX.admin}${targetUserId}`;
-    const cachedProfile = await cacheService.get(cacheKey);
-
-    if (cachedProfile) {
-      logger.info('User profile retrieved from admin cache', { targetUserId });
-      res.json({ data: cachedProfile, correlationId });
-      return;
-    }
-
-    // Get fresh user data
-    const userProfile = await userService.getUserById(targetUserId);
-    if (!userProfile) {
-      throw createHttpError(404, 'User not found');
-    }
-
-    // Cache the result
-    await cacheService.set(cacheKey, userProfile, CACHE_TTL.adminOperations);
-
-    logger.info('User profile retrieved by admin', { adminId, targetUserId });
-    res.json({ data: userProfile, correlationId });
+    res.json(user);
   } catch (error) {
-    logger.error('Error retrieving user profile', { error, correlationId });
     next(error);
   }
 };
@@ -124,69 +79,13 @@ const getUserProfile = async (req: Request, res: Response, next: NextFunction): 
  * @param next Express next function
  */
 const updateUserProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const correlationId = uuidv4();
-  logger.setCorrelationId(correlationId);
-
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new AppError('Unauthorized', 401);
+    const updatedUser = await userService.updateUser(req.params.userId, req.body);
+    if (!updatedUser) {
+      throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
     }
-
-    const {
-      name,
-      email,
-      role,
-      isActive,
-      profileImageUrl,
-      tier,
-      revenueRange,
-      metadata
-    } = req.body;
-
-    // Validate revenue range if provided
-    if (revenueRange) {
-      const validRanges = ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'];
-      if (!validRanges.includes(revenueRange)) {
-        throw new AppError('Invalid revenue range specified', 400);
-      }
-    }
-
-    // Update user profile
-    const updatedUser = await userService.updateUser(userId, {
-      name,
-      email,
-      role,
-      isActive,
-      profileImageUrl,
-      tier,
-      revenueRange,
-      metadata
-    });
-
-    logger.info('User profile updated', {
-      userId,
-      correlationId,
-      changes: {
-        name,
-        email,
-        role,
-        isActive,
-        profileImageUrl,
-        tier,
-        revenueRange,
-        metadata
-      }
-    });
-
-    res.json({
-      success: true,
-      data: updatedUser,
-      message: 'Profile updated successfully',
-      correlationId
-    });
+    res.json(updatedUser);
   } catch (error) {
-    logger.error('Error updating user profile', { error, correlationId });
     next(error);
   }
 };
@@ -197,82 +96,84 @@ const updateUserProfile = async (req: Request, res: Response, next: NextFunction
  * @param res Express response object
  * @param next Express next function
  */
-const deactivateUserAccount = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const correlationId = uuidv4();
-  logger.setCorrelationId(correlationId);
-
+const deactivateUserAccount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const adminId = req.user?.id;
-    const targetUserId = req.params.userId;
-
-    // Enhanced admin validation
-    const hasAdminAccess = await userService.validateUserRole(adminId, USER_ROLES.ADMIN);
-    if (!hasAdminAccess) {
-      throw createHttpError(403, 'Insufficient permissions for account deactivation');
-    }
-
-    // Prevent self-deactivation
-    if (adminId === targetUserId) {
-      throw createHttpError(400, 'Administrators cannot deactivate their own accounts');
-    }
-
-    // Perform deactivation
-    await userService.deactivateUser(targetUserId);
-
-    // Clear all user-related caches
-    await Promise.all([
-      cacheService.delete(`${CACHE_PREFIX.user}${targetUserId}`),
-      cacheService.delete(`${CACHE_PREFIX.admin}${targetUserId}`),
-      cacheService.clear(`*:${targetUserId}:*`),
-    ]);
-
-    logger.warn('User account deactivated', {
-      adminId,
-      targetUserId,
-      action: 'account_deactivation',
-    });
-
-    res.json({
-      message: 'Account deactivated successfully',
-      correlationId,
-    });
+    const deactivatedUser = await userService.deactivateUser(req.params.userId);
+    res.json(deactivatedUser);
   } catch (error) {
-    logger.error('Error deactivating user account', { error, correlationId });
     next(error);
   }
 };
 
-export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
+/**
+ * Retrieves all users with optional filtering
+ * @param req Express request object
+ * @param res Express response object
+ * @param next Express next function
+ */
+const getAllUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // Check if user has admin role
-    const userId = req.user?.id;
-    if (!userId) {
-      throw new AppError('Unauthorized', 401);
-    }
-
-    const hasPermission = await userService.validateRole(userId, USER_ROLES.ADMIN);
-    if (!hasPermission) {
-      throw new AppError('Forbidden', 403);
-    }
-
-    const users = await userService.getAllUsers();
-
-    res.status(200).json({
-      success: true,
-      data: users,
-      metadata: {
-        total: users.length,
-        timestamp: new Date().toISOString(),
-      },
+    const { page = 1, limit = 10, role, isActive } = req.query;
+    const result = await userService.getAllUsers({
+      page: Number(page),
+      limit: Number(limit),
+      role: role as string,
+      isActive: isActive === 'true'
     });
+    
+    res.setHeader('X-Total-Count', result.total.toString());
+    res.json(result.users);
   } catch (error) {
-    logger.error('Error in getAllUsers controller:', { error });
     next(error);
   }
+};
+
+/**
+ * Complete user setup with role and company information
+ */
+const completeSetup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!req.user?.id) {
+      throw new AppError('User not authenticated', HTTP_STATUS.UNAUTHORIZED);
+    }
+
+    const { role, companyName, revenueRange } = req.body;
+    
+    // Validate role
+    if (!Object.values(USER_ROLES).includes(role)) {
+      throw new AppError('Invalid user role', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Validate required fields for company users
+    if (role === USER_ROLES.USER) {
+      if (!companyName) {
+        throw new AppError('Company name is required', HTTP_STATUS.BAD_REQUEST);
+      }
+      if (!revenueRange) {
+        throw new AppError('Revenue range is required', HTTP_STATUS.BAD_REQUEST);
+      }
+    }
+
+    // Update user with setup information
+    const updatedUser = await userService.updateUser(req.user.id, {
+      role,
+      companyName,
+      revenueRange,
+      setupCompleted: true
+    });
+
+    if (!updatedUser) {
+      throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
+    }
+
+    res.json(updatedUser);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const validateUserRole = async (userId: string, requiredRole: keyof typeof USER_ROLES): Promise<boolean> => {
+  return userService.validateRole(userId, requiredRole);
 };
 
 // Export controller methods
@@ -282,4 +183,6 @@ export const userController = {
   updateUserProfile,
   deactivateUserAccount,
   getAllUsers,
+  completeSetup,
+  validateUserRole,
 };
