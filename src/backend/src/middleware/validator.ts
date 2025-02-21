@@ -327,3 +327,51 @@ export const validateUserAdminRequest = (
     }
   };
 };
+
+export const validateBenchmarkAdminRequest = (schema: any) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validationOptions = {
+        abortEarly: false, // include all errors
+        allowUnknown: true, // ignore unknown props
+        stripUnknown: true, // remove unknown props
+      };
+
+      // Validate request parameters if they exist
+      if (schema.params) {
+        const { error } = schema.params.validate(req.params, validationOptions);
+        if (error) {
+          const errorMessage = error.details.map((detail: any) => detail.message).join(', ');
+          throw new AppError(`Invalid parameters: ${errorMessage}`, 400);
+        }
+      }
+
+      // Validate request body if it exists
+      if (schema.body) {
+        const { error } = schema.body.validate(req.body, validationOptions);
+        if (error) {
+          const errorMessage = error.details.map((detail: any) => detail.message).join(', ');
+          throw new AppError(`Invalid request body: ${errorMessage}`, 400);
+        }
+      }
+
+      // Validate query parameters if they exist
+      if (schema.query) {
+        const { error } = schema.query.validate(req.query, validationOptions);
+        if (error) {
+          const errorMessage = error.details.map((detail: any) => detail.message).join(', ');
+          throw new AppError(`Invalid query parameters: ${errorMessage}`, 400);
+        }
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Validation error in benchmark admin request', {
+        error: error instanceof Error ? error.message : String(error),
+        path: req.path,
+        method: req.method,
+      });
+      next(error);
+    }
+  };
+};

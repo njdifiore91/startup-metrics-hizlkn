@@ -104,7 +104,7 @@ const StyledCollapse = styled(Collapse)`
   position: relative;
   z-index: 3;
   width: 100%;
-  
+
   .MuiList-root {
     padding-left: var(--spacing-md);
   }
@@ -173,6 +173,13 @@ const getNavItems = (userRole: UserRole): NavItem[] => [
         label: 'Audit Logs',
         path: '/admin/audit-logs',
         icon: <HistoryIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+      {
+        id: 'admin-benchmarks',
+        label: 'Admin Benchmarks',
+        path: '/admin/benchmarks',
+        icon: <AssessmentIcon />,
         visible: hasPermission(userRole, FEATURES.users, 'full'),
       },
     ],
