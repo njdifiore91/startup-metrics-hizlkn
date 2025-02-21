@@ -35,6 +35,8 @@ interface UpdateUserData {
   role?: keyof typeof USER_ROLES;
   isActive?: boolean;
   profileImageUrl?: string;
+  companyName?: string;
+  setupCompleted?: boolean;
   tier?: 'free' | 'pro' | 'enterprise';
   revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
   metadata?: Record<string, unknown>;
@@ -315,7 +317,7 @@ class UserService {
         updatedAt: now,
         profileImageUrl: userData.profileImageUrl,
         version: 1,
-      } as IUser);
+      });
 
       logger.info('Manual user created successfully', { userId: user.id });
       return user;

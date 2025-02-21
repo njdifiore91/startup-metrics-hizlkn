@@ -34,7 +34,7 @@ interface ValidationOptions {
   maxArrayLength?: number;
 }
 
-interface ValidationSchema {
+export interface ValidationSchema {
   body?: Joi.ObjectSchema;
   query?: Joi.ObjectSchema;
   params?: Joi.ObjectSchema;
@@ -44,21 +44,34 @@ interface ValidationSchema {
  * Middleware factory for request validation using Joi schemas
  * @param schema Joi validation schema
  */
-export const validateRequest = (schema: Schema) => {
+export const validateRequest = (schema: ValidationSchema) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Validate request against schema
-      await schema.validateAsync(
-        {
-          body: req.body,
-          query: req.query,
-          params: req.params,
-        },
-        {
+      const validationPromises = [];
+
+      if (schema.body) {
+        validationPromises.push(schema.body.validateAsync(req.body, {
           abortEarly: false,
           stripUnknown: true,
-        }
-      );
+        }));
+      }
+
+      if (schema.query) {
+        validationPromises.push(schema.query.validateAsync(req.query, {
+          abortEarly: false,
+          stripUnknown: true,
+        }));
+      }
+
+      if (schema.params) {
+        validationPromises.push(schema.params.validateAsync(req.params, {
+          abortEarly: false,
+          stripUnknown: true,
+        }));
+      }
+
+      await Promise.all(validationPromises);
 
       next();
     } catch (error) {

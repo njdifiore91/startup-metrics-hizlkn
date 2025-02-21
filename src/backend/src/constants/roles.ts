@@ -48,8 +48,9 @@ export type Feature = (typeof FEATURES)[keyof typeof FEATURES];
  */
 export const USER_ROLES = {
   USER: 'USER',
-  ANALYST: 'ANALYST',
   ADMIN: 'ADMIN',
+  COMPANY: 'COMPANY',
+  ANALYST: 'ANALYST',
 } as const;
 
 /**
@@ -62,13 +63,6 @@ export const ROLE_PERMISSIONS: RolePermissionsType = {
     [FEATURES.metrics]: ['read'] as const,
     [FEATURES.profile]: ['read', 'update'] as const,
   },
-  [USER_ROLES.ANALYST]: {
-    [FEATURES.benchmarkData]: ['read', 'create'] as const,
-    [FEATURES.companyData]: ['read', 'create', 'update'] as const,
-    [FEATURES.metrics]: ['read', 'create'] as const,
-    [FEATURES.profile]: ['read', 'update'] as const,
-    [FEATURES.reports]: ['read', 'create'] as const,
-  },
   [USER_ROLES.ADMIN]: {
     [FEATURES.benchmarkData]: ['full'] as const,
     [FEATURES.companyData]: ['full'] as const,
@@ -76,6 +70,18 @@ export const ROLE_PERMISSIONS: RolePermissionsType = {
     [FEATURES.profile]: ['full'] as const,
     [FEATURES.reports]: ['full'] as const,
     [FEATURES.users]: ['full'] as const,
+  },
+  [USER_ROLES.COMPANY]: {
+    [FEATURES.metrics]: ['view_own_metrics'] as const,
+    [FEATURES.profile]: ['edit_company_profile'] as const,
+    [FEATURES.benchmarkData]: ['view_benchmarks'] as const,
+  },
+  [USER_ROLES.ANALYST]: {
+    [FEATURES.benchmarkData]: ['read', 'create'] as const,
+    [FEATURES.companyData]: ['read', 'create', 'update'] as const,
+    [FEATURES.metrics]: ['read', 'create'] as const,
+    [FEATURES.profile]: ['read', 'update'] as const,
+    [FEATURES.reports]: ['read', 'create'] as const,
   },
 } as const;
 

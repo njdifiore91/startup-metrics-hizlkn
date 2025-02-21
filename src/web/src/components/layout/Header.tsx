@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, memo } from 'react';
-import { useNavigate } from 'react-router-dom'; // v6.0.0
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useMetrics } from '../../hooks/useMetrics';
 import ProfileMenu from '../user/ProfileMenu';
@@ -18,8 +18,13 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = memo(
   ({ className = '', testId = 'main-header', onThemeChange }) => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { loading } = useMetrics();
+    const user = useSelector((state: RootState) => state.user.user);
     const isSidebarOpen = useSelector((state: RootState) => state.ui.isSidebarOpen);
+    const isLoginPage = location.pathname === '/login';
+    const isSetupPage = location.pathname === '/setup';
+    const shouldShowNavigation = !isLoginPage && !isSetupPage && user?.setupCompleted;
 
     // Handle logo click navigation
     const handleLogoClick = useCallback(
@@ -66,14 +71,24 @@ const Header: React.FC<HeaderProps> = memo(
           aria-label="Main navigation"
         >
           <div className="logo-section">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={handleLogoClick}
-              onKeyDown={handleLogoClick}
-              className="logo-container"
-              aria-label="Go to dashboard"
-            >
+            {shouldShowNavigation ? (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={handleLogoClick}
+                onKeyDown={handleLogoClick}
+                className="logo-container"
+                aria-label="Go to dashboard"
+              >
+                <img
+                  src={logo}
+                  alt="Startup Metrics Benchmarking Platform"
+                  className="logo"
+                  width="200"
+                  height="48"
+                />
+              </div>
+            ) : (
               <img
                 src={logo}
                 alt="Startup Metrics Benchmarking Platform"
@@ -81,11 +96,11 @@ const Header: React.FC<HeaderProps> = memo(
                 width="200"
                 height="48"
               />
-            </div>
+            )}
           </div>
 
           <div className="nav-controls">
-            {!loading && (
+            {shouldShowNavigation && !loading && (
               <Button
                 variant="text"
                 size="small"
@@ -105,11 +120,13 @@ const Header: React.FC<HeaderProps> = memo(
               </Button>
             )}
 
-            <ProfileMenu
-              className="profile-menu"
-              ariaLabel="User menu"
-              testId="header-profile-menu"
-            />
+            {!isLoginPage && (
+              <ProfileMenu
+                className="profile-menu"
+                ariaLabel="User menu"
+                testId="header-profile-menu"
+              />
+            )}
           </div>
 
           <style>{`
@@ -143,23 +160,30 @@ const Header: React.FC<HeaderProps> = memo(
               cursor: pointer;
               padding: var(--spacing-sm);
               border-radius: var(--border-radius-sm);
-              transition: background-color var(--transition-fast);
-              background-color: var(--color-background);
+              transition: all 0.3s ease;
+              background-color: transparent;
             }
 
             .logo-container:hover {
-              background-color: var(--color-primary-light);
+              background-color: rgba(33, 150, 243, 0.1);
+              transform: scale(1.02);
             }
 
             .logo-container:focus-visible {
-              outline: var(--focus-ring-width) solid var(--focus-ring-color);
-              outline-offset: var(--focus-ring-offset);
+              outline: 2px solid var(--color-primary);
+              outline-offset: 2px;
             }
 
             .logo {
               height: 32px;
               width: auto;
               user-select: none;
+              filter: brightness(1.1) contrast(1.1);
+              transition: all 0.3s ease;
+            }
+
+            .logo:hover {
+              filter: brightness(1.2) contrast(1.2);
             }
 
             .nav-controls {
@@ -201,7 +225,8 @@ const Header: React.FC<HeaderProps> = memo(
 
             @media (prefers-reduced-motion: reduce) {
               .logo-container,
-              .theme-toggle {
+              .theme-toggle,
+              .logo {
                 transition: none;
               }
             }

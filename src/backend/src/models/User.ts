@@ -14,6 +14,10 @@ export interface IUser {
   lastLoginAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  tokenVersion: number;
+  isNewUser?: boolean;
+  setupCompleted: boolean;
+  companyName?: string;
 }
 
 class User extends Model<IUser> implements IUser {
@@ -28,6 +32,9 @@ class User extends Model<IUser> implements IUser {
   public lastLoginAt!: Date;
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+  public tokenVersion!: number;
+  public setupCompleted!: boolean;
+  public companyName?: string;
 }
 
 User.init(
@@ -84,7 +91,21 @@ User.init(
     updatedAt: {
       type: DataTypes.DATE,
       allowNull: false,
-    }
+    },
+    tokenVersion: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    setupCompleted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    companyName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     sequelize,

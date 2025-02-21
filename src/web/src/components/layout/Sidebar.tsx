@@ -4,29 +4,35 @@
  * @version 1.0.0
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
-import { Drawer, IconButton } from '@mui/material';
+import React, { useEffect, useRef } from 'react';
+import { Drawer, IconButton, List, ListItem, ListItemIcon, ListItemText } from '@mui/material';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { Theme, useTheme } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
-import { Navigation } from './Navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { UI_CONSTANTS } from '../../config/constants';
 import styled from '@emotion/styled';
-
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
+import SettingsIcon from '@mui/icons-material/Settings';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import PeopleIcon from '@mui/icons-material/People';
+import BuildIcon from '@mui/icons-material/Build';
+import HistoryIcon from '@mui/icons-material/History';
 // Constants
 const DRAWER_WIDTH = 240;
 const COLLAPSED_WIDTH = 64;
 const TRANSITION_DURATION = 225;
-const KEYBOARD_SHORTCUTS = {
-  TOGGLE: 'mod+b',
-} as const;
 
 // Interfaces
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
-  onError?: (error: Error) => void;
+  onNavigate: (path: string) => void;
+  onError: (error: Error) => void;
   className?: string;
   ariaLabel?: string;
 }
@@ -124,11 +130,12 @@ const NavigationContainer = styled.div`
  * Enhanced Sidebar component with accessibility and performance optimizations
  */
 export const Sidebar: React.FC<SidebarProps> = React.memo(
-  ({ isOpen, onToggle, onError, className, ariaLabel = 'Main Sidebar Navigation' }) => {
+  ({ isOpen, onToggle, onNavigate, onError, className, ariaLabel = 'Main Sidebar Navigation' }) => {
     const theme = useTheme();
     const { isAuthenticated } = useAuth();
     const isMobile = useMediaQuery(`(max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE})`);
     const sidebarRef = useRef<HTMLDivElement>(null);
+    const user = useSelector((state: RootState) => state.auth.user);
 
     // Handle keyboard shortcuts
     useEffect(() => {
@@ -152,6 +159,97 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
         }
       }
     }, [isOpen]);
+
+    const getMenuItems = (userRole: string) => {
+      const baseItems = [
+        {
+          text: 'Dashboard',
+          icon: <DashboardIcon />,
+          path: '/dashboard'
+        }
+      ];
+
+      const roleSpecificItems = {
+        ANALYST: [
+          {
+            text: 'Analytics',
+            icon: <AnalyticsIcon />,
+            path: '/analytics'
+          },
+          {
+            text: 'Benchmarks',
+            icon: <TimelineIcon />,
+            path: '/benchmarks'
+          },
+          {
+            text: 'Company Metrics',
+            icon: <AssessmentIcon />,
+            path: '/company-metrics'
+          }
+        ],
+        USER: [
+          {
+            text: 'Benchmarks',
+            icon: <TimelineIcon />,
+            path: '/benchmarks'
+          },
+          {
+            text: 'Metrics',
+            icon: <AssessmentIcon />,
+            path: '/metrics'
+          }
+        ],
+        ADMIN: [
+          {
+            text: 'Analytics',
+            icon: <AnalyticsIcon />,
+            path: '/analytics'
+          },
+          {
+            text: 'Benchmarks',
+            icon: <TimelineIcon />,
+            path: '/benchmarks'
+          },
+          {
+            text: 'User Management',
+            icon: <PeopleIcon />,
+            path: '/admin/users'
+          },
+          {
+            text: 'Audit Logs',
+            icon: <HistoryIcon />,
+            path: '/admin/audit-logs'
+          },
+          {
+            text: 'Admin Settings',
+            icon: <BuildIcon />,
+            path: '/admin/settings'
+          }
+        ]
+      };
+
+      const settingsItem = {
+        text: 'Settings',
+        icon: <SettingsIcon />,
+        path: '/settings'
+      };
+
+      return [
+        ...baseItems,
+        ...(roleSpecificItems[userRole as keyof typeof roleSpecificItems] || []),
+        settingsItem
+      ];
+    };
+
+    const menuItems = getMenuItems(user?.role || 'USER');
+
+    const handleClick = (path: string) => {
+      try {
+        onNavigate(path);
+      } catch (error) {
+        onError(error instanceof Error ? error : new Error('Navigation failed'));
+      }
+    };
 
     if (!isAuthenticated) {
       return null;
@@ -182,12 +280,18 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
           </ToggleButton>
         </DrawerHeader>
         <NavigationContainer id="sidebar-content" role="region" aria-label={ariaLabel}>
-          <Navigation
-            isCollapsed={!isOpen}
-            theme={theme}
-            ariaLabel={ariaLabel}
-            onNavigationError={onError}
-          />
+          <List>
+            {menuItems.map((item) => (
+              <ListItem
+                button
+                key={item.text}
+                onClick={() => handleClick(item.path)}
+              >
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} />
+              </ListItem>
+            ))}
+          </List>
         </NavigationContainer>
       </StyledDrawer>
     );

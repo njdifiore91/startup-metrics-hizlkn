@@ -1,226 +1,51 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import CryptoJS from 'crypto-js';
-import { IUser } from '../interfaces/IUser';
-import { authConfig } from '../config/auth';
-/**
- * Enum for tracking session status
- */
-export enum SessionStatus {
-  ACTIVE = 'ACTIVE',
-  IDLE = 'IDLE',
-  EXPIRED = 'EXPIRED',
-  LOCKED = 'LOCKED',
-}
+import { IUser } from '../interfaces/types';
 
-/**
- * Interface for user preferences
- */
-export interface UserPreferences {
-  theme: 'light' | 'dark' | 'system';
-  language: string;
-  notifications: {
-    email: boolean;
-    browser: boolean;
-    security: boolean;
-  };
-  twoFactorEnabled: boolean;
-}
-
-/**
- * Interface for structured authentication errors
- */
-export interface AuthError {
-  code: string;
-  message: string;
-  details: Record<string, unknown>;
-}
-
-/**
- * Interface for authentication state
- */
-export interface AuthState {
+interface AuthState {
   user: IUser | null;
-  token: string | null;
+  accessToken: string | null;
   refreshToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: AuthError | null;
-  lastActivity: Date | null;
-  tokenExpiration: Date | null;
-  sessionStatus: SessionStatus;
 }
 
-/**
- * Initial authentication state
- */
+// Initialize state from localStorage
+const storedUser = localStorage.getItem('user');
+const storedAccessToken = localStorage.getItem('accessToken');
+
 const initialState: AuthState = {
-  user: null,
-  token: null,
-  refreshToken: null,
-  isAuthenticated: false,
-  isLoading: false,
-  error: null,
-  lastActivity: null,
-  tokenExpiration: null,
-  sessionStatus: SessionStatus.IDLE,
+  user: storedUser ? JSON.parse(storedUser) : null,
+  accessToken: storedAccessToken || null,
+  refreshToken: localStorage.getItem('refreshToken')
 };
 
-/**
- * Encryption key for token storage
- * @constant
- */
-const ENCRYPTION_KEY = import.meta.env.VITE_TOKEN_ENCRYPTION_KEY || 'default-secure-key';
-
-/**
- * Helper function to encrypt sensitive data
- */
-const encryptData = (data: string): string => {
-  return CryptoJS.AES.encrypt(data, ENCRYPTION_KEY).toString();
-};
-
-/**
- * Helper function to decrypt sensitive data
- */
-const decryptData = (encryptedData: string): string => {
-  const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-  return bytes.toString(CryptoJS.enc.Utf8);
-};
-
-/**
- * Redux slice for authentication state management
- */
-export const authSlice = createSlice({
+const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setUser: (state, action: PayloadAction<IUser | null>) => {
-      state.user = action.payload;
-      state.isAuthenticated = !!action.payload;
-      state.lastActivity = action.payload ? new Date() : null;
-      state.sessionStatus = action.payload ? SessionStatus.ACTIVE : SessionStatus.IDLE;
-    },
-
-    setTokens: (
-      state,
-      action: PayloadAction<{ token: string; refreshToken: string; expiration: Date }>
-    ) => {
-      const { token, refreshToken, expiration } = action.payload;
-
-      // Store unencrypted tokens in state for immediate use
-      state.token = token;
+    setCredentials: (state, action: PayloadAction<{ user: IUser; accessToken: string; refreshToken: string }>) => {
+      const { user, accessToken, refreshToken } = action.payload;
+      state.user = user;
+      state.accessToken = accessToken;
       state.refreshToken = refreshToken;
-      state.tokenExpiration = expiration;
-      state.isAuthenticated = true;
-      state.sessionStatus = SessionStatus.ACTIVE;
-
-      // Encrypt tokens for storage
-      const encryptedToken = encryptData(token);
-      const encryptedRefreshToken = encryptData(refreshToken);
-
-      // Store encrypted tokens in secure storage
-      localStorage.setItem(authConfig.tokenStorageKey, encryptedToken);
-      localStorage.setItem(authConfig.refreshTokenStorageKey, encryptedRefreshToken);
-    },
-
-    refreshTokens: (state) => {
-      if (!state.tokenExpiration) return;
-
-      const now = new Date();
-      const timeUntilExpiry = state.tokenExpiration.getTime() - now.getTime();
-
-      if (timeUntilExpiry <= authConfig.tokenRefreshThreshold * 1000) {
-        state.isLoading = true;
-        state.error = null;
+      
+      // Persist to localStorage
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('accessToken', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
       }
     },
-
-    updateActivity: (state) => {
-      const now = new Date();
-      state.lastActivity = now;
-
-      if (state.tokenExpiration) {
-        const timeUntilExpiry = state.tokenExpiration.getTime() - now.getTime();
-
-        if (timeUntilExpiry <= 0) {
-          state.sessionStatus = SessionStatus.EXPIRED;
-        } else if (timeUntilExpiry <= authConfig.tokenRefreshThreshold * 1000) {
-          // Trigger token refresh when within threshold
-          state.sessionStatus = SessionStatus.ACTIVE;
-        }
-      }
-    },
-
-    setSessionStatus: (state, action: PayloadAction<SessionStatus>) => {
-      state.sessionStatus = action.payload;
-    },
-
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.isLoading = action.payload;
-    },
-
-    setError: (state, action: PayloadAction<AuthError | null>) => {
-      state.error = action.payload;
-      state.isLoading = false;
-    },
-
-    updateUserSettings: (state, action: PayloadAction<UserPreferences>) => {
-      if (state.user) {
-        state.user = {
-          ...state.user,
-          preferences: action.payload,
-        };
-      }
-    },
-
     logout: (state) => {
-      // Clear all authentication state
       state.user = null;
-      state.token = null;
+      state.accessToken = null;
       state.refreshToken = null;
-      state.isAuthenticated = false;
-      state.lastActivity = null;
-      state.tokenExpiration = null;
-      state.sessionStatus = SessionStatus.EXPIRED;
-
-      // Remove tokens from storage
-      localStorage.removeItem(authConfig.tokenStorageKey);
-      localStorage.removeItem(authConfig.refreshTokenStorageKey);
-    },
-
-    setAuthenticated: (state, action: PayloadAction<boolean>) => {
-      state.isAuthenticated = action.payload;
-    },
-  },
+      
+      // Clear localStorage
+      localStorage.removeItem('user');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+    }
+  }
 });
 
-// Export actions and reducer
-export const authActions = authSlice.actions;
+export const { setCredentials, logout } = authSlice.actions;
 export default authSlice.reducer;
-
-/**
- * Selector for checking if token refresh is needed
- */
-export const selectNeedsTokenRefresh = (state: { auth: AuthState }): boolean => {
-  if (!state.auth.tokenExpiration) return false;
-
-  const now = new Date();
-  const timeUntilExpiry = state.auth.tokenExpiration.getTime() - now.getTime();
-
-  return timeUntilExpiry <= authConfig.tokenRefreshThreshold * 1000;
-};
-
-/**
- * Selector for getting decrypted token
- */
-export const selectDecryptedToken = (state: { auth: AuthState }): string | null => {
-  if (!state.auth.token) return null;
-  return decryptData(state.auth.token);
-};
-
-/**
- * Selector for getting decrypted refresh token
- */
-export const selectDecryptedRefreshToken = (state: { auth: AuthState }): string | null => {
-  if (!state.auth.refreshToken) return null;
-  return decryptData(state.auth.refreshToken);
-};

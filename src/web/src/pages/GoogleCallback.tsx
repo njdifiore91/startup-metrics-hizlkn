@@ -1,61 +1,49 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { authService } from '../services/auth';
-import { authActions } from '../store/authSlice';
+import { handleGoogleCallback } from '../services/auth';
+import { setCredentials } from '../store/authSlice';
+import { Box, CircularProgress, Typography } from '@mui/material';
 
 export const GoogleCallback = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const location = useLocation();
+  const dispatch = useDispatch();
   const isProcessing = useRef(false);
 
   useEffect(() => {
-    const handleCallback = async () => {
-      if (isProcessing.current) {
-        return;
-      }
+    const processCallback = async () => {
+      if (isProcessing.current) return;
+      isProcessing.current = true;
 
       try {
-        isProcessing.current = true;
-        
-        // Get the code from URL parameters using location.search
         const searchParams = new URLSearchParams(location.search);
-        console.log('Search params:', Object.fromEntries(searchParams.entries()));
-        
-        // Check for error from Google
-        const error = searchParams.get('error');
-        if (error) {
-          console.error('Google OAuth error:', error);
-          const errorDescription = searchParams.get('error_description');
-          throw new Error(errorDescription || 'Google authentication failed');
-        }
-
         const code = searchParams.get('code');
+
         if (!code) {
-          console.error('No authorization code received from Google');
           throw new Error('No authorization code received');
         }
 
-        console.log('Received authorization code:', code);
+        const response = await handleGoogleCallback(code);
+        console.log('Google callback response:', response);
 
-        // Exchange code for tokens
-        const response = await authService.handleGoogleCallback(code);
-        console.log('Token exchange successful');
-        
-        // Update Redux store
-        dispatch(authActions.setUser(response.user));
-        dispatch(authActions.setTokens({
-          token: response.token,
-          refreshToken: response.refreshToken,
-          expiration: new Date(response.expiresAt)
+        if (!response || !response.user) {
+          throw new Error('Invalid response from server');
+        }
+
+        // Update Redux store with user and tokens
+        dispatch(setCredentials({
+          user: response.user,
+          accessToken: response.accessToken,
+          refreshToken: response.refreshToken
         }));
 
-        // Clear the URL parameters
-        window.history.replaceState({}, document.title, '/auth/google/callback');
-        
-        // Redirect to dashboard
-        navigate('/dashboard', { replace: true });
+        // Redirect based on setup status
+        if (!response.user.setupCompleted) {
+          navigate('/setup', { replace: true });
+        } else {
+          navigate(response.user.role === 'ANALYST' ? '/analytics' : '/company-dashboard', { replace: true });
+        }
       } catch (error) {
         console.error('Failed to handle Google callback:', error);
         navigate('/login', { 
@@ -67,16 +55,22 @@ export const GoogleCallback = () => {
       }
     };
 
-    handleCallback();
+    processCallback();
   }, [location.search, navigate, dispatch]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Completing sign in...</p>
-      </div>
-    </div>
+    <Box
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      minHeight="100vh"
+    >
+      <CircularProgress size={48} />
+      <Typography variant="body1" sx={{ mt: 2 }}>
+        Completing sign in...
+      </Typography>
+    </Box>
   );
 };
 

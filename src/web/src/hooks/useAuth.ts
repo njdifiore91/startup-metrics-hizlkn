@@ -4,215 +4,117 @@
  * @version 1.0.0
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { AuthService } from '../services/auth';
-import { authActions, SessionStatus, AuthError } from '../store/authSlice';
-import type { IUser } from '../interfaces/IUser';
-import type { RootState } from '../store';
+import { RootState } from '../store';
+import { api } from '../services/api';
+import { setCredentials, logout } from '../store/authSlice';
 
-// Constants for security and session management
-const REFRESH_BEFORE_EXPIRY = 300000; // Refresh 5 minutes before token expires
-const MAX_AUTH_ATTEMPTS = 3;
-const AUTH_ATTEMPT_TIMEOUT = 300000; // 5 minutes
+// Cache duration in milliseconds (15 minutes)
+const VALIDATION_CACHE_DURATION = 15 * 60 * 1000;
+const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes before expiry
 
-export interface AuthResponse {
-  user: IUser;
-  token: string;
-  refreshToken: string;
-  expiresAt: number;
-}
-/**
- * Interface for authentication attempts tracking
- */
-interface AuthAttempt {
-  count: number;
-  lastAttempt: number;
-  locked: boolean;
-}
-
-export interface UpdateUserSettingsParams {
-  userId: string;
-  preferences: {
-    theme: 'light' | 'dark' | 'system';
-    language: string;
-    notifications: {
-      email: boolean;
-      browser: boolean;
-      security: boolean;
-    };
-    twoFactorEnabled: boolean;
-  };
-}
-
-/**
- * Interface for the useAuth hook return value
- */
-interface UseAuthReturn {
-  user: IUser | null;
-  isLoading: boolean;
-  error: AuthError | null;
-  isAuthenticated: boolean;
-  sessionStatus: SessionStatus;
-  login: () => Promise<void>;
-  logout: () => Promise<void>;
-  refreshToken: () => Promise<string>;
-  validateSession: () => Promise<boolean>;
-  updateUserSettings: (params: UpdateUserSettingsParams) => Promise<void>;
-}
-
-/**
- * Enhanced authentication hook with security features and session management
- */
-export const useAuth = (): UseAuthReturn => {
+export const useAuth = () => {
   const dispatch = useDispatch();
-  const authServiceRef = useRef<AuthService>();
+  const { user, accessToken, refreshToken } = useSelector((state: RootState) => state.auth);
+  const [isLoading, setIsLoading] = useState(false);
+  const lastValidationTime = useRef<number>(0);
+  const validationInProgress = useRef<boolean>(false);
 
-  // Initialize auth service only once
-  if (!authServiceRef.current) {
-    authServiceRef.current = new AuthService();
-  }
-  const authService = authServiceRef.current;
-
-  // Select auth state from Redux store with proper typing
-  const user = useSelector((state: RootState) => state.auth.user);
-  const isLoading = useSelector((state: RootState) => state.auth.isLoading);
-  const error = useSelector((state: RootState) => state.auth.error);
-  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
-  const sessionStatus = useSelector((state: RootState) => state.auth.sessionStatus);
-
-  // Handle token refresh failure
-  const handleTokenRefreshFailure = useCallback(() => {
-    dispatch(authActions.logout());
-    window.location.href = '/login';
-  }, [dispatch]);
-
-  // Listen for auth state changes
   useEffect(() => {
-    let mounted = true;
-    const handleAuthStateChange = (
-      event: CustomEvent<{
-        isAuthenticated: boolean;
-        user: IUser | null;
-        token: string | null;
-        refreshToken: string | null;
-        tokenExpiration: Date | null;
-      }>
-    ) => {
-      if (!mounted) return;
-      const { isAuthenticated, user, token, refreshToken, tokenExpiration } = event.detail;
+    // Set auth header when token changes
+    if (accessToken) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+    } else {
+      delete api.defaults.headers.common['Authorization'];
+    }
+  }, [accessToken]);
 
-      if (!isAuthenticated || !user || !token) {
-        dispatch(authActions.logout());
-        return;
+  const refreshAccessToken = async (): Promise<boolean> => {
+    if (!refreshToken) return false;
+
+    try {
+      const response = await api.post('/api/v1/auth/refresh', { refreshToken });
+      if (response.data?.accessToken) {
+        dispatch(setCredentials({
+          user: user!,
+          accessToken: response.data.accessToken,
+          refreshToken: response.data.refreshToken || refreshToken
+        }));
+        return true;
       }
+      return false;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      return false;
+    }
+  };
 
-      // Update Redux store
-      dispatch(authActions.setUser(user));
-      dispatch(
-        authActions.setTokens({
-          token,
-          refreshToken: refreshToken || '',
-          expiration: tokenExpiration || new Date(Date.now() + 3600 * 1000),
-        })
-      );
-      dispatch(authActions.setAuthenticated(isAuthenticated));
-      dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
-    };
+  const validateSession = async (): Promise<boolean> => {
+    if (!accessToken) return false;
+    
+    // Check if validation is in progress
+    if (validationInProgress.current) {
+      return !!user;
+    }
 
-    window.addEventListener('auth-state-change', handleAuthStateChange as EventListener);
+    // Check if we're within cache duration
+    const now = Date.now();
+    if (now - lastValidationTime.current < VALIDATION_CACHE_DURATION) {
+      return !!user;
+    }
+    
+    try {
+      validationInProgress.current = true;
+      setIsLoading(true);
 
-    // Check for existing auth on mount only
-    const checkExistingAuth = async () => {
-      if (!mounted) return;
+      // Try to validate the session
       try {
-        const tokens = authService.getStoredTokens();
-        if (tokens) {
-          // Set initial tokens in Redux store
-          dispatch(
-            authActions.setTokens({
-              token: tokens.token,
-              refreshToken: tokens.refreshToken,
-              expiration: new Date(Date.now() + 3600 * 1000),
-            })
-          );
-
-          // Try to validate session and get user data
-          const isValid = await authService.validateSession();
-          if (isValid && mounted) {
-            const currentUser = authService.getCurrentUser();
-            if (currentUser) {
-              dispatch(authActions.setUser(currentUser));
-              dispatch(authActions.setAuthenticated(true));
-              dispatch(authActions.setSessionStatus(SessionStatus.ACTIVE));
+        const response = await api.get('/api/v1/users/me');
+        if (response.data?.user) {
+          dispatch(setCredentials({
+            user: response.data.user,
+            accessToken,
+            refreshToken: refreshToken || ''
+          }));
+          lastValidationTime.current = now;
+          return true;
+        }
+      } catch (error: any) {
+        // If we get a 401/403, try to refresh the token
+        if (error?.response?.status === 401 || error?.response?.status === 403) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            // Retry the validation with new token
+            const retryResponse = await api.get('/api/v1/users/me');
+            if (retryResponse.data?.user) {
+              lastValidationTime.current = now;
+              return true;
             }
-          } else if (mounted) {
-            handleTokenRefreshFailure();
           }
         }
-      } catch (error) {
-        console.error('Failed to check existing auth:', error);
-        if (mounted) {
-          handleTokenRefreshFailure();
-        }
+        throw error;
       }
-    };
+      
+      return false;
+    } catch (error) {
+      console.error('Session validation failed:', error);
+      // Only logout if refresh token also failed
+      dispatch(logout());
+      return false;
+    } finally {
+      setIsLoading(false);
+      validationInProgress.current = false;
+    }
+  };
 
-    checkExistingAuth();
-
-    return () => {
-      mounted = false;
-      window.removeEventListener('auth-state-change', handleAuthStateChange as EventListener);
-    };
-  }, [dispatch, authService, handleTokenRefreshFailure]);
-
-  // Return the hook interface
   return {
     user,
+    isAuthenticated: !!user && !!accessToken,
+    accessToken,
     isLoading,
-    error,
-    isAuthenticated,
-    sessionStatus,
-    login: useCallback(async () => {
-      try {
-        await authService.loginWithGoogle();
-      } catch (error) {
-        console.error('Login failed:', error);
-        throw error;
-      }
-    }, [authService]),
-    logout: useCallback(async () => {
-      try {
-        await authService.logout();
-        dispatch(authActions.logout());
-        window.location.href = '/login';
-      } catch (error) {
-        console.error('Logout failed:', error);
-        dispatch(authActions.logout());
-        window.location.href = '/login';
-      }
-    }, [authService, dispatch]),
-    refreshToken: useCallback(async () => {
-      try {
-        return await authService.refreshAuthToken();
-      } catch (error) {
-        console.error('Token refresh failed:', error);
-        handleTokenRefreshFailure();
-        throw error;
-      }
-    }, [authService, handleTokenRefreshFailure]),
-    validateSession: useCallback(async () => {
-      try {
-        return await authService.validateSession();
-      } catch (error) {
-        console.error('Session validation failed:', error);
-        handleTokenRefreshFailure();
-        return false;
-      }
-    }, [authService, handleTokenRefreshFailure]),
-    updateUserSettings: useCallback(
-      (params: UpdateUserSettingsParams) => authService.updateUserSettings(params),
-      [authService]
-    ),
+    validateSession,
+    refreshAccessToken,
+    logout: () => dispatch(logout())
   };
 };

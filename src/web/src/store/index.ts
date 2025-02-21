@@ -1,4 +1,5 @@
 import { configureStore, combineReducers, createListenerMiddleware } from '@reduxjs/toolkit'; // v1.9.5
+import userReducer from './userSlice';
 import authReducer from './authSlice';
 import metricsReducer from './metricsSlice';
 import benchmarkReducer from './benchmarkSlice';
@@ -65,6 +66,7 @@ const performanceMiddleware: Middleware =
  * Combined root reducer with all feature slices
  */
 const rootReducer = combineReducers({
+  user: userReducer,
   auth: authReducer,
   metrics: metricsReducer,
   benchmarks: benchmarkReducer,
@@ -121,7 +123,7 @@ if (import.meta.env.NODE_ENV === 'development') {
   store.subscribe(() => {
     const state = store.getState();
     // Validate state structure
-    const requiredSlices = ['auth', 'metrics', 'benchmarks', 'companyMetrics', 'ui'];
+    const requiredSlices = ['user', 'auth', 'metrics', 'benchmarks', 'companyMetrics', 'ui'];
     requiredSlices.forEach((slice) => {
       if (!isValidStateSlice(state, slice)) {
         console.error(`Missing required state slice: ${slice}`);

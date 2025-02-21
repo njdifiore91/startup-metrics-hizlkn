@@ -18,6 +18,7 @@ import metricsRoutes from './metricsRoutes';
 import benchmarkRoutes from './benchmarkRoutes';
 import initializeCompanyMetricsRoutes from './companyMetricsRoutes';
 import dataSourcesRoutes from './dataSourcesRoutes';
+import userRoutes from './userRoutes';
 
 // Import controllers and services
 import { CompanyMetricsController } from '../controllers/companyMetricsController';
@@ -116,6 +117,7 @@ router.use('/benchmarks', benchmarkRoutes);
 router.use('/company-metrics', initializeCompanyMetricsRoutes(companyMetricsController));
 router.use('/data-sources', dataSourcesRoutes);
 router.use('/admin', adminRoutes);
+router.use('/users', userRoutes);
 
 // Apply error handling middleware last
 router.use(errorHandler);

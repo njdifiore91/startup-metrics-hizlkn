@@ -19,14 +19,17 @@ export interface ICompanyMetric {
   /** Numerical value of the metric */
   value: number;
 
+  /** Previous value of the metric for trend comparison */
+  previousValue?: number;
+
   /** Date when the metric was recorded */
   date: string;
 
   /** Source of the metric data */
-  source: string;
+  source?: string;
 
   /** Whether the metric has been verified */
-  isVerified: boolean;
+  isVerified?: boolean;
 
   /** Reference to the user who verified the metric */
   verifiedBy?: string | null;
@@ -38,7 +41,7 @@ export interface ICompanyMetric {
   notes?: string;
 
   /** Whether the metric is currently active and visible */
-  isActive: boolean;
+  isActive?: boolean;
 
   /** Reference to the full metric definition */
   metric?: IMetric;

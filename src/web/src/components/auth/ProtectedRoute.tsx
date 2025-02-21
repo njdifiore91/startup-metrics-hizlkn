@@ -6,15 +6,18 @@
  */
 
 import React, { FC, PropsWithChildren, useEffect, memo, useRef } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { theme } from '../../config/theme';
 
 // Route constants
 const LOGIN_ROUTE = '/login';
-const DASHBOARD_ROUTE = '/dashboard';
 const DEFAULT_REDIRECT = '/unauthorized';
+const DASHBOARD_ROUTE = '/dashboard';
+
+// Validation interval - Increased to reduce frequency of checks
+const VALIDATION_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Valid user roles for the application
@@ -62,33 +65,46 @@ const validateUserRole = (
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = memo(
   ({ children, allowedRoles, redirectPath = DEFAULT_REDIRECT }) => {
-    const { isAuthenticated, isLoading, user, validateSession } = useAuth();
+    const { isAuthenticated, isLoading, user, validateSession, accessToken } = useAuth();
     const validationTimeoutRef = useRef<NodeJS.Timeout>();
     const lastValidationRef = useRef<number>(0);
+    const location = useLocation();
+    const isInitialMount = useRef(true);
 
-    // Validate session only on mount and with debouncing
+    // Validate session with improved logic
     useEffect(() => {
       let mounted = true;
 
       const validateAuth = async () => {
-        if (!isAuthenticated || !mounted) return;
+        if (!mounted) return;
 
-        // Implement debouncing
         const now = Date.now();
-        if (now - lastValidationRef.current < 5000) { // 5 second debounce
+        // Skip validation if we're within the interval
+        if (now - lastValidationRef.current < VALIDATION_INTERVAL) {
           return;
         }
-        lastValidationRef.current = now;
 
         try {
-          await validateSession();
+          // Only validate if we have a token but need validation
+          if (accessToken && (!user || !isAuthenticated)) {
+            const isValid = await validateSession();
+            if (mounted && isValid) {
+              lastValidationRef.current = now;
+            }
+          } else if (user && isAuthenticated) {
+            // If we're already authenticated, just update the timestamp
+            lastValidationRef.current = now;
+          }
         } catch (error) {
           console.error('Session validation failed:', error);
         }
       };
 
-      // Add slight delay to prevent race conditions with other components
-      validationTimeoutRef.current = setTimeout(validateAuth, 1500);
+      // Only run validation on mount or when auth state changes
+      if (isInitialMount.current || !lastValidationRef.current) {
+        validateAuth();
+        isInitialMount.current = false;
+      }
 
       return () => {
         mounted = false;
@@ -96,10 +112,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = memo(
           clearTimeout(validationTimeoutRef.current);
         }
       };
-    }, []); // Only run on mount
+    }, [isAuthenticated, user, validateSession, accessToken]);
 
-    // Show loading spinner while authenticating
-    if (isLoading) {
+    // Show loading spinner only during initial load
+    if (isLoading && isInitialMount.current) {
       return (
         <div
           style={{
@@ -122,12 +138,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = memo(
     }
 
     // Redirect to login if not authenticated
-    if (!isAuthenticated) {
-      return <Navigate to={LOGIN_ROUTE} replace />;
+    if (!isAuthenticated || !user) {
+      return <Navigate to={LOGIN_ROUTE} state={{ from: location }} replace />;
+    }
+
+    // Redirect to setup if not completed
+    if (!user.setupCompleted && location.pathname !== '/setup') {
+      return <Navigate to="/setup" replace />;
     }
 
     // Check role-based access
-    if (!validateUserRole(user?.role, allowedRoles)) {
+    if (!validateUserRole(user.role, allowedRoles)) {
       return <Navigate to={redirectPath} replace />;
     }
 
