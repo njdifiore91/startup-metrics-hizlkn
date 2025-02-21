@@ -1,5 +1,6 @@
 import React from 'react'; // ^18.2.0
 import classNames from 'classnames'; // ^2.3.2
+import styled from '@emotion/styled';
 import '../../styles/theme.css';
 
 interface CardProps {
@@ -13,6 +14,51 @@ interface CardProps {
   role?: string;
 }
 
+interface StyledCardProps {
+  elevation: 'none' | 'low' | 'medium' | 'high';
+  interactive: boolean;
+}
+
+const StyledCard = styled.div<StyledCardProps>`
+  background-color: var(--color-background);
+  border-radius: var(--border-radius-md);
+  padding: var(--card-padding);
+  box-shadow: ${({ elevation }) =>
+    elevation === 'none'
+      ? 'none'
+      : elevation === 'low'
+      ? 'var(--shadow-sm)'
+      : elevation === 'medium'
+      ? 'var(--shadow-md)'
+      : 'var(--shadow-lg)'};
+  transition: all var(--transition-fast);
+  outline: none;
+  cursor: ${({ interactive }) => (interactive ? 'pointer' : 'default')};
+  position: relative;
+
+  ${({ interactive }) =>
+    interactive &&
+    `
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--focus-ring-color);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  `}
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`;
+
 const Card: React.FC<CardProps> = React.memo(({
   children,
   className,
@@ -23,14 +69,6 @@ const Card: React.FC<CardProps> = React.memo(({
   ariaLabel,
   role = 'region',
 }) => {
-  // Compute elevation styles based on prop
-  const elevationStyles = {
-    none: 'none',
-    low: 'var(--shadow-sm)',
-    medium: 'var(--shadow-md)',
-    high: 'var(--shadow-lg)',
-  };
-
   // Combine class names
   const cardClasses = classNames(
     'card',
@@ -49,7 +87,7 @@ const Card: React.FC<CardProps> = React.memo(({
   };
 
   return (
-    <div
+    <StyledCard
       className={cardClasses}
       onClick={interactive ? onClick : undefined}
       onKeyDown={handleKeyDown}
@@ -57,32 +95,11 @@ const Card: React.FC<CardProps> = React.memo(({
       aria-label={ariaLabel}
       tabIndex={interactive ? 0 : undefined}
       data-testid={testId}
-      style={{
-        backgroundColor: 'var(--color-background)',
-        borderRadius: 'var(--border-radius-md)',
-        padding: 'var(--card-padding)',
-        boxShadow: elevationStyles[elevation],
-        transition: 'all var(--transition-fast)',
-        outline: 'none',
-        cursor: interactive ? 'pointer' : 'default',
-        position: 'relative',
-        ...interactive && {
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: elevationStyles[elevation === 'high' ? 'high' : 'medium'],
-          },
-          '&:focus-visible': {
-            outline: `var(--focus-ring-width) solid var(--focus-ring-color)`,
-            outlineOffset: 'var(--focus-ring-offset)',
-          },
-          '&:active': {
-            transform: 'translateY(0)',
-          },
-        },
-      }}
+      elevation={elevation}
+      interactive={interactive}
     >
       {children}
-    </div>
+    </StyledCard>
   );
 });
 

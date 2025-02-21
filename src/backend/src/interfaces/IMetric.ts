@@ -21,6 +21,32 @@ interface IValidationRules {
   }[];
 }
 
+export enum MetricType {
+  REVENUE = 'REVENUE',
+  EXPENSES = 'EXPENSES',
+  PROFIT = 'PROFIT',
+  USERS = 'USERS',
+  GROWTH = 'GROWTH',
+  CHURN = 'CHURN',
+  ENGAGEMENT = 'ENGAGEMENT',
+  CONVERSION = 'CONVERSION'
+}
+
+export enum ValueType {
+  NUMBER = 'NUMBER',
+  CURRENCY = 'CURRENCY',
+  PERCENTAGE = 'PERCENTAGE',
+  RATIO = 'RATIO'
+}
+
+export enum Frequency {
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  MONTHLY = 'MONTHLY',
+  QUARTERLY = 'QUARTERLY',
+  YEARLY = 'YEARLY'
+}
+
 /**
  * Core metric interface defining the structure of metric entities
  * Provides comprehensive type safety and validation support for all metric-related operations
@@ -30,32 +56,32 @@ export interface IMetric {
    * Unique identifier for the metric
    * @format UUID v4
    */
-  id: string;
+  readonly id: string;
 
   /**
    * Human-readable name of the metric
    * @minLength 1
    * @maxLength 100
    */
-  name: string;
+  readonly name: string;
 
   /**
    * Optional detailed description of the metric
    * @maxLength 500
    */
-  description?: string;
+  readonly description: string;
 
   /**
    * Category classification of the metric
    * Strictly typed to allowed categories: financial, growth, operational
    */
-  category: MetricCategory;
+  readonly type: MetricType;
 
   /**
    * Type of value the metric represents
    * Strictly typed to allowed value types: percentage, currency, number, ratio
    */
-  valueType: MetricValueType;
+  readonly valueType: ValueType;
 
   /**
    * Validation rules for metric values
@@ -67,17 +93,22 @@ export interface IMetric {
    * Flag indicating if the metric is currently active in the system
    * Used for soft deletion and metric lifecycle management
    */
-  isActive: boolean;
+  readonly isActive: boolean;
 
   /**
    * Timestamp of metric creation
    * Automatically set on record creation
    */
-  createdAt: Date;
+  readonly createdAt: Date;
 
   /**
    * Timestamp of last metric update
    * Automatically updated on record modification
    */
-  updatedAt: Date;
+  readonly updatedAt: Date;
+
+  readonly frequency: Frequency;
+  readonly unit?: string;
+  readonly precision: number;
+  readonly displayName: string;
 }

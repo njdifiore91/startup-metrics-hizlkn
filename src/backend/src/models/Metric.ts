@@ -1,46 +1,89 @@
 import { Model, DataTypes } from 'sequelize';
-import { IMetric } from '../interfaces/IMetric';
-import { METRIC_CATEGORIES, METRIC_VALUE_TYPES } from '../constants/metricTypes';
+import sequelize from '../config/database';
+import { MetricType, ValueType, Frequency } from '../interfaces/IMetric';
 
-/**
- * Sequelize model class for the Metric entity.
- * Implements comprehensive validation and associations for startup performance metrics.
- * @extends Model<IMetric>
- */
-export class Metric extends Model<IMetric> {
-  declare id: string;
-  declare name: string;
-  declare description: string;
-  declare category: typeof METRIC_CATEGORIES[keyof typeof METRIC_CATEGORIES];
-  declare valueType: typeof METRIC_VALUE_TYPES[keyof typeof METRIC_VALUE_TYPES];
-  declare validationRules: object;
-  declare isActive: boolean;
-  declare createdAt: Date;
-  declare updatedAt: Date;
-
-  /**
-   * Define model associations with related entities
-   * @param models - Object containing all model definitions
-   */
-  static associate(models: any): void {
-    // Associate with BenchmarkData - one metric can have many benchmark data points
-    Metric.hasMany(models.BenchmarkData, {
-      foreignKey: {
-        name: 'metricId',
-        allowNull: false
-      },
-      onDelete: 'CASCADE',
-      as: 'benchmarkData'
-    });
-
-    // Associate with CompanyMetric - one metric can have many company-specific values
-    Metric.hasMany(models.CompanyMetric, {
-      foreignKey: {
-        name: 'metricId',
-        allowNull: false
-      },
-      onDelete: 'CASCADE',
-      as: 'companyMetrics'
-    });
-  }
+export class Metric extends Model {
+  public id!: string;
+  public name!: string;
+  public displayName!: string;
+  public description!: string;
+  public type!: MetricType;
+  public valueType!: ValueType;
+  public frequency!: Frequency;
+  public unit?: string;
+  public precision!: number;
+  public isActive!: boolean;
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
 }
+
+Metric.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+      allowNull: false,
+    },
+    name: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      unique: true,
+    },
+    displayName: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      field: 'display_name',
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+    },
+    type: {
+      type: DataTypes.ENUM(...Object.values(MetricType)),
+      allowNull: false,
+    },
+    valueType: {
+      type: DataTypes.ENUM(...Object.values(ValueType)),
+      allowNull: false,
+      field: 'value_type',
+    },
+    frequency: {
+      type: DataTypes.ENUM(...Object.values(Frequency)),
+      allowNull: false,
+    },
+    unit: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    precision: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 2,
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      field: 'is_active',
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+      field: 'created_at',
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+      field: 'updated_at',
+    },
+  },
+  {
+    sequelize,
+    tableName: 'metrics',
+    timestamps: true,
+    underscored: true,
+  }
+);

@@ -10,15 +10,29 @@ import helmet from 'helmet'; // ^7.0.0
 import compression from 'compression'; // ^1.7.4
 import { getId } from 'correlation-id'; // ^3.1.0
 import crypto from 'crypto';
+import { container } from 'tsyringe';
 
 // Import route modules
 import authRoutes from './authRoutes';
 import metricsRoutes from './metricsRoutes';
 import benchmarkRoutes from './benchmarkRoutes';
-import companyMetricsRoutes from './companyMetricsRoutes';
+import initializeCompanyMetricsRoutes from './companyMetricsRoutes';
+import dataSourcesRoutes from './dataSourcesRoutes';
+import userRoutes from './userRoutes';
+
+// Import controllers and services
+import { CompanyMetricsController } from '../controllers/companyMetricsController';
+import { CompanyMetricsService } from '../services/companyMetricsService';
+import adminRoutes from './adminRoutes';
+
 
 // Import middleware
 import { errorHandler } from '../middleware/errorHandler';
+
+// Register services in container
+container.register('CompanyMetricsService', {
+  useClass: CompanyMetricsService
+});
 
 // Initialize router
 const router = express.Router();
@@ -37,8 +51,8 @@ const securityHeaders = helmet({
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
-    }
+      frameSrc: ["'none'"],
+    },
   },
   crossOriginEmbedderPolicy: true,
   crossOriginOpenerPolicy: true,
@@ -49,14 +63,14 @@ const securityHeaders = helmet({
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
-    preload: true
+    preload: true,
   },
   ieNoOpen: true,
   noSniff: true,
   originAgentCluster: true,
   permittedCrossDomainPolicies: { permittedPolicies: 'none' },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  xssFilter: true
+  xssFilter: true,
 });
 
 /**
@@ -68,8 +82,11 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID'],
   exposedHeaders: ['X-Total-Count', 'X-Response-Time'],
   credentials: true,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
 };
+
+// Initialize controllers using dependency injection
+const companyMetricsController = container.resolve(CompanyMetricsController);
 
 // Correlation ID middleware
 const correlationMiddleware = (req: Request, res: Response, next: NextFunction) => {
@@ -89,7 +106,7 @@ router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version
+    version: process.env.npm_package_version,
   });
 });
 
@@ -97,7 +114,10 @@ router.get('/health', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/metrics', metricsRoutes);
 router.use('/benchmarks', benchmarkRoutes);
-router.use('/company-metrics', companyMetricsRoutes);
+router.use('/company-metrics', initializeCompanyMetricsRoutes(companyMetricsController));
+router.use('/data-sources', dataSourcesRoutes);
+router.use('/admin', adminRoutes);
+router.use('/users', userRoutes);
 
 // Apply error handling middleware last
 router.use(errorHandler);
@@ -108,7 +128,7 @@ router.use((req, res, next) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'X-XSS-Protection': '1; mode=block',
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   });
   next();
 });

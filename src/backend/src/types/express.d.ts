@@ -12,7 +12,7 @@ declare global {
     /**
      * Extended Express Request interface with authentication and session properties.
      * Implements comprehensive type safety for user sessions and request handling.
-     * 
+     *
      * @interface Request
      * @extends Express.Request
      * @property {IUser | undefined} user - Authenticated user object from Google OAuth
@@ -40,3 +40,5 @@ declare global {
     }
   }
 }
+
+export {};

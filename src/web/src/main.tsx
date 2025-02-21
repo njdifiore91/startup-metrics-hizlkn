@@ -4,24 +4,27 @@ import { Provider } from 'react-redux';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ThemeProvider } from '@mui/material';
 import * as Sentry from '@sentry/react';
-import { Analytics } from '@segment/analytics-next';
+import { browserTracingIntegration } from '@sentry/browser';
+import { Replay } from '@sentry/replay';
+// import { Analytics } from 'analytics';
 
 import App from './App';
 import { store } from './store';
 import { theme } from './config/theme';
 import { handleApiError } from './utils/errorHandlers';
-import { showToast, ToastType, ToastPosition } from './hooks/useToast';
+import { useToast, ToastType, ToastPosition } from './hooks/useToast';
+import './styles/fonts.css';
 
 // Initialize performance monitoring
-const initializeMonitoring = () => {
+const initializeMonitoring = async () => {
   // Initialize Sentry for error tracking
   Sentry.init({
-    dsn: process.env.VITE_SENTRY_DSN,
-    environment: process.env.NODE_ENV,
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
     tracesSampleRate: 1.0,
     integrations: [
-      new Sentry.BrowserTracing(),
-      new Sentry.Replay({
+      browserTracingIntegration(),
+      new Replay({
         maskAllText: true,
         blockAllMedia: true,
       }),
@@ -29,28 +32,35 @@ const initializeMonitoring = () => {
   });
 
   // Initialize Segment Analytics
-  Analytics.init({
-    writeKey: process.env.VITE_SEGMENT_WRITE_KEY,
-    trackApplicationLifecycle: true,
-    recordScreenViews: true,
+  const { AnalyticsBrowser } = await import('@segment/analytics-next');
+  const analytics = await AnalyticsBrowser.load({
+    writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
   });
+
+  return analytics;
+  // Analytics.init({
+  //   writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY,
+  //   trackApplicationLifecycle: true,
+  //   recordScreenViews: true,
+  // });
 };
 
 // Error fallback component
 const ErrorFallback = ({ error }: { error: Error }) => {
-  const formattedError = handleApiError(error as any, {
-    showToast: false,
-    logError: true,
-  });
+  const formattedError = handleApiError(error as any);
 
   return (
-    <div role="alert" aria-live="assertive" style={{
-      padding: 'var(--spacing-lg)',
-      margin: 'var(--spacing-lg)',
-      border: '1px solid var(--color-error)',
-      borderRadius: 'var(--border-radius-md)',
-      backgroundColor: 'var(--color-background)',
-    }}>
+    <div
+      role="alert"
+      aria-live="assertive"
+      style={{
+        padding: 'var(--spacing-lg)',
+        margin: 'var(--spacing-lg)',
+        border: '1px solid var(--color-error)',
+        borderRadius: 'var(--border-radius-md)',
+        backgroundColor: 'var(--color-background)',
+      }}
+    >
       <h2 style={{ color: 'var(--color-error)' }}>Application Error</h2>
       <pre style={{ margin: 'var(--spacing-md) 0' }}>{formattedError.message}</pre>
       <button
@@ -71,23 +81,23 @@ const ErrorFallback = ({ error }: { error: Error }) => {
 };
 
 // Initialize the application
-const initializeApp = () => {
+const initializeApp = async () => {
   // Initialize monitoring in production
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.MODE === 'production') {
     initializeMonitoring();
   }
 
   // Enable React dev tools in development
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.MODE === 'development') {
     // @ts-ignore
     window.store = store;
   }
 };
 
 // Cleanup function
-const cleanupApp = () => {
+const cleanupApp = async () => {
   // Flush any pending analytics
-  Analytics.flush();
+  await Sentry.close();
 
   // Clear any application caches
   store.dispatch({ type: 'RESET_STATE' });
@@ -98,10 +108,11 @@ const cleanupApp = () => {
 
 // Error handler
 const handleError = (error: Error) => {
+  const { showToast } = useToast();
   console.error('Application Error:', error);
-  
+
   Sentry.captureException(error);
-  
+
   showToast(
     'An unexpected error occurred. Please try again.',
     ToastType.ERROR,

@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from '@emotion/styled';
 import {
@@ -14,23 +14,27 @@ import {
   ListItemText,
   Collapse,
   useMediaQuery,
-  Theme
+  Theme,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   Assessment as AssessmentIcon,
   Timeline as TimelineIcon,
   AdminPanelSettings as AdminPanelSettingsIcon,
+  Person as PersonIcon,
+  Description as DescriptionIcon,
+  Group as UsersIcon,
+  Settings as SettingsIcon,
   ExpandLess,
   ExpandMore,
-  ChevronLeft,
-  ChevronRight
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../hooks/useAuth';
-import { analytics } from '@analytics/react';
-import { UI_CONSTANTS } from '../../config/constants';
+import { hasPermission, FEATURES, USER_ROLES, type UserRole } from '@/constants/roles';
 
-// Interfaces
+// Constants
+const MOBILE_BREAKPOINT = '768px';
+
 interface NavigationProps {
   isCollapsed: boolean;
   theme: Theme;
@@ -43,210 +47,241 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  roles: string[];
-  permissions: string[];
+  visible: boolean;
   children?: NavItem[];
   ariaLabel?: string;
 }
 
-// Styled Components
-const StyledNavigation = styled.nav<{ isCollapsed: boolean; theme: Theme }>`
-  width: ${props => props.isCollapsed ? '64px' : UI_CONSTANTS.SIDEBAR_WIDTH};
-  height: 100vh;
-  background-color: ${props => props.theme.palette.primary.main};
-  color: ${props => props.theme.palette.primary.contrastText};
-  transition: width 0.3s ease;
-  overflow-x: hidden;
-  overflow-y: auto;
-  position: fixed;
-  left: 0;
-  top: ${UI_CONSTANTS.HEADER_HEIGHT};
-  z-index: 1000;
-  
-  @media (max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE}) {
-    width: ${props => props.isCollapsed ? '0' : UI_CONSTANTS.SIDEBAR_WIDTH};
+const StyledList = styled(List)`
+  padding: var(--spacing-sm);
+  position: relative;
+  z-index: 1;
+  width: 100%;
+` as typeof List;
+
+const StyledListItem = styled(ListItem)`
+  padding: 0.75rem 1rem;
+  color: var(--color-text);
+  margin: var(--spacing-xs) 0;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  transition: background-color 0.2s ease, color 0.2s ease;
+
+  &[data-active='true'] {
+    color: var(--color-accent);
+    background-color: var(--color-accent-light);
+    font-weight: 500;
   }
 
-  /* Scrollbar styling */
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: ${props => props.theme.palette.primary.dark};
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.palette.primary.light};
-    border-radius: 3px;
-  }
-`;
-
-const StyledListItem = styled(ListItem)<{ active?: boolean }>`
-  padding: ${props => props.theme.spacing(2)};
-  color: ${props => props.active ? props.theme.palette.secondary.main : 'inherit'};
-  
   &:hover {
-    background-color: ${props => props.theme.palette.primary.dark};
+    background-color: var(--color-background-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
   }
 
   .MuiListItemIcon-root {
     color: inherit;
     min-width: 40px;
+    margin-right: var(--spacing-sm);
+  }
+
+  .MuiListItemText-root {
+    margin: 0;
+  }
+
+  .MuiListItemText-primary {
+    font-size: 0.9375rem;
   }
 `;
 
-// Navigation Items Configuration
-const NAV_ITEMS: NavItem[] = [
+const StyledCollapse = styled(Collapse)`
+  position: relative;
+  z-index: 3;
+  width: 100%;
+
+  .MuiList-root {
+    padding-left: var(--spacing-md);
+  }
+`;
+
+// Updated Navigation Items Configuration based on roles and permissions
+const getNavItems = (userRole: UserRole): NavItem[] => [
   {
     id: 'dashboard',
     label: 'Dashboard',
     path: '/dashboard',
     icon: <DashboardIcon />,
-    roles: ['user', 'admin'],
-    permissions: ['view:dashboard'],
-    ariaLabel: 'Navigate to Dashboard'
+    visible: true,
   },
   {
     id: 'benchmarks',
-    label: 'Benchmarks',
+    label: 'Benchmark Data',
     path: '/benchmarks',
     icon: <AssessmentIcon />,
-    roles: ['user', 'admin'],
-    permissions: ['view:benchmarks'],
-    ariaLabel: 'Navigate to Benchmarks'
+    visible: hasPermission(userRole, FEATURES.benchmarkData, 'read'),
   },
   {
-    id: 'metrics',
-    label: 'Company Metrics',
-    path: '/metrics',
+    id: 'company-metrics',
+    label: 'Company Data',
+    path: '/company-metrics',
     icon: <TimelineIcon />,
-    roles: ['user', 'admin'],
-    permissions: ['view:metrics', 'edit:metrics'],
-    ariaLabel: 'Navigate to Company Metrics'
+    visible: hasPermission(userRole, FEATURES.companyData, 'read'),
+  },
+  {
+    id: 'profile',
+    label: 'Profile',
+    path: '/profile',
+    icon: <PersonIcon />,
+    visible: hasPermission(userRole, FEATURES.profile, 'read'),
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    path: '/settings',
+    icon: <SettingsIcon />,
+    visible: hasPermission(userRole, FEATURES.users, 'read'),
   },
   {
     id: 'admin',
-    label: 'Admin Panel',
+    label: 'Administration',
     path: '/admin',
     icon: <AdminPanelSettingsIcon />,
-    roles: ['admin'],
-    permissions: ['admin:access'],
-    ariaLabel: 'Navigate to Admin Panel'
-  }
+    visible: userRole === USER_ROLES.ADMIN,
+    children: [
+      {
+        id: 'user-management',
+        label: 'User Management',
+        path: '/admin/users',
+        icon: <UsersIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+      {
+        id: 'system-settings',
+        label: 'System Settings',
+        path: '/admin/settings',
+        icon: <SettingsIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+      {
+        id: 'audit-logs',
+        label: 'Audit Logs',
+        path: '/admin/audit-logs',
+        icon: <HistoryIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+      {
+        id: 'admin-benchmarks',
+        label: 'Admin Benchmarks',
+        path: '/admin/benchmarks',
+        icon: <AssessmentIcon />,
+        visible: hasPermission(userRole, FEATURES.users, 'full'),
+      },
+    ],
+  },
 ];
+
+// // Admin navigation items
+// const adminNavItems = [
+//   {
+//     title: 'User Management',
+//     path: '/admin/users',
+//     icon: <GroupIcon />,
+//   },
+//   {
+//     title: 'Metric Management',
+//     path: '/admin/metrics',
+//     icon: <BarChartIcon />,
+//   },
+//   {
+//     title: 'Data Sources',
+//     path: '/admin/sources',
+//     icon: <StorageIcon />,
+//   },
+//   {
+//     title: 'Audit Logs',
+//     path: '/admin/audit',
+//     icon: <HistoryIcon />,
+//   },
+// ];
 
 export const Navigation: React.FC<NavigationProps> = ({
   isCollapsed,
-  theme,
   ariaLabel = 'Main Navigation',
-  onNavigationError
 }) => {
-  const { user, validateSession } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isMobile = useMediaQuery(`(max-width: ${UI_CONSTANTS.BREAKPOINTS.MOBILE})`);
+  const isMobile = useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT})`);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
-  // Filter navigation items based on user role and permissions
-  const filteredNavItems = NAV_ITEMS.filter(item => {
-    if (!user) return false;
-    return item.roles.includes(user.role) &&
-           item.permissions.every(permission => user.permissions?.includes(permission));
-  });
+  const navItems = user ? getNavItems(user.role as UserRole) : [];
+  const filteredNavItems = navItems.filter((item) => item.visible);
 
   // Handle navigation item click
-  const handleNavClick = useCallback(async (path: string, item: NavItem) => {
-    try {
-      // Validate session before navigation
-      const isSessionValid = await validateSession();
-      if (!isSessionValid) {
-        throw new Error('Session expired');
-      }
-
-      // Track navigation event
-      analytics.track('navigation_click', {
-        path,
-        itemId: item.id,
-        timestamp: new Date().toISOString()
-      });
-
-      // Handle mobile menu
+  const handleNavClick = useCallback(
+    (path: string) => {
+      navigate(path);
       if (isMobile) {
         setExpandedItems([]);
       }
-
-      navigate(path);
-    } catch (error) {
-      onNavigationError?.(error as Error);
-    }
-  }, [navigate, validateSession, isMobile, onNavigationError]);
+    },
+    [navigate, isMobile]
+  );
 
   // Toggle expanded state for items with children
   const toggleExpand = (itemId: string) => {
-    setExpandedItems(prev =>
-      prev.includes(itemId)
-        ? prev.filter(id => id !== itemId)
-        : [...prev, itemId]
+    setExpandedItems((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
     );
   };
 
-  // Reset expanded items on mobile when collapsed
-  useEffect(() => {
-    if (isMobile && isCollapsed) {
-      setExpandedItems([]);
-    }
-  }, [isMobile, isCollapsed]);
-
-  // Render navigation item
-  const renderNavItem = (item: NavItem) => {
+  const renderNavItem = (item: NavItem, level = 0) => {
     const isActive = location.pathname === item.path;
     const isExpanded = expandedItems.includes(item.id);
+    const hasChildren = item.children && item.children.length > 0;
+    const visibleChildren = item.children?.filter((child) => child.visible) || [];
+
+    if (!item.visible) return null;
 
     return (
       <React.Fragment key={item.id}>
         <StyledListItem
-          active={isActive}
-          onClick={() => item.children ? toggleExpand(item.id) : handleNavClick(item.path, item)}
-          aria-label={item.ariaLabel}
-          aria-expanded={item.children ? isExpanded : undefined}
+          onClick={() => (hasChildren ? toggleExpand(item.id) : handleNavClick(item.path))}
+          data-active={isActive}
+          style={{ paddingLeft: `${(level + 1) * 16}px` }}
+          aria-expanded={hasChildren ? isExpanded : undefined}
           aria-current={isActive ? 'page' : undefined}
+          aria-label={item.ariaLabel || item.label}
         >
           <ListItemIcon>{item.icon}</ListItemIcon>
           {!isCollapsed && (
             <>
               <ListItemText primary={item.label} />
-              {item.children && (isExpanded ? <ExpandLess /> : <ExpandMore />)}
+              {hasChildren && (isExpanded ? <ExpandLess /> : <ExpandMore />)}
             </>
           )}
         </StyledListItem>
-        {item.children && (
-          <Collapse in={isExpanded && !isCollapsed} timeout="auto" unmountOnExit>
+        {hasChildren && (
+          <StyledCollapse in={isExpanded && !isCollapsed} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
-              {item.children.map(child => renderNavItem(child))}
+              {visibleChildren.map((child) => renderNavItem(child, level + 1))}
             </List>
-          </Collapse>
+          </StyledCollapse>
         )}
       </React.Fragment>
     );
   };
 
   return (
-    <StyledNavigation
-      isCollapsed={isCollapsed}
-      theme={theme}
-      aria-label={ariaLabel}
-      role="navigation"
-    >
-      <List component="nav" aria-label={ariaLabel}>
-        {filteredNavItems.map(renderNavItem)}
-      </List>
-      {!isMobile && (
-        <div onClick={() => navigate(isCollapsed ? '/' : -1)}>
-          {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
-        </div>
-      )}
-    </StyledNavigation>
+    <StyledList aria-label={ariaLabel}>
+      {filteredNavItems.map((item) => renderNavItem(item))}
+    </StyledList>
   );
 };
 

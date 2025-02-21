@@ -1,16 +1,18 @@
 import React from 'react';
 import { render, fireEvent, screen, within, waitFor } from '@testing-library/react';
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { axe, toHaveNoViolations } from '@axe-core/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { ThemeProvider } from 'styled-components';
-import Button, { ButtonProps } from '../../src/components/common/Button';
+import Button, { ButtonProps } from '../../../../src/components/common/Button';
+import { theme } from '../../../../src/theme';
 
 expect.extend(toHaveNoViolations);
 
 // Helper function to render button with theme
-const renderButton = (props: Partial<ButtonProps> = {}, theme = {}) => {
+const renderButton = (props: Partial<ButtonProps> = {}, customTheme = theme) => {
   const Component = () => (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={customTheme}>
       <Button {...createTestProps(props)} />
     </ThemeProvider>
   );
@@ -20,21 +22,21 @@ const renderButton = (props: Partial<ButtonProps> = {}, theme = {}) => {
 // Create default test props
 const createTestProps = (overrides: Partial<ButtonProps> = {}): ButtonProps => ({
   children: 'Test Button',
-  onClick: jest.fn(),
-  ...overrides
+  onClick: vi.fn(),
+  ...overrides,
 });
 
 describe('Button Component', () => {
-  let mockOnClick: jest.Mock;
+  let mockOnClick: Mock;
 
   beforeEach(() => {
-    mockOnClick = jest.fn();
-    jest.useFakeTimers();
+    mockOnClick = vi.fn();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
-    jest.clearAllTimers();
+    vi.clearAllMocks();
+    vi.clearAllTimers();
   });
 
   describe('Rendering', () => {
@@ -63,7 +65,7 @@ describe('Button Component', () => {
       ['primary', 'bg-primary'],
       ['secondary', 'bg-secondary'],
       ['accent', 'bg-accent'],
-      ['text', 'bg-transparent']
+      ['text', 'bg-transparent'],
     ])('applies correct classes for %s variant', (variant, expectedClass) => {
       renderButton({ variant: variant as ButtonProps['variant'] });
       expect(screen.getByRole('button')).toHaveClass(expectedClass);
@@ -74,11 +76,11 @@ describe('Button Component', () => {
     it.each([
       ['small', 'px-4 py-2 text-sm'],
       ['medium', 'px-6 py-3 text-base'],
-      ['large', 'px-8 py-4 text-lg']
+      ['large', 'px-8 py-4 text-lg'],
     ])('applies correct classes for %s size', (size, expectedClasses) => {
       renderButton({ size: size as ButtonProps['size'] });
       const button = screen.getByRole('button');
-      expectedClasses.split(' ').forEach(className => {
+      expectedClasses.split(' ').forEach((className) => {
         expect(button).toHaveClass(className);
       });
     });
@@ -128,7 +130,7 @@ describe('Button Component', () => {
     describe('Keyboard Interaction', () => {
       it.each([
         ['Enter', 'Enter'],
-        ['Space', ' ']
+        ['Space', ' '],
       ])('triggers onClick with %s key', (name, key) => {
         renderButton({ onClick: mockOnClick });
         const button = screen.getByRole('button');
@@ -140,7 +142,7 @@ describe('Button Component', () => {
         renderButton();
         const button = screen.getByRole('button');
         const event = new KeyboardEvent('keydown', { key: ' ' });
-        jest.spyOn(event, 'preventDefault');
+        vi.spyOn(event, 'preventDefault');
         fireEvent(button, event);
         expect(event.preventDefault).toHaveBeenCalled();
       });
@@ -169,8 +171,8 @@ describe('Button Component', () => {
         colors: {
           primary: '#151e2d',
           secondary: '#46608C',
-          accent: '#168947'
-        }
+          accent: '#168947',
+        },
       };
       renderButton({ variant: 'primary' }, theme);
       const button = screen.getByRole('button');
@@ -182,17 +184,17 @@ describe('Button Component', () => {
     it('uses React.memo to prevent unnecessary rerenders', () => {
       const { rerender } = renderButton({ onClick: mockOnClick });
       const button = screen.getByRole('button');
-      
+
       // First render
       expect(button).toBeInTheDocument();
-      
+
       // Rerender with same props
       rerender(
         <ThemeProvider theme={{}}>
           <Button {...createTestProps({ onClick: mockOnClick })} />
         </ThemeProvider>
       );
-      
+
       // Component should use memoized version
       expect(screen.getAllByRole('button')).toHaveLength(1);
     });

@@ -1,8 +1,9 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { axe, toHaveNoViolations } from 'jest-axe';
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 
 // Component and types
 import MetricComparison from '../../../../src/components/metrics/MetricComparison';
@@ -11,8 +12,8 @@ import { useBenchmarks } from '../../../../src/hooks/useBenchmarks';
 import BenchmarkChart from '../../../../src/components/charts/BenchmarkChart';
 
 // Mock dependencies
-jest.mock('../../../../src/hooks/useBenchmarks');
-jest.mock('../../../../src/components/charts/BenchmarkChart');
+vi.mock('../../../../src/hooks/useBenchmarks');
+vi.mock('../../../../src/components/charts/BenchmarkChart');
 expect.extend(toHaveNoViolations);
 
 // Test data
@@ -25,29 +26,31 @@ const mockMetric: IMetric = {
   validationRules: {
     min: 0,
     max: 1000,
-    required: true
+    required: true,
   },
   isActive: true,
   displayOrder: 1,
   tags: ['growth', 'revenue'],
   metadata: {},
   createdAt: new Date(),
-  updatedAt: new Date()
+  updatedAt: new Date(),
 };
 
-const mockBenchmarks = [{
-  id: 'benchmark-1',
-  metricId: 'arr-growth',
-  revenueRange: '$1M-$5M',
-  p10: 10,
-  p25: 25,
-  p50: 50,
-  p75: 75,
-  p90: 90,
-  reportDate: new Date(),
-  sourceId: 'source-1',
-  metric: mockMetric
-}];
+const mockBenchmarks = [
+  {
+    id: 'benchmark-1',
+    metricId: 'arr-growth',
+    revenueRange: '$1M-$5M',
+    p10: 10,
+    p25: 25,
+    p50: 50,
+    p75: 75,
+    p90: 90,
+    reportDate: new Date(),
+    sourceId: 'source-1',
+    metric: mockMetric,
+  },
+];
 
 // Helper function to setup component render
 const renderComponent = (props = {}) => {
@@ -57,7 +60,7 @@ const renderComponent = (props = {}) => {
     revenueRange: '$1M-$5M',
     companyValue: 45,
     onComparisonComplete: jest.fn(),
-    className: 'test-class'
+    className: 'test-class',
   };
 
   const mergedProps = { ...defaultProps, ...props };
@@ -66,7 +69,7 @@ const renderComponent = (props = {}) => {
   return {
     user,
     ...utils,
-    props: mergedProps
+    props: mergedProps,
   };
 };
 
@@ -79,7 +82,7 @@ describe('MetricComparison Component', () => {
       loading: false,
       error: null,
       fetchBenchmarkData: jest.fn(),
-      compareBenchmark: jest.fn()
+      compareBenchmark: jest.fn(),
     });
     (BenchmarkChart as jest.Mock).mockImplementation(() => <div>Mock Chart</div>);
   });
@@ -89,11 +92,11 @@ describe('MetricComparison Component', () => {
       (useBenchmarks as jest.Mock).mockReturnValue({
         loading: true,
         benchmarks: [],
-        error: null
+        error: null,
       });
 
       renderComponent();
-      
+
       expect(screen.getByRole('status')).toBeInTheDocument();
       expect(screen.getByText('Loading comparison data...')).toBeInTheDocument();
     });
@@ -103,11 +106,11 @@ describe('MetricComparison Component', () => {
       (useBenchmarks as jest.Mock).mockReturnValue({
         loading: false,
         benchmarks: [],
-        error: errorMessage
+        error: errorMessage,
       });
 
       renderComponent();
-      
+
       expect(screen.getByRole('alert')).toBeInTheDocument();
       expect(screen.getByText(errorMessage)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
@@ -121,7 +124,7 @@ describe('MetricComparison Component', () => {
         `Benchmark comparison for ${props.metric.name}`
       );
       expect(screen.getByText('Mock Chart')).toBeInTheDocument();
-      
+
       const percentiles = screen.getAllByRole('listitem');
       expect(percentiles).toHaveLength(5);
     });
@@ -134,12 +137,12 @@ describe('MetricComparison Component', () => {
         loading: false,
         benchmarks: [],
         error: 'Error',
-        fetchBenchmarkData: fetchMock
+        fetchBenchmarkData: fetchMock,
       });
 
       const { user } = renderComponent();
       const retryButton = screen.getByRole('button', { name: /retry/i });
-      
+
       await user.click(retryButton);
       expect(fetchMock).toHaveBeenCalledWith('arr-growth', '$1M-$5M');
     });
@@ -148,24 +151,24 @@ describe('MetricComparison Component', () => {
       const compareMock = jest.fn().mockResolvedValue({
         percentile: 75,
         difference: 5,
-        trend: { direction: 'up', magnitude: 10 }
+        trend: { direction: 'up', magnitude: 10 },
       });
 
       (useBenchmarks as jest.Mock).mockReturnValue({
         benchmarks: mockBenchmarks,
         loading: false,
         error: null,
-        compareBenchmark: compareMock
+        compareBenchmark: compareMock,
       });
 
       const { rerender } = renderComponent({ companyValue: 45 });
-      
+
       await waitFor(() => {
         expect(compareMock).toHaveBeenCalledWith(45, 'arr-growth');
       });
 
       rerender(<MetricComparison metric={mockMetric} revenueRange="$1M-$5M" companyValue={50} />);
-      
+
       await waitFor(() => {
         expect(compareMock).toHaveBeenCalledWith(50, 'arr-growth');
       });
@@ -181,7 +184,7 @@ describe('MetricComparison Component', () => {
 
     it('provides proper ARIA labels', () => {
       renderComponent();
-      
+
       expect(screen.getByRole('region')).toHaveAttribute(
         'aria-label',
         'Benchmark comparison for ARR Growth'
@@ -193,7 +196,7 @@ describe('MetricComparison Component', () => {
     it('maintains proper focus management', async () => {
       const { user } = renderComponent();
       const retryButton = screen.queryByRole('button', { name: /retry/i });
-      
+
       if (retryButton) {
         await user.tab();
         expect(retryButton).toHaveFocus();
@@ -208,11 +211,11 @@ describe('MetricComparison Component', () => {
         loading: false,
         benchmarks: [],
         error: errorMessage,
-        fetchBenchmarkData: jest.fn()
+        fetchBenchmarkData: jest.fn(),
       });
 
       renderComponent();
-      
+
       expect(screen.getByRole('alert')).toHaveTextContent(errorMessage);
     });
 
@@ -222,11 +225,11 @@ describe('MetricComparison Component', () => {
         benchmarks: mockBenchmarks,
         loading: false,
         error: null,
-        compareBenchmark: compareMock
+        compareBenchmark: compareMock,
       });
 
       renderComponent({ companyValue: -1 });
-      
+
       await waitFor(() => {
         expect(screen.getByRole('alert')).toBeInTheDocument();
       });
@@ -238,22 +241,22 @@ describe('MetricComparison Component', () => {
         loading: false,
         benchmarks: [],
         error: 'Initial error',
-        fetchBenchmarkData: fetchMock
+        fetchBenchmarkData: fetchMock,
       });
 
       const { rerender } = renderComponent();
-      
+
       expect(screen.getByRole('alert')).toBeInTheDocument();
 
       (useBenchmarks as jest.Mock).mockReturnValue({
         loading: false,
         benchmarks: mockBenchmarks,
         error: null,
-        fetchBenchmarkData: fetchMock
+        fetchBenchmarkData: fetchMock,
       });
 
       rerender(<MetricComparison metric={mockMetric} revenueRange="$1M-$5M" />);
-      
+
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
   });

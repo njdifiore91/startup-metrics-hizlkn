@@ -4,10 +4,10 @@
 :root {
   /* Brand Colors */
   --color-primary: #151e2d;
-  --color-secondary: #46608C;
+  --color-secondary: #46608c;
   --color-accent: #168947;
-  --color-background: #DBEAAC;
-  --color-text: #0D3330;
+  --color-background: #dbeaac;
+  --color-text: #0d3330;
 
   /* Color Variants */
   --color-primary-light: rgba(21, 30, 45, 0.1);
@@ -24,8 +24,9 @@
   --color-info: var(--color-secondary);
 
   /* Typography */
-  --font-family-primary: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  
+  --font-family-primary: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+
   /* Font Sizes */
   --font-size-xs: 12px;
   --font-size-sm: 14px;
@@ -47,12 +48,12 @@
   /* Spacing - 8px Grid System */
   --spacing-base: 8px;
   --spacing-xs: calc(var(--spacing-base) * 0.5); /* 4px */
-  --spacing-sm: var(--spacing-base);             /* 8px */
-  --spacing-md: calc(var(--spacing-base) * 2);   /* 16px */
-  --spacing-lg: calc(var(--spacing-base) * 3);   /* 24px */
-  --spacing-xl: calc(var(--spacing-base) * 4);   /* 32px */
-  --spacing-2xl: calc(var(--spacing-base) * 6);  /* 48px */
-  --spacing-3xl: calc(var(--spacing-base) * 8);  /* 64px */
+  --spacing-sm: var(--spacing-base); /* 8px */
+  --spacing-md: calc(var(--spacing-base) * 2); /* 16px */
+  --spacing-lg: calc(var(--spacing-base) * 3); /* 24px */
+  --spacing-xl: calc(var(--spacing-base) * 4); /* 32px */
+  --spacing-2xl: calc(var(--spacing-base) * 6); /* 48px */
+  --spacing-3xl: calc(var(--spacing-base) * 8); /* 64px */
 
   /* Breakpoints */
   --breakpoint-mobile: 320px;
@@ -122,19 +123,5 @@
     --color-background: #ffffff;
     --focus-ring-color: #000000;
     --border-color-normal: #000000;
-  }
-}
-
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #151e2d;
-    --color-text: #ffffff;
-    --border-color-light: rgba(255, 255, 255, 0.1);
-    --border-color-normal: rgba(255, 255, 255, 0.2);
-    --border-color-dark: rgba(255, 255, 255, 0.3);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
   }
 }

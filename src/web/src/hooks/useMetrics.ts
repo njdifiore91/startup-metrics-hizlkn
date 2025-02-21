@@ -1,23 +1,23 @@
 import { useState, useCallback, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { IMetric, MetricCategory } from '../interfaces/IMetric';
+import { IMetric, MetricCategory, MetricType } from '../interfaces/IMetric';
 import { MetricsService } from '../services/metrics';
-import { metricsSlice } from '../store/metricsSlice';
+import type { MetricServiceResponse } from '../services/metrics';
+import { typeToCategory } from '@/constants/metricMappings';
 
-// Constants
-const CACHE_TTL = 300000; // 5 minutes
 const MAX_RETRIES = 3;
 
-/**
- * Custom hook for managing metric-related operations with caching and optimizations
- * @version 1.0.0
- */
-export const useMetrics = () => {
-  // Initialize Redux
-  const dispatch = useDispatch();
-  const metrics = useSelector(metricsSlice.selectAllMetrics);
-  const loadingState = useSelector(metricsSlice.selectMetricLoadingState);
+export interface UseMetricsReturn {
+  loading: Record<string, boolean>;
+  error: Record<string, string | null>;
+  getMetricById: (id: string) => Promise<IMetric | null>;
+  getMetricsByCategory: (category: MetricCategory) => Promise<IMetric[]>;
+  saveCompanyMetric: (metricId: string, value: number) => Promise<boolean>;
+  getBenchmarkData: (metricId: string, revenueRange: string) => Promise<any | null>;
+  validateMetricValue: (value: number, metric: IMetric) => boolean;
+  getMetricTypes: () => Promise<MetricServiceResponse<Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>>>;
+}
 
+export const useMetrics = (): UseMetricsReturn => {
   // Local state for granular loading and error states
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string | null>>({});
@@ -28,9 +28,6 @@ export const useMetrics = () => {
   // Initialize metrics service
   const metricsService = new MetricsService();
 
-  /**
-   * Retrieves a specific metric by ID with caching
-   */
   const getMetricById = useCallback(async (id: string): Promise<IMetric | null> => {
     try {
       // Cancel any existing request
@@ -43,29 +40,26 @@ export const useMetrics = () => {
       abortControllers.current[id] = controller;
 
       // Set loading state
-      setLoading(prev => ({ ...prev, [id]: true }));
-      setError(prev => ({ ...prev, [id]: null }));
+      setLoading((prev) => ({ ...prev, [id]: true }));
+      setError((prev) => ({ ...prev, [id]: null }));
 
       const response = await metricsService.getMetricById(id);
-      
+
       if (response.error) {
         throw new Error(response.error);
       }
 
       return response.data;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metric';
-      setError(prev => ({ ...prev, [id]: errorMessage }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch metric';
+      setError((prev) => ({ ...prev, [id]: errorMessage }));
       return null;
     } finally {
-      setLoading(prev => ({ ...prev, [id]: false }));
+      setLoading((prev) => ({ ...prev, [id]: false }));
       delete abortControllers.current[id];
     }
   }, []);
 
-  /**
-   * Retrieves metrics filtered by category with optimization
-   */
   const getMetricsByCategory = useCallback(async (category: MetricCategory): Promise<IMetric[]> => {
     const cacheKey = `category_${category}`;
 
@@ -80,41 +74,53 @@ export const useMetrics = () => {
       abortControllers.current[cacheKey] = controller;
 
       // Set loading state
-      setLoading(prev => ({ ...prev, [cacheKey]: true }));
-      setError(prev => ({ ...prev, [cacheKey]: null }));
+      setLoading((prev) => ({ ...prev, [cacheKey]: true }));
+      setError((prev) => ({ ...prev, [cacheKey]: null }));
 
-      const response = await metricsService.getMetricsByCategory(category);
+      const response = await metricsService.getMetricTypes();
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'No metrics found');
       }
 
-      return response.data;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metrics by category';
-      setError(prev => ({ ...prev, [cacheKey]: errorMessage }));
+      const filteredMetrics = response.data.filter(metric => {
+        const metricType = metric.type as MetricType;
+        const mappedCategory = typeToCategory[metricType];
+        return mappedCategory === category;
+      }).map(metric => ({
+        id: metric.id,
+        name: metric.name,
+        displayName: metric.name,
+        description: '',
+        category: category,
+        type: metric.type,
+        valueType: metric.valueType,
+        validationRules: {},
+        isActive: true,
+        displayOrder: 0,
+        tags: [],
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+
+      return filteredMetrics;
+    } catch (error) {
+      const errorMessage = `Failed to fetch metrics for category: ${category}`;
+      setError((prev) => ({ ...prev, [cacheKey]: errorMessage }));
       return [];
     } finally {
-      setLoading(prev => ({ ...prev, [cacheKey]: false }));
+      setLoading((prev) => ({ ...prev, [cacheKey]: false }));
       delete abortControllers.current[cacheKey];
     }
   }, []);
 
-  /**
-   * Saves or updates a company's metric value with validation
-   */
   const saveCompanyMetric = useCallback(async (metricId: string, value: number): Promise<boolean> => {
     const operationKey = `save_${metricId}`;
 
     try {
-      setLoading(prev => ({ ...prev, [operationKey]: true }));
-      setError(prev => ({ ...prev, [operationKey]: null }));
-
-      // Validate metric value
-      const metric = await getMetricById(metricId);
-      if (!metric) {
-        throw new Error('Metric not found');
-      }
+      setLoading((prev) => ({ ...prev, [operationKey]: true }));
+      setError((prev) => ({ ...prev, [operationKey]: null }));
 
       const response = await metricsService.saveCompanyMetric(metricId, value);
 
@@ -125,16 +131,13 @@ export const useMetrics = () => {
       return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save metric';
-      setError(prev => ({ ...prev, [operationKey]: errorMessage }));
+      setError((prev) => ({ ...prev, [operationKey]: errorMessage }));
       return false;
     } finally {
-      setLoading(prev => ({ ...prev, [operationKey]: false }));
+      setLoading((prev) => ({ ...prev, [operationKey]: false }));
     }
-  }, [getMetricById]);
+  }, []);
 
-  /**
-   * Retrieves benchmark data for a specific metric with caching
-   */
   const getBenchmarkData = useCallback(async (metricId: string, revenueRange: string) => {
     const cacheKey = `benchmark_${metricId}_${revenueRange}`;
     let retryCount = 0;
@@ -150,8 +153,8 @@ export const useMetrics = () => {
         const controller = new AbortController();
         abortControllers.current[cacheKey] = controller;
 
-        setLoading(prev => ({ ...prev, [cacheKey]: true }));
-        setError(prev => ({ ...prev, [cacheKey]: null }));
+        setLoading((prev) => ({ ...prev, [cacheKey]: true }));
+        setError((prev) => ({ ...prev, [cacheKey]: null }));
 
         const response = await metricsService.getBenchmarkData(metricId, revenueRange);
 
@@ -164,7 +167,7 @@ export const useMetrics = () => {
         if (retryCount < MAX_RETRIES) {
           retryCount++;
           // Exponential backoff
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+          await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
           return attemptFetch();
         }
         throw err;
@@ -175,17 +178,14 @@ export const useMetrics = () => {
       return await attemptFetch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch benchmark data';
-      setError(prev => ({ ...prev, [cacheKey]: errorMessage }));
+      setError((prev) => ({ ...prev, [cacheKey]: errorMessage }));
       return null;
     } finally {
-      setLoading(prev => ({ ...prev, [cacheKey]: false }));
+      setLoading((prev) => ({ ...prev, [cacheKey]: false }));
       delete abortControllers.current[cacheKey];
     }
   }, []);
 
-  /**
-   * Validates a metric value against its definition rules
-   */
   const validateMetricValue = useCallback((value: number, metric: IMetric): boolean => {
     const { validationRules, valueType } = metric;
 
@@ -211,14 +211,46 @@ export const useMetrics = () => {
     }
   }, []);
 
+  const getMetricTypes = useCallback(async () => {
+    const cacheKey = 'metric_types';
+    
+    try {
+      setLoading((prev) => ({ ...prev, [cacheKey]: true }));
+      setError((prev) => ({ ...prev, [cacheKey]: null }));
+
+      const response = await metricsService.getMetricTypes();
+      console.log('getMetricTypes response:', response);
+
+      if (!response || response.error) {
+        throw new Error(response?.error || 'Failed to fetch metric types');
+      }
+
+      // Check if response.data exists and is an array
+      if (!response.data) {
+        throw new Error('Invalid response format for metric types');
+      }
+      
+      return {
+        data: response.data,
+        error: undefined
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch metric types';
+      setError((prev) => ({ ...prev, [cacheKey]: errorMessage }));
+      return { data: [], error: errorMessage };
+    } finally {
+      setLoading((prev) => ({ ...prev, [cacheKey]: false }));
+    }
+  }, []);
+
   return {
-    metrics,
     loading,
     error,
     getMetricById,
     getMetricsByCategory,
     saveCompanyMetric,
     getBenchmarkData,
-    validateMetricValue
+    validateMetricValue,
+    getMetricTypes,
   };
 };

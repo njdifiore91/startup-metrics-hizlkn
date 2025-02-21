@@ -1,6 +1,7 @@
 // Redis client version: ^5.3.0
 // Prometheus client version: ^14.0.0
-import Redis, { RedisOptions, Cluster } from 'ioredis';
+import Redis from 'ioredis';
+import type { Cluster } from 'ioredis';
 import { Counter, Gauge, Histogram } from 'prom-client';
 import { createRedisClient, redisConfig } from '../config/redis';
 import { logger } from '../utils/logger';
@@ -12,27 +13,27 @@ const cacheMetrics = {
   operations: new Counter({
     name: 'cache_operations_total',
     help: 'Total number of cache operations',
-    labelNames: ['operation', 'status']
+    labelNames: ['operation', 'status'],
   }),
   latency: new Histogram({
     name: 'cache_operation_duration_seconds',
     help: 'Cache operation latency in seconds',
-    labelNames: ['operation']
+    labelNames: ['operation'],
   }),
   memoryUsage: new Gauge({
     name: 'cache_memory_usage_bytes',
-    help: 'Cache memory usage in bytes'
+    help: 'Cache memory usage in bytes',
   }),
   connectionStatus: new Gauge({
     name: 'cache_connection_status',
-    help: 'Cache connection status (1 for connected, 0 for disconnected)'
-  })
+    help: 'Cache connection status (1 for connected, 0 for disconnected)',
+  }),
 };
 
 // Decorator for monitoring cache operations
 function monitor(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
   const originalMethod = descriptor.value;
-  descriptor.value = async function(...args: any[]) {
+  descriptor.value = async function (...args: any[]) {
     const startTime = process.hrtime();
     try {
       const result = await originalMethod.apply(this, args);
@@ -50,9 +51,9 @@ function monitor(target: any, propertyKey: string, descriptor: PropertyDescripto
 
 // Decorator for retry logic
 function retry(attempts: number = 3, delay: number = 1000) {
-  return function(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
-    descriptor.value = async function(...args: any[]) {
+    descriptor.value = async function (...args: any[]) {
       let lastError: Error;
       for (let i = 0; i < attempts; i++) {
         try {
@@ -60,7 +61,7 @@ function retry(attempts: number = 3, delay: number = 1000) {
         } catch (error) {
           lastError = error as Error;
           if (i < attempts - 1) {
-            await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+            await new Promise((resolve) => setTimeout(resolve, delay * Math.pow(2, i)));
           }
         }
       }
@@ -73,7 +74,7 @@ function retry(attempts: number = 3, delay: number = 1000) {
 @injectable()
 @singleton()
 export class CacheService {
-  private readonly client: Redis.Cluster | Redis;
+  private readonly client: Redis | Cluster;
   private readonly healthCheckInterval: NodeJS.Timeout;
   private isConnected: boolean = false;
 
@@ -105,10 +106,15 @@ export class CacheService {
 
   @monitor
   @retry(3)
-  public async set(key: string, value: any, ttl?: number, compress: boolean = false): Promise<boolean> {
+  public async set(
+    key: string,
+    value: any,
+    ttl?: number,
+    compress: boolean = false
+  ): Promise<boolean> {
     try {
       let processedValue = JSON.stringify(value);
-      
+
       if (compress) {
         processedValue = (await gzip(processedValue)).toString('base64');
       }
@@ -132,7 +138,7 @@ export class CacheService {
   public async get<T>(key: string, decompress: boolean = false): Promise<T | null> {
     try {
       const value = await this.client.get(key);
-      
+
       if (!value) {
         return null;
       }
@@ -165,17 +171,15 @@ export class CacheService {
   @monitor
   public async clear(pattern: string): Promise<void> {
     try {
-      const stream = this.client.scanStream({
-        match: pattern,
-        count: 100
-      });
-
-      for await (const keys of stream) {
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
         if (keys.length) {
           await this.client.del(...keys);
         }
-      }
-      
+      } while (cursor !== '0');
+
       logger.info('Cache clear successful', { pattern });
     } catch (error) {
       logger.error('Cache clear failed', { error, pattern });
@@ -187,7 +191,7 @@ export class CacheService {
     try {
       const info = await this.client.info();
       const memory = /used_memory:(\d+)/.exec(info);
-      
+
       if (memory) {
         cacheMetrics.memoryUsage.set(parseInt(memory[1]));
       }

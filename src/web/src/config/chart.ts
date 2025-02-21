@@ -1,4 +1,21 @@
-import { Chart, ChartType, ChartOptions } from 'chart.js'; // chart.js@4.0.0
+import {
+  Chart,
+  ChartType,
+  ChartOptions,
+  ScaleOptions,
+  TooltipOptions,
+  LegendOptions,
+  TitleOptions,
+  AnimationSpec,
+  CoreInteractionOptions,
+  ChartTypeRegistry,
+  GridLineOptions,
+  FontSpec,
+  Color,
+  ScriptableAndScriptableOptions,
+  ScriptableChartContext,
+  LegendItem,
+} from 'chart.js';
 
 // Type-safe interface for chart color palette
 export interface IChartColors {
@@ -10,11 +27,18 @@ export interface IChartColors {
 }
 
 // Interface for comprehensive chart configuration options
-export interface IChartOptions extends ChartOptions {
-  scales: object;
-  plugins: object;
-  animation: object;
-  interaction: object;
+export interface IChartOptions extends ChartOptions<ChartType> {
+  scales: {
+    x?: Partial<ScaleOptions<'linear'>>;
+    y?: Partial<ScaleOptions<'linear'>>;
+  };
+  plugins: {
+    tooltip?: Partial<TooltipOptions<ChartType>>;
+    legend?: Partial<LegendOptions<ChartType>>;
+    title?: Partial<TitleOptions>;
+  };
+  animation?: Partial<AnimationSpec<ChartType>>;
+  interaction?: Partial<CoreInteractionOptions>;
   responsive: boolean;
   maintainAspectRatio: boolean;
 }
@@ -25,7 +49,7 @@ export const CHART_COLORS: IChartColors = {
   secondary: '#46608C',
   accent: '#168947',
   background: '#DBEAAC',
-  text: '#0D3330'
+  text: '#0D3330',
 } as const;
 
 // Typography settings
@@ -43,27 +67,24 @@ Chart.defaults.maintainAspectRatio = false;
  * @param chartType - The type of chart being configured
  * @returns Optimized Chart.js configuration object
  */
-export const getDefaultChartOptions = (chartType: ChartType): IChartOptions => {
+export const getDefaultChartOptions = (chartType: keyof ChartTypeRegistry): IChartOptions => {
   const baseOptions: IChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    
+
     // Configure performance-optimized animations
     animation: {
       duration: 400,
       easing: 'easeOutQuart',
-      mode: 'show',
-      delay: (context) => context.dataIndex * 10
     },
-    
+
     // Set touch-friendly interaction modes
     interaction: {
       mode: 'nearest',
       axis: 'xy',
       intersect: false,
-      includeInvisible: false
     },
-    
+
     // Configure plugins with accessibility features
     plugins: {
       tooltip: {
@@ -72,57 +93,70 @@ export const getDefaultChartOptions = (chartType: ChartType): IChartOptions => {
         titleFont: {
           family: FONT_FAMILY,
           size: 14,
-          weight: 'bold'
-        },
+          weight: 'bold',
+        } as FontSpec,
         bodyFont: {
           family: FONT_FAMILY,
-          size: 13
-        },
+          size: 13,
+        } as FontSpec,
         padding: 12,
         cornerRadius: 4,
-        usePointStyle: true
+        usePointStyle: true,
       },
       legend: {
         display: true,
-        position: 'bottom',
+        position: 'bottom' as const,
         labels: {
+          boxWidth: 12,
+          boxHeight: 12,
+          padding: 20,
+          color: CHART_COLORS.text as Color,
           font: {
             family: FONT_FAMILY,
-            size: 13
-          },
+            size: 13,
+          } as ScriptableAndScriptableOptions<Partial<FontSpec>, ScriptableChartContext>,
+          filter: (item: LegendItem) => true,
+          sort: (a: LegendItem, b: LegendItem) => 0,
+          pointStyle: 'circle',
           usePointStyle: true,
-          padding: 20
-        }
-      }
+          pointStyleWidth: 12,
+          useBorderRadius: false,
+          borderRadius: 0,
+          generateLabels: (chart) => {
+            const defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+            return defaultLabels;
+          },
+        },
+      },
     },
-    
+
     // Configure WCAG-compliant scales
     scales: {
       x: {
         grid: {
           display: true,
-          color: CHART_COLORS.secondary + '20'
-        },
+          color: CHART_COLORS.secondary + '20',
+        } as Partial<GridLineOptions>,
         ticks: {
           font: {
             family: FONT_FAMILY,
-            size: 12
-          }
-        }
+            size: 12,
+          } as FontSpec,
+        },
       },
       y: {
         grid: {
           display: true,
-          color: CHART_COLORS.secondary + '20'
-        },
+          color: CHART_COLORS.secondary + '20',
+        } as Partial<GridLineOptions>,
         ticks: {
           font: {
             family: FONT_FAMILY,
-            size: 12
-          }
-        }
-      }
-    }
+            size: 12,
+          } as FontSpec,
+        },
+      },
+    },
   };
 
   return baseOptions;
@@ -135,12 +169,12 @@ export const benchmarkChartOptions: IChartOptions = {
     y: {
       beginAtZero: true,
       grid: {
-        drawBorder: false
-      },
+        display: false,
+      } as Partial<GridLineOptions>,
       ticks: {
-        callback: (value) => `${value}%`
-      }
-    }
+        callback: (value) => `${value}%`,
+      },
+    },
   },
   plugins: {
     ...getDefaultChartOptions('bar').plugins,
@@ -150,10 +184,14 @@ export const benchmarkChartOptions: IChartOptions = {
       font: {
         family: FONT_FAMILY,
         size: 16,
-        weight: 'bold'
-      }
-    }
-  }
+        weight: 'bold',
+      } as FontSpec,
+      align: 'center',
+      position: 'top',
+      color: CHART_COLORS.text,
+      padding: 20,
+    },
+  },
 };
 
 // Export performance-optimized configuration for metric trend charts
@@ -163,9 +201,9 @@ export const metricTrendOptions: IChartOptions = {
     y: {
       beginAtZero: false,
       grid: {
-        drawBorder: false
-      }
-    }
+        display: false,
+      } as Partial<GridLineOptions>,
+    },
   },
   plugins: {
     ...getDefaultChartOptions('line').plugins,
@@ -175,18 +213,22 @@ export const metricTrendOptions: IChartOptions = {
       font: {
         family: FONT_FAMILY,
         size: 16,
-        weight: 'bold'
-      }
-    }
+        weight: 'bold',
+      } as FontSpec,
+      align: 'center',
+      position: 'top',
+      color: CHART_COLORS.text,
+      padding: 20,
+    },
   },
   elements: {
     line: {
-      tension: 0.4
+      tension: 0.4,
     },
     point: {
       radius: 4,
       hitRadius: 8,
-      hoverRadius: 6
-    }
-  }
+      hoverRadius: 6,
+    },
+  },
 };

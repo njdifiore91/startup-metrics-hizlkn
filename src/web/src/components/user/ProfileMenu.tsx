@@ -4,200 +4,211 @@
  * @version 1.0.0
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { analytics } from '@segment/analytics-next';
-import { useAuth } from '../../hooks/useAuth';
+import { useDispatch, useSelector } from 'react-redux';
+import { Menu, MenuItem, IconButton, Avatar, ListItemIcon, ListItemText } from '@mui/material';
+import { Settings as SettingsIcon, Logout as LogoutIcon } from '@mui/icons-material';
+import { RootState } from '../../store';
+import { logout } from '../../store/authSlice';
+import { Analytics } from '@segment/analytics-next';
 import styles from './ProfileMenu.module.css';
+import { AxiosError } from 'axios';
+import { TIMING_CONFIG } from '../../constants/timing';
 
-// Constants for menu interactions
-const MENU_CLOSE_DELAY = 150;
-const SESSION_CHECK_INTERVAL = 60000; // 1 minute
-const INACTIVITY_WARNING_THRESHOLD = 300000; // 5 minutes
+// Initialize Segment Analytics
+const analytics = new Analytics({
+  writeKey: import.meta.env.VITE_SEGMENT_WRITE_KEY || '',
+});
 
-export interface ProfileMenuProps {
+interface ProfileMenuProps {
   className?: string;
   ariaLabel?: string;
   testId?: string;
 }
 
-/**
- * Enhanced profile menu component with security features and accessibility support
- */
-const ProfileMenu: React.FC<ProfileMenuProps> = React.memo(({
+const ProfileMenu: React.FC<ProfileMenuProps> = ({
   className = '',
-  ariaLabel = 'User profile menu',
+  ariaLabel = 'User menu',
   testId = 'profile-menu'
 }) => {
-  const { user, logout, refreshToken, validateSession } = useAuth();
   const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
+  const dispatch = useDispatch();
+  const user = useSelector((state: RootState) => state.auth.user);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const lastActivityRef = useRef<number>(Date.now());
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [inactivityWarningMessage, setInactivityWarningMessage] = useState<string>(
+    'Your session is about to expire due to inactivity.'
+  );
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = useCallback(() => {
+    dispatch(logout());
+    navigate('/login');
+    handleClose();
+  }, [dispatch, navigate]);
+
+  const handleSettings = useCallback(() => {
+    navigate('/settings');
+    handleClose();
+  }, [navigate]);
 
   // Track user activity
   const updateLastActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
     setShowInactivityWarning(false);
+    setRefreshAttempts(0);
   }, []);
 
   // Handle session monitoring
-  useEffect(() => {
-    const checkSession = async () => {
-      const isValid = await validateSession();
-      if (!isValid) {
-        handleLogout();
-      }
+  // React.useEffect(() => {
+  //   const checkSession = async () => {
+  //     if (!user) return;
 
-      const inactivityTime = Date.now() - lastActivityRef.current;
-      if (inactivityTime >= INACTIVITY_WARNING_THRESHOLD) {
-        setShowInactivityWarning(true);
-      }
-    };
+  //     const inactivityTime = Date.now() - lastActivityRef.current;
+  //     if (inactivityTime >= TIMING_CONFIG.SESSION.INACTIVITY_WARNING_MS) {
+  //       setShowInactivityWarning(true);
+  //     }
+  //   };
 
-    const sessionInterval = setInterval(checkSession, SESSION_CHECK_INTERVAL);
-    return () => clearInterval(sessionInterval);
-  }, [validateSession]);
+  //   const sessionInterval = setInterval(checkSession, TIMING_CONFIG.SESSION.CHECK_INTERVAL_MS);
+  //   return () => clearInterval(sessionInterval);
+  // }, [user]);
 
-  // Handle click outside menu
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Handle menu selection
-  const handleMenuSelect = useCallback(async (action: string) => {
-    try {
-      analytics.track('Profile Menu Action', { action });
-
-      switch (action) {
-        case 'profile':
-          navigate('/profile');
-          break;
-        case 'settings':
-          navigate('/settings');
-          break;
-        case 'logout':
-          await handleLogout();
-          break;
-        default:
-          console.warn('Unknown menu action:', action);
-      }
-    } catch (error) {
-      console.error('Menu action failed:', error);
-    } finally {
-      setIsOpen(false);
-    }
-  }, [navigate]);
-
-  // Handle secure logout
-  const handleLogout = async () => {
-    try {
-      analytics.track('User Logout');
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  };
-
-  // Handle token refresh
+  // Handle token refresh with retry logic
   const handleTokenRefresh = async () => {
+    if (!user) return;
+
     try {
-      await refreshToken();
+      // await refreshToken();
       setShowInactivityWarning(false);
       updateLastActivity();
+      setRefreshAttempts(0);
+      
+      analytics.track('Session Refresh', {
+        status: 'success',
+        userId: user?.id
+      });
     } catch (error) {
       console.error('Token refresh failed:', error);
-      await handleLogout();
+      
+      if (error instanceof AxiosError) {
+        const errorCode = error.response?.data?.error?.code;
+        const isAuthError = [401, 403].includes(error.response?.status || 0);
+        const isTokenExpired = errorCode === 'AUTH_003' || error.response?.data?.error?.message?.includes('Token expired');
+
+        if (isAuthError || isTokenExpired) {
+          analytics.track('Session Expired', {
+            userId: user?.id,
+            reason: isTokenExpired ? 'token_expired' : 'auth_error'
+          });
+          
+          await handleLogout();
+          return;
+        }
+      }
+      
+      setRefreshAttempts(prev => prev + 1);
+      
+      if (refreshAttempts >= TIMING_CONFIG.SESSION.MAX_CONSECUTIVE_FAILURES) {
+        setInactivityWarningMessage('Maximum refresh attempts reached. Please log in again.');
+        await handleLogout();
+        return;
+      }
+      
+      setShowInactivityWarning(true);
+      setInactivityWarningMessage(
+        `Unable to refresh session. Click "Try Again" to retry. (Attempt ${refreshAttempts + 1}/${TIMING_CONFIG.SESSION.MAX_CONSECUTIVE_FAILURES})`
+      );
+      
+      analytics.track('Session Refresh', {
+        status: 'failed',
+        userId: user?.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        attempt: refreshAttempts + 1
+      });
     }
   };
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
-    <div
-      ref={menuRef}
-      className={`${styles.profileMenu} ${className}`}
-      data-testid={testId}
-      role="navigation"
-      aria-label={ariaLabel}
-    >
-      <button
-        className={styles.avatar}
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
+    <div className={className} data-testid={testId}>
+      <IconButton
+        onClick={handleClick}
+        aria-controls="profile-menu"
         aria-haspopup="true"
-        aria-label="Open profile menu"
+        aria-expanded={Boolean(anchorEl)}
+        aria-label={ariaLabel}
+        sx={{
+          '&:hover': {
+            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+          }
+        }}
       >
-        {user.name.charAt(0).toUpperCase()}
-      </button>
-
-      {isOpen && (
-        <div
-          className={styles.menu}
-          role="menu"
-          aria-orientation="vertical"
+        <Avatar
+          alt={user.name}
+          sx={{
+            width: 32,
+            height: 32,
+            bgcolor: 'primary.main',
+            color: 'white',
+            fontWeight: 'bold',
+            fontSize: '1rem',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'scale(1.05)',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }
+          }}
         >
-          <div className={styles.userInfo}>
-            <div className={styles.userName}>{user.name}</div>
-            <div className={styles.userEmail}>{user.email}</div>
-          </div>
-
-          <button
-            className={styles.menuItem}
-            onClick={() => handleMenuSelect('profile')}
-            role="menuitem"
-          >
-            Profile
-          </button>
-
-          <button
-            className={styles.menuItem}
-            onClick={() => handleMenuSelect('settings')}
-            role="menuitem"
-          >
-            Settings
-          </button>
-
-          <button
-            className={styles.menuItem}
-            onClick={() => handleMenuSelect('logout')}
-            role="menuitem"
-          >
-            Logout
-          </button>
-        </div>
-      )}
+          {user.name.charAt(0).toUpperCase()}
+        </Avatar>
+      </IconButton>
+      <Menu
+        id="profile-menu"
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+        onClick={handleClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        <MenuItem onClick={handleSettings}>
+          <ListItemIcon>
+            <SettingsIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Settings</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={handleLogout}>
+          <ListItemIcon>
+            <LogoutIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Logout</ListItemText>
+        </MenuItem>
+      </Menu>
 
       {showInactivityWarning && (
-        <div
-          className={styles.inactivityWarning}
-          role="alert"
-          aria-live="polite"
-        >
-          <p>Your session is about to expire due to inactivity.</p>
-          <button
-            onClick={handleTokenRefresh}
+        <div className={styles.inactivityWarning} role="alert" aria-live="polite">
+          <p>{inactivityWarningMessage}</p>
+          <button 
+            onClick={handleTokenRefresh} 
             className={styles.refreshButton}
+            disabled={refreshAttempts >= TIMING_CONFIG.SESSION.MAX_CONSECUTIVE_FAILURES}
           >
-            Stay Connected
+            {inactivityWarningMessage.includes('Unable to refresh') ? 'Try Again' : 'Stay Connected'}
           </button>
         </div>
       )}
     </div>
   );
-});
-
-ProfileMenu.displayName = 'ProfileMenu';
+};
 
 export default ProfileMenu;

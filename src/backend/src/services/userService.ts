@@ -1,16 +1,17 @@
-import { IUser } from '../interfaces/IUser';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
+import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
 import { USER_ROLES } from '../constants/roles';
 import { encrypt } from '../utils/encryption';
-import logger from '../utils/logger';
-import createHttpError from 'http-errors';
 import { rateLimit } from 'express-rate-limit';
 import { createClient } from 'redis';
+import { Model, Op } from 'sequelize';
+import { v4 as uuidv4 } from 'uuid';
 
 // Redis client for caching
 const cache = createClient({
   url: process.env.REDIS_URL,
-  password: process.env.REDIS_PASSWORD
+  password: process.env.REDIS_PASSWORD,
 });
 
 // Constants
@@ -21,214 +22,347 @@ const PERMISSION_CACHE_PREFIX = 'perm:';
 // Rate limiting configuration
 const rateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests per windowMs
 });
 
-/**
- * Creates a new user with field-level encryption and audit logging
- * @param userData - User data to create
- * @returns Promise resolving to created user
- * @throws HttpError for validation or creation failures
- */
-async function createUser(userData: Partial<IUser>): Promise<IUser> {
-  try {
-    logger.info('Creating new user', { email: userData.email });
+interface LogMetadata {
+  [key: string]: unknown;
+}
 
-    // Validate required fields
-    if (!userData.email || !userData.googleId) {
-      throw createHttpError(400, 'Email and Google ID are required');
+interface UpdateUserData {
+  email?: string;
+  name?: string;
+  role?: keyof typeof USER_ROLES;
+  isActive?: boolean;
+  profileImageUrl?: string;
+  companyName?: string;
+  setupCompleted?: boolean;
+  tier?: 'free' | 'pro' | 'enterprise';
+  revenueRange?: '0-1M' | '1M-5M' | '5M-20M' | '20M-50M' | '50M+';
+  metadata?: Record<string, unknown>;
+}
+
+class UserService {
+  async findByGoogleId(googleId: string): Promise<User | null> {
+    try {
+      return await User.findOne({ where: { googleId } });
+    } catch (error) {
+      logger.error('Error finding user by Google ID:', { error } as LogMetadata);
+      throw new AppError('Database error', 500);
     }
+  }
 
-    // Check for existing user
-    const existingUser = await User.findByEmail(userData.email);
-    if (existingUser) {
-      throw createHttpError(409, 'User already exists');
+  async findByEmail(email: string): Promise<User | null> {
+    try {
+      return await User.findOne({ where: { email } });
+    } catch (error) {
+      logger.error('Error finding user by email:', { error } as LogMetadata);
+      throw new AppError('Database error', 500);
     }
+  }
 
-    // Set default role if not provided
-    const userRole = userData.role || USER_ROLES.USER;
+  async createUser(userData: Partial<IUser>): Promise<User> {
+    try {
+      const user = await User.create({
+        id: userData.id!,
+        email: userData.email!,
+        name: userData.name!,
+        googleId: userData.googleId,
+        role: userData.role || 'USER',
+        tier: userData.tier || 'free',
+        isActive: true,
+        lastLoginAt: new Date(),
+      } as IUser);
+      return user;
+    } catch (error) {
+      logger.error('Error creating user:', { error } as LogMetadata);
+      throw new AppError('Failed to create user', 500);
+    }
+  }
 
-    // Create user with encrypted sensitive fields
-    const user = await User.create({
-      ...userData,
-      role: userRole,
-      isActive: true,
-      version: 1,
-      lastLoginAt: new Date()
-    });
+  async updateUser(id: string, updates: UpdateUserData): Promise<User | null> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
 
-    logger.info('User created successfully', { userId: user.id });
+      // Validate email if provided
+      if (updates.email) {
+        const existingUser = await this.findByEmail(updates.email);
+        if (existingUser && existingUser.id !== id) {
+          throw new AppError('Email already in use by another user', 400);
+        }
+      }
 
-    // Cache user data
-    await cache.set(
-      `${USER_CACHE_PREFIX}${user.id}`,
-      JSON.stringify(user),
-      'EX',
-      CACHE_TTL
-    );
+      // Validate role if provided
+      if (updates.role && !Object.values(USER_ROLES).includes(updates.role)) {
+        throw new AppError('Invalid role specified', 400);
+      }
 
-    return user;
-  } catch (error) {
-    logger.error('Error creating user', { error });
-    throw error;
+      // Validate revenue range if provided
+      if (updates.revenueRange) {
+        const validRanges = ['0-1M', '1M-5M', '5M-20M', '20M-50M', '50M+'];
+        if (!validRanges.includes(updates.revenueRange)) {
+          throw new AppError('Invalid revenue range specified', 400);
+        }
+      }
+
+      // Create audit log entry
+      logger.info('User update requested', {
+        userId: id,
+        changes: updates,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Perform the update with validation
+      const updatedUser = await user.update({
+        ...updates,
+        updatedAt: new Date(),
+      });
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+
+      return updatedUser;
+    } catch (error) {
+      logger.error('Error updating user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to update user', 500);
+    }
+  }
+
+  async editUser(
+    id: string,
+    editData: {
+      email?: string;
+      name?: string;
+      role?: keyof typeof USER_ROLES;
+      isActive?: boolean;
+      profileImageUrl?: string;
+      tier?: 'free' | 'pro' | 'enterprise';
+      metadata?: Record<string, unknown>;
+    }
+  ): Promise<User> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+
+      // Validate email if provided
+      if (editData.email) {
+        const existingUser = await this.findByEmail(editData.email);
+        if (existingUser && existingUser.id !== id) {
+          throw new AppError('Email already in use by another user', 400);
+        }
+      }
+
+      // Validate role if provided
+      if (editData.role && !Object.values(USER_ROLES).includes(editData.role)) {
+        throw new AppError('Invalid role specified', 400);
+      }
+
+      // Create audit log entry
+      logger.info('User edit requested', {
+        userId: id,
+        changes: editData,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Perform the update with validation
+      const updatedUser = await user.update({
+        ...editData,
+        updatedAt: new Date(),
+      });
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+
+      return updatedUser;
+    } catch (error) {
+      logger.error('Error editing user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to edit user', 500);
+    }
+  }
+
+  async deactivateUser(id: string): Promise<User> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+
+      if (!user.isActive) {
+        throw new AppError('User is already deactivated', 400);
+      }
+
+      // Create audit log entry
+      logger.info('User deactivation requested', {
+        userId: id,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Perform the deactivation
+      const updatedUser = await user.update({
+        isActive: false,
+        updatedAt: new Date(),
+      });
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+
+      return updatedUser;
+    } catch (error) {
+      logger.error('Error deactivating user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to deactivate user', 500);
+    }
+  }
+
+  async validateRole(userId: string, requiredRole: keyof typeof USER_ROLES): Promise<boolean> {
+    try {
+      const user = await User.findByPk(userId);
+      if (!user || !user.isActive) {
+        return false;
+      }
+
+      const roleValues = Object.keys(USER_ROLES);
+      const userRoleIndex = roleValues.indexOf(user.role);
+      const requiredRoleIndex = roleValues.indexOf(requiredRole);
+
+      return userRoleIndex >= requiredRoleIndex;
+    } catch (error) {
+      logger.error('Error validating user role:', { error } as LogMetadata);
+      return false;
+    }
+  }
+
+  async getAllUsers(
+    options: {
+      page?: number;
+      limit?: number;
+      role?: string;
+      isActive?: boolean;
+    } = {}
+  ): Promise<{ users: User[]; total: number }> {
+    try {
+      const { page = 1, limit = 10, role, isActive = true } = options;
+      const offset = (page - 1) * limit;
+
+      const where: any = {};
+      if (role) {
+        where.role = role;
+      }
+
+      const { rows: users, count: total } = await User.findAndCountAll({
+        where,
+        attributes: [
+          'id',
+          'email',
+          'name',
+          'role',
+          'createdAt',
+          'lastLoginAt',
+          // 'profileImageUrl',
+          'isActive',
+        ],
+        order: [['createdAt', 'DESC']],
+        offset,
+        limit,
+      });
+
+      return { users, total };
+    } catch (error) {
+      logger.error('Error fetching all users:', { error } as LogMetadata);
+      throw new AppError('Failed to fetch users', 500);
+    }
+  }
+
+  async createManualUser(userData: {
+    email: string;
+    name: string;
+    role?: keyof typeof USER_ROLES;
+    isActive?: boolean;
+    profileImageUrl?: string;
+    tier?: 'free' | 'pro' | 'enterprise';
+  }): Promise<User> {
+    try {
+      // Check if user with email already exists
+      const existingUser = await this.findByEmail(userData.email);
+      if (existingUser) {
+        throw new AppError('User with this email already exists', 400);
+      }
+
+      const now = new Date();
+      const user = await User.create({
+        id: uuidv4(),
+        email: userData.email,
+        name: userData.name,
+        role: userData.role || USER_ROLES.USER,
+        tier: userData.tier || 'free',
+        isActive: userData.isActive ?? true,
+        lastLoginAt: now,
+        createdAt: now,
+        updatedAt: now,
+        profileImageUrl: userData.profileImageUrl,
+        version: 1,
+      });
+
+      logger.info('Manual user created successfully', { userId: user.id });
+      return user;
+    } catch (error) {
+      logger.error('Error creating manual user:', { error } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to create user', 500);
+    }
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    try {
+      const user = await User.findByPk(id);
+      if (!user) {
+        throw new AppError('User not found', 404);
+      }
+
+      // Create audit log entry
+      logger.info('User deletion requested', {
+        userId: id,
+        userEmail: user.email,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Delete the user
+      await user.destroy();
+
+      // Clear user cache if exists
+      const cacheKey = `${USER_CACHE_PREFIX}${id}`;
+      await cache.del(cacheKey);
+    } catch (error) {
+      logger.error('Error deleting user:', { error, userId: id } as LogMetadata);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Failed to delete user', 500);
+    }
   }
 }
 
-/**
- * Retrieves a user by ID with caching and rate limiting
- * @param id - User ID to retrieve
- * @returns Promise resolving to found user or null
- * @throws HttpError for invalid ID or rate limit exceeded
- */
-async function getUserById(id: string): Promise<IUser | null> {
-  try {
-    // Check rate limit
-    await rateLimiter.increment(id);
-
-    // Check cache first
-    const cachedUser = await cache.get(`${USER_CACHE_PREFIX}${id}`);
-    if (cachedUser) {
-      return JSON.parse(cachedUser);
-    }
-
-    // Query database if cache miss
-    const user = await User.findById(id);
-    if (!user) {
-      return null;
-    }
-
-    // Update cache
-    await cache.set(
-      `${USER_CACHE_PREFIX}${id}`,
-      JSON.stringify(user),
-      'EX',
-      CACHE_TTL
-    );
-
-    logger.info('User retrieved', { userId: id });
-    return user;
-  } catch (error) {
-    logger.error('Error retrieving user', { error, userId: id });
-    throw error;
-  }
-}
-
-/**
- * Updates user with optimistic locking and audit trail
- * @param id - User ID to update
- * @param updateData - Partial user data to update
- * @param version - Expected version number for optimistic locking
- * @returns Promise resolving to updated user
- * @throws HttpError for version conflicts or validation failures
- */
-async function updateUser(
-  id: string,
-  updateData: Partial<IUser>,
-  version: number
-): Promise<IUser> {
-  try {
-    logger.info('Updating user', { userId: id, version });
-
-    // Validate version
-    const currentUser = await User.findById(id);
-    if (!currentUser) {
-      throw createHttpError(404, 'User not found');
-    }
-
-    if (currentUser.version !== version) {
-      throw createHttpError(409, 'Version conflict - please refresh and try again');
-    }
-
-    // Encrypt sensitive fields if present
-    const encryptedData = { ...updateData };
-    if (updateData.email) {
-      encryptedData.email = await encrypt(updateData.email, Buffer.from(process.env.JWT_SECRET!));
-    }
-
-    // Update user with incremented version
-    const updatedUser = await User.update(id, {
-      ...encryptedData,
-      version: version + 1
-    });
-
-    // Invalidate cache
-    await cache.del(`${USER_CACHE_PREFIX}${id}`);
-    await cache.del(`${PERMISSION_CACHE_PREFIX}${id}`);
-
-    logger.info('User updated successfully', { userId: id });
-    return updatedUser;
-  } catch (error) {
-    logger.error('Error updating user', { error, userId: id });
-    throw error;
-  }
-}
-
-/**
- * Validates user role with hierarchical permissions
- * @param userId - User ID to validate
- * @param requiredRole - Required role level
- * @returns Promise resolving to boolean indicating if user has required role
- * @throws HttpError for invalid user or role
- */
-async function validateUserRole(
-  userId: string,
-  requiredRole: typeof USER_ROLES[keyof typeof USER_ROLES]
-): Promise<boolean> {
-  try {
-    // Check permission cache
-    const cachedPermission = await cache.get(`${PERMISSION_CACHE_PREFIX}${userId}`);
-    if (cachedPermission) {
-      return JSON.parse(cachedPermission).role === requiredRole;
-    }
-
-    const user = await User.findById(userId);
-    if (!user || !user.isActive) {
-      throw createHttpError(401, 'Invalid or inactive user');
-    }
-
-    // Implement role hierarchy
-    const roleHierarchy = {
-      [USER_ROLES.USER]: 1,
-      [USER_ROLES.ANALYST]: 2,
-      [USER_ROLES.ADMIN]: 3
-    };
-
-    const hasPermission = roleHierarchy[user.role] >= roleHierarchy[requiredRole];
-
-    // Cache permission result
-    await cache.set(
-      `${PERMISSION_CACHE_PREFIX}${userId}`,
-      JSON.stringify({ role: user.role }),
-      'EX',
-      CACHE_TTL
-    );
-
-    logger.info('Role validation completed', {
-      userId,
-      requiredRole,
-      hasPermission
-    });
-
-    return hasPermission;
-  } catch (error) {
-    logger.error('Error validating user role', {
-      error,
-      userId,
-      requiredRole
-    });
-    throw error;
-  }
-}
+export const userService = new UserService();
 
 // Initialize cache connection
-cache.connect().catch(error => {
+cache.connect().catch((error) => {
   logger.error('Redis cache connection error', { error });
 });
-
-// Export service methods
-export const userService = {
-  createUser,
-  getUserById,
-  updateUser,
-  validateUserRole
-};

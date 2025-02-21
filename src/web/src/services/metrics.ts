@@ -1,20 +1,69 @@
 import { AxiosResponse } from 'axios'; // v1.4.0
-import { IMetric, MetricCategory, ValidationRule } from '../interfaces/IMetric';
+import { IMetric, MetricCategory, MetricType, ValidationRule } from '../interfaces/IMetric';
 import { IBenchmark } from '../interfaces/IBenchmark';
 import { ICompanyMetric, validateCompanyMetricValue } from '../interfaces/ICompanyMetric';
 import { api } from './api';
 import { calculatePercentile } from '../utils/metricCalculators';
-import { showToast, ToastType, ToastPosition } from '../hooks/useToast';
+import { ToastType, ToastPosition } from '../hooks/useToast';
 import { API_CONFIG } from '../config/constants';
 
-/**
- * Interface for metric service response with enhanced error handling
- */
-interface MetricServiceResponse<T> {
-  data: T;
+// Helper function to show toast since we can't use hooks in a class
+const showToast = (message: string, type: ToastType, position: ToastPosition) => {
+  // Implementation will be provided by the app's toast system
+  console.log(`Toast: ${message}, type: ${type}, position: ${position}`);
+};
+
+interface ValidationError {
+  field: string;
+  message: string;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+}
+
+export interface MetricServiceResponse<T> {
+  data: T | null;
   error?: string;
   metadata?: Record<string, unknown>;
 }
+
+// Cache key and value types
+type MetricCacheKey = 'all_metrics' | `metric_${string}` | `benchmark_${string}_${string}` | 'metric_types';
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+type CacheValue = 
+  | IMetric[] 
+  | IMetric 
+  | IBenchmark 
+  | Array<Pick<IMetric, 'id' | 'name' | 'type' | 'valueType'>>;
+
+type MetricCache = Map<string, CacheEntry<CacheValue>>;
+
+/**
+ * Validates metric data before sending to the API
+ */
+const validateMetricData = (data: Partial<IMetric>): ValidationResult => {
+  const errors: ValidationError[] = [];
+
+  if (!data.name) {
+    errors.push({ field: 'name', message: 'Name is required' });
+  }
+
+  if (!data.category) {
+    errors.push({ field: 'category', message: 'Category is required' });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
 
 /**
  * Enhanced metrics service class with comprehensive error handling and caching
@@ -22,8 +71,16 @@ interface MetricServiceResponse<T> {
  */
 export class MetricsService {
   private readonly cacheTimeout: number = 15 * 60 * 1000; // 15 minutes
-  private metricsCache: Map<string, { data: any; timestamp: number }> = new Map();
-  private pendingRequests: Map<string, Promise<any>> = new Map();
+  private metricsCache: MetricCache = new Map();
+  private pendingRequests: Map<string, Promise<MetricServiceResponse<any>>> = new Map();
+
+  private getCachedValue<T extends CacheValue>(key: string): T | null {
+    const cached = this.metricsCache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      return cached.data as T;
+    }
+    return null;
+  }
 
   /**
    * Retrieves all available metrics with caching and error handling
@@ -31,25 +88,28 @@ export class MetricsService {
    * @returns Promise resolving to array of metrics
    */
   public async getMetrics(useCache = true): Promise<MetricServiceResponse<IMetric[]>> {
-    const cacheKey = 'all_metrics';
+    const cacheKey = 'all_metrics' as const;
 
     try {
       // Check cache if enabled
       if (useCache) {
-        const cached = this.metricsCache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-          return { data: cached.data };
+        const cached = this.getCachedValue<IMetric[]>(cacheKey);
+        if (cached) {
+          return { data: cached };
         }
       }
 
       // Check for pending request
-      if (this.pendingRequests.has(cacheKey)) {
-        return await this.pendingRequests.get(cacheKey);
+      const pendingRequest = this.pendingRequests.get(cacheKey);
+      if (pendingRequest) {
+        const response = await pendingRequest;
+        return response as MetricServiceResponse<IMetric[]>;
       }
 
       // Make new request
       const request = api.get<IMetric[]>(API_CONFIG.API_ENDPOINTS.METRICS);
-      this.pendingRequests.set(cacheKey, request);
+      const promise = request.then((response) => ({ data: response.data }));
+      this.pendingRequests.set(cacheKey, promise);
 
       const response = await request;
       const metrics = response.data;
@@ -57,14 +117,14 @@ export class MetricsService {
       // Update cache
       this.metricsCache.set(cacheKey, {
         data: metrics,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       return { data: metrics };
     } catch (error) {
       const errorMessage = 'Failed to fetch metrics';
       showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: [], error: errorMessage };
+      return { data: null, error: errorMessage };
     } finally {
       this.pendingRequests.delete(cacheKey);
     }
@@ -75,17 +135,21 @@ export class MetricsService {
    * @param category - Category to filter metrics by
    * @returns Promise resolving to filtered metrics array
    */
-  public async getMetricsByCategory(category: MetricCategory): Promise<MetricServiceResponse<IMetric[]>> {
+  public async getMetricsByCategory(
+    category: MetricCategory
+  ): Promise<MetricServiceResponse<IMetric[]>> {
     try {
       const metrics = await this.getMetrics();
-      if (metrics.error) return metrics;
+      if (metrics.error || !metrics.data) {
+        return { data: null, error: metrics.error || 'No metrics found' };
+      }
 
-      const filteredMetrics = metrics.data.filter(metric => metric.category === category);
+      const filteredMetrics = metrics.data.filter((metric) => metric.category === category);
       return { data: filteredMetrics };
     } catch (error) {
       const errorMessage = `Failed to fetch metrics for category: ${category}`;
       showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
-      return { data: [], error: errorMessage };
+      return { data: null, error: errorMessage };
     }
   }
 
@@ -95,13 +159,13 @@ export class MetricsService {
    * @returns Promise resolving to single metric
    */
   public async getMetricById(id: string): Promise<MetricServiceResponse<IMetric>> {
-    const cacheKey = `metric_${id}`;
+    const cacheKey = `metric_${id}` as const;
 
     try {
       // Check cache
-      const cached = this.metricsCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-        return { data: cached.data };
+      const cached = this.getCachedValue<IMetric>(cacheKey);
+      if (cached) {
+        return { data: cached };
       }
 
       const response = await api.get<IMetric>(`${API_CONFIG.API_ENDPOINTS.METRICS}/${id}`);
@@ -110,7 +174,7 @@ export class MetricsService {
       // Update cache
       this.metricsCache.set(cacheKey, {
         data: metric,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       return { data: metric };
@@ -134,7 +198,9 @@ export class MetricsService {
     try {
       // Fetch metric definition for validation
       const metricResponse = await this.getMetricById(metricId);
-      if (metricResponse.error) return { data: null, error: metricResponse.error };
+      if (metricResponse.error || !metricResponse.data) {
+        return { data: null, error: metricResponse.error || 'Metric not found' };
+      }
 
       const metric = metricResponse.data;
 
@@ -145,14 +211,11 @@ export class MetricsService {
         return { data: null, error: errorMessage };
       }
 
-      const response = await api.post<ICompanyMetric>(
-        API_CONFIG.API_ENDPOINTS.COMPANY_METRICS,
-        {
-          metricId,
-          value,
-          timestamp: new Date().toISOString()
-        }
-      );
+      const response = await api.post<ICompanyMetric>(API_CONFIG.API_ENDPOINTS.COMPANY_METRICS, {
+        metricId,
+        value,
+        timestamp: new Date().toISOString(),
+      });
 
       showToast('Metric saved successfully', ToastType.SUCCESS, ToastPosition.TOP_RIGHT);
       return { data: response.data };
@@ -173,19 +236,19 @@ export class MetricsService {
     metricId: string,
     revenueRange: string
   ): Promise<MetricServiceResponse<IBenchmark>> {
-    const cacheKey = `benchmark_${metricId}_${revenueRange}`;
+    const cacheKey = `benchmark_${metricId}_${revenueRange}` as const;
 
     try {
       // Check cache
-      const cached = this.metricsCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
-        return { data: cached.data };
+      const cached = this.getCachedValue<IBenchmark>(cacheKey);
+      if (cached) {
+        return { data: cached };
       }
 
       const response = await api.get<IBenchmark>(
         `${API_CONFIG.API_ENDPOINTS.BENCHMARKS}/${metricId}`,
         {
-          params: { revenueRange }
+          params: { revenueRange },
         }
       );
 
@@ -194,7 +257,7 @@ export class MetricsService {
       // Update cache
       this.metricsCache.set(cacheKey, {
         data: benchmark,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       return { data: benchmark };
@@ -221,6 +284,58 @@ export class MetricsService {
       if (key.includes(pattern)) {
         this.metricsCache.delete(key);
       }
+    }
+  }
+
+  /**
+   * Retrieves available metric types with caching
+   * @returns Promise resolving to array of metric types
+   */
+  public async getMetricTypes(): Promise<MetricServiceResponse<Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>>>> {
+    const cacheKey = 'metric_types' as const;
+
+    try {
+      // Check cache
+      const cached = this.getCachedValue<Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>>>(cacheKey);
+      if (cached) {
+        return { data: cached };
+      }
+
+      // Check for pending request
+      const pendingRequest = this.pendingRequests.get(cacheKey);
+      if (pendingRequest) {
+        return pendingRequest;
+      }
+
+      const request = api.get<Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>> | { data: Array<Pick<IMetric, 'id' | 'name' | 'displayName' | 'type' | 'valueType'>> }>(
+        `${API_CONFIG.API_ENDPOINTS.METRICS}/types`
+      );
+      
+      const promise = request.then((response) => {
+        // Handle both wrapped and unwrapped response formats
+        const metricTypes = Array.isArray(response.data) ? response.data : response.data?.data;
+        
+        if (!Array.isArray(metricTypes)) {
+          throw new Error('Invalid response format: expected array of metric types');
+        }
+        
+        // Update cache
+        this.metricsCache.set(cacheKey, {
+          data: metricTypes,
+          timestamp: Date.now(),
+        });
+        
+        return { data: metricTypes };
+      });
+
+      this.pendingRequests.set(cacheKey, promise);
+      return promise;
+    } catch (error) {
+      const errorMessage = 'Failed to fetch metric types';
+      showToast(errorMessage, ToastType.ERROR, ToastPosition.TOP_RIGHT);
+      return { data: null, error: errorMessage };
+    } finally {
+      this.pendingRequests.delete(cacheKey);
     }
   }
 }

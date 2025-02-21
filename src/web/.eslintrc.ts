@@ -15,7 +15,8 @@ module.exports = {
     ecmaFeatures: {
       jsx: true,
     },
-    project: './tsconfig.json',
+    project: ['./tsconfig.json'],
+    tsconfigRootDir: __dirname,
   },
   env: {
     browser: true,
@@ -28,7 +29,9 @@ module.exports = {
       version: 'detect',
     },
     'import/resolver': {
-      typescript: {},
+      typescript: {
+        project: './tsconfig.json',
+      },
     },
   },
   extends: [
@@ -41,19 +44,17 @@ module.exports = {
     'plugin:import/warnings',
     'plugin:import/typescript',
   ],
-  plugins: [
-    '@typescript-eslint',
-    'react',
-    'react-hooks',
-    'import',
-  ],
+  plugins: ['@typescript-eslint', 'react', 'react-hooks', 'import'],
   rules: {
     // TypeScript specific rules
     '@typescript-eslint/explicit-function-return-type': 'error',
     '@typescript-eslint/no-explicit-any': 'error',
-    '@typescript-eslint/no-unused-vars': ['error', {
-      argsIgnorePattern: '^_',
-    }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        argsIgnorePattern: '^_',
+      },
+    ],
     '@typescript-eslint/strict-boolean-expressions': 'error',
     '@typescript-eslint/no-floating-promises': 'error',
     '@typescript-eslint/no-misused-promises': 'error',
@@ -62,9 +63,12 @@ module.exports = {
     '@typescript-eslint/prefer-nullish-coalescing': 'error',
     '@typescript-eslint/prefer-optional-chain': 'error',
     '@typescript-eslint/no-non-null-assertion': 'error',
-    '@typescript-eslint/consistent-type-imports': ['error', {
-      prefer: 'type-imports',
-    }],
+    '@typescript-eslint/consistent-type-imports': [
+      'error',
+      {
+        prefer: 'type-imports',
+      },
+    ],
 
     // React specific rules
     'react/react-in-jsx-scope': 'off',
@@ -84,20 +88,16 @@ module.exports = {
     'react-hooks/exhaustive-deps': 'warn',
 
     // Import/Export rules
-    'import/order': ['error', {
-      groups: [
-        'builtin',
-        'external',
-        'internal',
-        'parent',
-        'sibling',
-        'index',
-      ],
-      'newlines-between': 'always',
-      alphabetize: {
-        order: 'asc',
+    'import/order': [
+      'error',
+      {
+        groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+        'newlines-between': 'always',
+        alphabetize: {
+          order: 'asc',
+        },
       },
-    }],
+    ],
     'import/no-unresolved': 'error',
     'import/no-cycle': 'error',
     'import/no-unused-modules': 'error',
@@ -108,23 +108,29 @@ module.exports = {
     'import/no-useless-path-segments': 'error',
 
     // General code style rules
-    'no-console': ['warn', {
-      allow: ['warn', 'error'],
-    }],
+    'no-console': [
+      'warn',
+      {
+        allow: ['warn', 'error'],
+      },
+    ],
     'no-debugger': 'error',
     'no-alert': 'error',
     'no-var': 'error',
     'prefer-const': 'error',
     'prefer-template': 'error',
-    'eqeqeq': ['error', 'always'],
-    'curly': ['error', 'all'],
-    'max-len': ['error', {
-      code: 100,
-      ignoreUrls: true,
-      ignoreStrings: true,
-      ignoreTemplateLiterals: true,
-      ignoreRegExpLiterals: true,
-    }],
+    eqeqeq: ['error', 'always'],
+    curly: ['error', 'all'],
+    'max-len': [
+      'error',
+      {
+        code: 100,
+        ignoreUrls: true,
+        ignoreStrings: true,
+        ignoreTemplateLiterals: true,
+        ignoreRegExpLiterals: true,
+      },
+    ],
   },
   overrides: [
     {

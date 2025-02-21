@@ -1,3 +1,5 @@
+import { DataFormat } from '../models/DataSource';
+
 /**
  * Interface defining the structure and properties of a data source entity
  * that provides benchmark metrics. This interface ensures type safety and
@@ -37,6 +39,26 @@ export interface IDataSource {
   isActive: boolean;
 
   /**
+   * Format of the data provided by the source (e.g., 'JSON', 'CSV', 'API')
+   */
+  dataFormat: DataFormat;
+
+  /**
+   * Frequency of data updates (e.g., 'daily', 'weekly', 'monthly')
+   */
+  updateFrequency: string;
+
+  /**
+   * Custom validation rules for the data source
+   */
+  validationRules: { [key: string]: any };
+
+  /**
+   * Categories of metrics this source provides
+   */
+  metricCategories: string[];
+
+  /**
    * Timestamp when the data source was created
    */
   createdAt: Date;
@@ -45,27 +67,4 @@ export interface IDataSource {
    * Timestamp when the data source was last modified
    */
   updatedAt: Date;
-
-  /**
-   * Format of the data provided by the source (e.g., 'JSON', 'CSV', 'API')
-   */
-  dataFormat: string;
-
-  /**
-   * Frequency at which the data source is updated (e.g., 'daily', 'weekly', 'monthly')
-   */
-  updateFrequency: string;
-
-  /**
-   * Object containing validation rules for the data source
-   * This can include schema validation, data type checks, and range validations
-   */
-  validationRules: {
-    [key: string]: any;
-  };
-
-  /**
-   * Array of metric categories provided by this data source
-   */
-  metricCategories: string[];
 }

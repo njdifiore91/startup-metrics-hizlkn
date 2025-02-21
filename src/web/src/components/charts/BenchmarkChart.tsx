@@ -1,10 +1,22 @@
-import React, { useEffect, useRef, useCallback, memo } from 'react';
-import { Chart, ChartData } from 'chart.js/auto'; // chart.js@4.0.0
-import debounce from 'lodash/debounce';
-
+import React, { useRef, useEffect, useMemo } from 'react';
+import {
+  Chart as ChartJS,
+  ChartOptions,
+  ChartData,
+  LinearScale,
+  CategoryScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import { IBenchmark } from '../../interfaces/IBenchmark';
-import { benchmarkChartOptions } from '../../config/chart';
-import { prepareBenchmarkData } from '../../utils/chartHelpers';
+import { formatMetricValue } from '../../utils/chartHelpers';
+import { MetricValueType } from '../../interfaces/IMetric';
+
+// Register required Chart.js components
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 /**
  * Props interface for the BenchmarkChart component with comprehensive validation
@@ -22,162 +34,198 @@ interface BenchmarkChartProps {
   ariaLabel?: string;
 }
 
+const formatValue = (value: number, valueType: MetricValueType): string => {
+  switch (valueType) {
+    case 'percentage':
+    case 'ratio':
+    case 'number':
+    case 'currency':
+      return formatMetricValue(value, valueType);
+    default:
+      return value.toString();
+  }
+};
+
 /**
  * A highly optimized and accessible benchmark comparison chart component
  * Implements WCAG 2.1 compliance and performance best practices
  * @version 1.0.0
  */
-const BenchmarkChart: React.FC<BenchmarkChartProps> = memo(({
+const BenchmarkChart: React.FC<BenchmarkChartProps> = ({
   benchmark,
   companyMetric,
   height = '400px',
-  className = '',
-  ariaLabel
+  className,
+  ariaLabel = 'Benchmark comparison chart',
 }) => {
-  // Refs for chart instance and canvas element
-  const chartRef = useRef<HTMLCanvasElement>(null);
-  const chartInstance = useRef<Chart | null>(null);
-  const resizeObserver = useRef<ResizeObserver | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const chartRef = useRef<ChartJS | null>(null);
 
-  /**
-   * Initializes the chart with accessibility features and optimized rendering
-   */
-  const initializeChart = useCallback(() => {
-    if (!chartRef.current) return;
+  const chartData: ChartData<'line'> = useMemo(
+    () => ({
+      labels: ['P10', 'P25', 'P50', 'P75', 'P90'],
+      datasets: [
+        {
+          label: 'Benchmark Values',
+          data: [benchmark.p10, benchmark.p25, benchmark.p50, benchmark.p75, benchmark.p90],
+          borderColor: 'rgb(53, 162, 235)',
+          backgroundColor: 'rgba(53, 162, 235, 0.1)',
+          fill: false,
+          tension: 0.1,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          pointBackgroundColor: 'rgb(53, 162, 235)',
+          pointBorderColor: 'rgb(255, 255, 255)',
+          pointBorderWidth: 2,
+        },
+        ...(companyMetric !== undefined
+          ? [
+              {
+                label: 'Your Company',
+                data: new Array(5).fill(companyMetric),
+                borderColor: 'rgb(255, 99, 132)',
+                borderDash: [5, 5],
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                fill: false,
+                tension: 0,
+                pointRadius: 0,
+              },
+            ]
+          : []),
+      ],
+    }),
+    [benchmark, companyMetric]
+  );
 
-    const ctx = chartRef.current.getContext('2d');
-    if (!ctx) return;
+  const options: ChartOptions<'line'> = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          labels: {
+            padding: 20,
+            usePointStyle: true,
+          },
+        },
+        tooltip: {
+          mode: 'index' as const,
+          intersect: false,
+          padding: 12,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleColor: 'white',
+          bodyColor: 'white',
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          callbacks: {
+            label: (context) => {
+              const value = context.raw as number;
+              return `${context.dataset.label}: ${formatValue(value, benchmark.metric.valueType)}`;
+            },
+            title: (tooltipItems) => {
+              return `${tooltipItems[0].label}: ${formatValue(
+                tooltipItems[0].raw as number,
+                benchmark.metric.valueType
+              )}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          display: true,
+          title: {
+            display: true,
+            text: 'Percentile',
+            padding: { top: 10 },
+            font: {
+              weight: 'bold',
+            },
+          },
+          grid: {
+            display: false,
+          },
+          ticks: {
+            font: {
+              weight: 'bold',
+            },
+          },
+        },
+        y: {
+          display: true,
+          title: {
+            display: true,
+            text: benchmark.metric.name,
+            padding: { bottom: 10 },
+            font: {
+              weight: 'bold',
+            },
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.1)',
+          },
+          ticks: {
+            callback: (value) => formatValue(value as number, benchmark.metric.valueType),
+          },
+        },
+      },
+      interaction: {
+        mode: 'nearest' as const,
+        axis: 'x' as const,
+        intersect: false,
+      },
+    }),
+    [benchmark]
+  );
 
-    // Prepare initial chart data with accessibility metadata
-    const chartData = prepareBenchmarkData(benchmark, {
-      description: ariaLabel || `Benchmark comparison chart for ${benchmark.metric.name}`
-    });
-
-    // Add company metric overlay if provided
-    if (typeof companyMetric === 'number') {
-      chartData.datasets.push({
-        label: 'Your Company',
-        data: Array(5).fill(companyMetric),
-        borderColor: '#168947',
-        backgroundColor: '#16894720',
-        borderWidth: 2,
-        borderDash: [5, 5],
-        fill: false,
-        'aria-label': `Your company's ${benchmark.metric.name} value`,
-        role: 'graphics-symbol'
-      });
-    }
-
-    // Initialize chart with accessibility and performance optimizations
-    chartInstance.current = new Chart(ctx, {
-      type: 'bar',
-      data: chartData as ChartData,
-      options: {
-        ...benchmarkChartOptions,
-        plugins: {
-          ...benchmarkChartOptions.plugins,
-          accessibility: {
-            enabled: true,
-            announceOnRender: true,
-            description: chartData.metadata.description
-          }
-        }
-      }
-    });
-  }, [benchmark, companyMetric, ariaLabel]);
-
-  /**
-   * Updates chart data with debouncing for performance
-   */
-  const updateChart = useCallback(debounce(() => {
-    if (!chartInstance.current) return;
-
-    const chartData = prepareBenchmarkData(benchmark, {
-      description: ariaLabel || `Benchmark comparison chart for ${benchmark.metric.name}`
-    });
-
-    if (typeof companyMetric === 'number') {
-      chartData.datasets.push({
-        label: 'Your Company',
-        data: Array(5).fill(companyMetric),
-        borderColor: '#168947',
-        backgroundColor: '#16894720',
-        borderWidth: 2,
-        borderDash: [5, 5],
-        fill: false,
-        'aria-label': `Your company's ${benchmark.metric.name} value`,
-        role: 'graphics-symbol'
-      });
-    }
-
-    chartInstance.current.data = chartData as ChartData;
-    chartInstance.current.update('none'); // Use 'none' mode for performance
-  }, 150), [benchmark, companyMetric, ariaLabel]);
-
-  /**
-   * Handles responsive resizing with performance optimization
-   */
-  const handleResize = useCallback(() => {
-    if (chartInstance.current) {
-      chartInstance.current.resize();
-    }
-  }, []);
-
-  // Initialize chart and setup resize observer
   useEffect(() => {
-    initializeChart();
+    if (!canvasRef.current) return;
 
-    // Setup resize observer for responsive behavior
-    resizeObserver.current = new ResizeObserver(handleResize);
-    if (chartRef.current) {
-      resizeObserver.current.observe(chartRef.current);
+    if (!chartRef.current) {
+      chartRef.current = new ChartJS(canvasRef.current, {
+        type: 'line',
+        data: chartData,
+        options,
+      });
+    } else {
+      chartRef.current.data = chartData;
+      chartRef.current.options = options;
+      chartRef.current.update();
     }
 
-    // Cleanup function
     return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-        chartInstance.current = null;
-      }
-      if (resizeObserver.current) {
-        resizeObserver.current.disconnect();
-        resizeObserver.current = null;
+      if (chartRef.current) {
+        chartRef.current.destroy();
+        chartRef.current = null;
       }
     };
-  }, [initializeChart, handleResize]);
+  }, [chartData, options]);
 
-  // Update chart when data changes
   useEffect(() => {
-    updateChart();
-  }, [benchmark, companyMetric, updateChart]);
+    const chart = chartRef.current;
+    const canvas = canvasRef.current;
+    if (!chart || !canvas) return;
 
-  // Keyboard navigation handler for accessibility
-  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      // Trigger focus on chart element
-      chartRef.current?.focus();
-    }
+    const resizeObserver = new ResizeObserver(() => {
+      chart.resize();
+    });
+
+    resizeObserver.observe(canvas);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, []);
 
   return (
-    <div 
-      className={`benchmark-chart ${className}`}
-      style={{ height, width: '100%' }}
-    >
-      <canvas
-        ref={chartRef}
-        role="img"
-        aria-label={ariaLabel || `Benchmark comparison chart for ${benchmark.metric.name}`}
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        style={{ cursor: 'pointer' }}
-      />
+    <div style={{ height }} className={className} role="region" aria-label={ariaLabel}>
+      <canvas ref={canvasRef} />
     </div>
   );
-});
+};
 
 // Display name for debugging
 BenchmarkChart.displayName = 'BenchmarkChart';
 
-export default BenchmarkChart;
+export default React.memo(BenchmarkChart);

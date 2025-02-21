@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-import { RevenueRange } from '../types/metric';
+import { RevenueRange } from '../constants/revenueRanges';
 
 /**
  * Comprehensive interface for benchmark data entities with full audit support
@@ -54,6 +54,9 @@ export interface IBenchmarkData {
 
   /** Quality score (0-1) indicating the reliability of the data */
   dataQualityScore: number;
+
+  /** Indicates if the data meets statistical significance criteria */
+  isStatisticallySignificant: boolean;
 
   /** Timestamp of when this benchmark data was created */
   createdAt: Date;

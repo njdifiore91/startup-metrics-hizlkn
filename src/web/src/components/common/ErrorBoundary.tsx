@@ -1,6 +1,6 @@
 import React from 'react'; // ^18.2.0
 import * as Sentry from '@sentry/react'; // ^7.0.0
-import { handleApiError } from '../../utils/errorHandlers';
+// import { handleApiError } from '../../utils/errorHandlers';
 import { Card } from './Card';
 
 interface ErrorBoundaryProps {
@@ -19,12 +19,12 @@ interface ErrorBoundaryState {
   lastError: Date | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.PureComponent<ErrorBoundaryProps, ErrorBoundaryState> {
   private resetTimeout: number | null = null;
 
   static defaultProps = {
     maxRetries: 3,
-    resetOnPropsChange: false
+    resetOnPropsChange: false,
   };
 
   constructor(props: ErrorBoundaryProps) {
@@ -34,7 +34,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       error: null,
       errorInfo: null,
       retryCount: 0,
-      lastError: null
+      lastError: null,
     };
   }
 
@@ -42,31 +42,31 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return {
       hasError: true,
       error,
-      lastError: new Date()
+      lastError: new Date(),
     };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Track error with Sentry
-    Sentry.withScope((scope) => {
+    Sentry.withScope((scope: any) => {
       scope.setExtras({
         errorInfo,
         retryCount: this.state.retryCount,
-        lastError: this.state.lastError
+        lastError: this.state.lastError,
       });
       Sentry.captureException(error);
     });
 
     // Format error for consistent handling
-    const formattedError = handleApiError(error as any, {
-      showToast: false,
-      logError: true
-    });
+    // const formattedError = handleApiError(error as any, {
+    //   showToast: false,
+    //   logError: true,
+    // });
 
     // Update state with error details
     this.setState({
       errorInfo,
-      retryCount: this.state.retryCount + 1
+      retryCount: this.state.retryCount + 1,
     });
 
     // Call onError prop if provided
@@ -109,7 +109,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       hasError: false,
       error: null,
       errorInfo: null,
-      retryCount: this.state.retryCount >= (this.props.maxRetries || 3) ? 0 : this.state.retryCount
+      retryCount: this.state.retryCount >= (this.props.maxRetries || 3) ? 0 : this.state.retryCount,
     });
   };
 
@@ -133,13 +133,14 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         testId="error-boundary-fallback"
       >
         <div style={styles.errorContainer}>
-          <h2 style={styles.errorHeading}>
-            Something went wrong
-          </h2>
+          <h2 style={styles.errorHeading}>Something went wrong</h2>
           <p style={styles.errorMessage}>
             {error?.message || 'An unexpected error occurred'}
-            {process.env.NODE_ENV === 'development' && (
-              <span> (Retry attempt {retryCount} of {maxRetries})</span>
+            {import.meta.env.NODE_ENV === 'development' && (
+              <span>
+                {' '}
+                (Retry attempt {retryCount} of {maxRetries})
+              </span>
             )}
           </p>
           {retryCount < (maxRetries || 3) && (
@@ -163,20 +164,20 @@ const styles = {
     textAlign: 'center' as const,
     color: '#0D3330',
     role: 'alert',
-    ariaLive: 'polite'
+    ariaLive: 'polite',
   },
   errorHeading: {
     fontSize: '20px',
     marginBottom: '8px',
     fontFamily: 'Inter, sans-serif',
     fontWeight: 'bold',
-    color: '#151e2d'
+    color: '#151e2d',
   },
   errorMessage: {
     fontSize: '14px',
     marginBottom: '16px',
     fontFamily: 'Inter, sans-serif',
-    color: '#46608C'
+    color: '#46608C',
   },
   retryButton: {
     backgroundColor: '#168947',
@@ -189,13 +190,14 @@ const styles = {
     fontWeight: '500',
     transition: 'background-color 0.2s ease',
     ':hover': {
-      backgroundColor: '#0D6635'
+      backgroundColor: '#0D6635',
     },
     ':focus': {
       outline: '2px solid #46608C',
-      outlineOffset: '2px'
-    }
-  }
+      outlineOffset: '2px',
+    },
+  },
 };
 
+export { ErrorBoundary };
 export default ErrorBoundary;

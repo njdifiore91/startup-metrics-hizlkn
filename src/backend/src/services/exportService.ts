@@ -101,7 +101,7 @@ export class ExportService {
           contentAccessibility: true,
           documentAssembly: false
         }
-      });
+        });
 
       // Add header with branding and metadata
       this.addReportHeader(doc, userId);
